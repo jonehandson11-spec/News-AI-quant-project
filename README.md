@@ -20,15 +20,17 @@
 
 ## FT 登录与长期运行
 
+**2026-09-27 接入状态：** 已保存并上传 10 篇 FT 正文，共享库现有 191 篇。[首次云端试采](https://github.com/jonehandson11-spec/News-AI-quant-project/actions/runs/36325951447) 中，BBC 和新浪均成功，FT 正文请求返回 HTTP 403（`access_denied`）。同一文章在本机使用现有会话可正常读取，因此不能判定为 Cookie 过期，GitHub 云端持续采集尚未验证成功。原因仍需确认；不会重试绕过网站限制。此前保存的 FT 数据会继续保留。
+
 FT 作为第三来源读取 13 个新闻分类 RSS，并逐篇核对网页的原始发布时间和可见正文。日常每轮 FT 最多新增 100 篇，优先处理这一有上限的来源，避免新浪批次先耗尽剩余名额。旧的 FT 数据库不自动导入：其中文章超出本项目的初始时间窗口，且有订阅宣传残文。
 
 FT 需要有效且具有文章访问权限的登录会话。凭据放在 [Settings → Secrets and variables → Actions](https://github.com/jonehandson11-spec/News-AI-quant-project/settings/secrets/actions) 的仓库 Secret **FT_COOKIE** 中，只注入采集步骤。不要把 Cookie、账号密码、浏览器状态文件或带凭据的日志提交到仓库。
 
 采集器以 CookieJar 保留跳转中的登录状态，并接受当轮服务器的 Cookie 更新；不把 Cookie 写入数据库、工件或日志。GitHub 每轮是新运行环境，不能保证会话永久有效。会话过期、退出登录、订阅权限变化或访问受限时，FT 停止当轮请求，BBC 与新浪仍可继续，成功取得的文章照常保存。
 
-FT 当前结果、最近尝试时间、最近成功新增时间和是否需要处理，见 [data/source_reports/ft.json](data/source_reports/ft.json)。`auth_expired` 表示会话过期/HTTP 401；`auth_required` 表示缺少登录凭据或跳转到登录；`login_or_subscription_required` 表示返回登录/订阅提示，不能仅凭这一项断定会话过期；`access_denied`、`rate_limited` 和网络错误分别记录。
+最近写入共享库的 FT 结果、最近尝试时间、最近成功新增时间和是否需要处理，见 [data/source_reports/ft.json](data/source_reports/ft.json)。手动 `probe` 不修改该文件，须同时检查 Actions 中较新的试采结果；旧的本地成功不能证明云端可用。`auth_expired` 表示会话过期/HTTP 401；`auth_required` 表示缺少登录凭据或跳转到登录；`login_or_subscription_required` 表示返回登录/订阅提示，不能仅凭这一项断定会话过期；`access_denied`、`rate_limited` 和网络错误分别记录。
 
-需要恢复时，在浏览器正常登录 FT 并确认目标文章可读，更新 **FT_COOKIE** Secret，然后手动运行 **ft**。无需清空已有数据。仅正常完成且新增正文的时间才记为最近成功时间；没有新文章不等于验证了登录有效。
+登录或订阅验证失败时，在浏览器正常登录 FT 并确认目标文章可读，更新 **FT_COOKIE** Secret，然后手动运行 **ft**。对于 HTTP 403，应先确认 FT 允许所使用的云端环境访问；更新 Cookie 不一定能解决。无需清空已有数据。仅正常完成且新增正文的时间才记为最近成功时间；没有新文章不等于验证了登录有效。
 
 ## 下载和在 DBeaver 中打开
 
@@ -77,7 +79,7 @@ GitHub 保存的是**版本化文件快照**，不是可让多台电脑直接连
 | `article_id` | 规范化 URL 的 SHA-256 前 32 位，作为稳定标识 |
 | `source` | `BBC News`、`新浪财经` 或 `Financial Times` |
 | `title` | 原语言新闻标题 |
-| `content` | 解析到的公开文章正文，保留原语言与段落 |
+| `content` | 解析到的文章正文（FT 使用获授权账户读取），保留原语言与段落 |
 | `publish_time` | 原始发布时间，ISO 8601，带 `+08:00` 时区偏移 |
 | `crawl_time` | 获取正文时间，ISO 8601，带 `+08:00` 时区偏移 |
 | `url` | 原文链接；去除查询参数和片段后的规范化 URL |
