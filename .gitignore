@@ -246,3 +246,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Private FT credentials and browser state must never be shared.
+cookie.txt
+cookie.bmp
+ft_cookie*
+*cookie-jar*
+*storage-state*

@@ -58,7 +58,8 @@ class ValidateCumulativeTests(unittest.TestCase):
         (self.root / relative).write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def save(self):
-        paths = ["data/news.sqlite3", "data/news.csv", "data/source_reports/bbc.json", "data/source_reports/sina.json", "schema.sql"]
+        paths = ["data/news.sqlite3", "data/news.csv", "schema.sql"]
+        paths.extend(detail["report"] for detail in self.manifest["sources"].values())
         if (self.root / "data/progress.json").exists():
             paths.append("data/progress.json")
         self.manifest["artifacts"] = [{"path": path, "bytes": (self.root / path).stat().st_size,
@@ -66,17 +67,51 @@ class ValidateCumulativeTests(unittest.TestCase):
         self.write_json("data/manifest.json", self.manifest)
 
     def cumulative(self, target=3000):
+        total = self.manifest["total_articles"]
         self.manifest.update({"format_version": 2, "collection_mode": "cumulative", "seed_window": dict(self.window),
-                              "daily_lookback_hours": 48, "target_articles": target, "target_reached": target == 2,
-                              "automatic_refresh": target != 2, "remaining_articles": target - 2, "latest_run": None})
+                              "daily_lookback_hours": 48, "target_articles": target, "target_reached": target == total,
+                              "automatic_refresh": target != total, "remaining_articles": target - total, "latest_run": None})
         self.manifest["publication_window"]["end"] = "2026-09-28T20:00:00+08:00"
         self.manifest["window_hours"] = 72
         with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db, db:
             db.execute("UPDATE collection_info SET value=? WHERE key='requested_end'", (self.manifest["publication_window"]["end"],))
-        self.write_json("data/progress.json", {"target_articles": target, "total_articles": 2, "remaining_articles": target - 2, "completed": target == 2})
+        self.write_json("data/progress.json", {"target_articles": target, "total_articles": total, "remaining_articles": target - total, "completed": target == total})
+        self.save()
+
+    def add_ft(self, *, empty=False, url="https://www.ft.com/content/12345678-abcd-4567-89ab-0123456789ab"):
+        source = "Financial Times"
+        published = None if empty else "2026-09-26T20:00:00+08:00"
+        report_path = "data/source_reports/ft.json"
+        self.manifest["sources"][source] = {"article_count": 0 if empty else 1,
+                                            "earliest_publish_time": published,
+                                            "latest_publish_time": published, "report": report_path}
+        self.write_json(report_path, {"source": source, "saved_full_text_articles": 0 if empty else 1,
+                                      "health": {"status": "auth_required" if empty else "healthy",
+                                                 "needs_attention": empty}})
+        with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db, db:
+            db.execute("CREATE VIEW IF NOT EXISTS ft_news AS SELECT * FROM news WHERE source='Financial Times'")
+            if not empty:
+                row = dict(zip(FIELDS, (hashlib.sha256(url.encode()).hexdigest()[:32], source,
+                                       "News about cookies and passwords", "The report discusses the word authorization.",
+                                       published, "2026-09-27T20:00:00+08:00", url, "en")))
+                self.rows.append(row)
+                db.execute("INSERT INTO news VALUES (?, ?, ?, ?, ?, ?, ?, ?)", tuple(row[field] for field in FIELDS))
+            stored = json.loads(db.execute("SELECT value FROM collection_info WHERE key='source_reports'").fetchone()[0])
+            stored[source] = {"report_path": report_path}
+            db.execute("UPDATE collection_info SET value=? WHERE key='source_reports'", (json.dumps(stored),))
+            db.execute("UPDATE collection_info SET value=? WHERE key='total_articles'", (str(len(self.rows)),))
+        self.rows.sort(key=lambda row: row["url"])
+        with (self.root / "data/news.csv").open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=FIELDS)
+            writer.writeheader()
+            writer.writerows(self.rows)
+        self.manifest["total_articles"] = len(self.rows)
         self.save()
 
     def test_original_snapshot_still_validates_read_only(self):
+        with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db, db:
+            db.execute("DROP VIEW IF EXISTS ft_news")
+        self.save()
         before = (self.root / "data/news.sqlite3").read_bytes()
         self.assertEqual(validate(self.root)["total_articles"], 2)
         self.assertEqual((self.root / "data/news.sqlite3").read_bytes(), before)
@@ -122,6 +157,84 @@ class ValidateCumulativeTests(unittest.TestCase):
         self.manifest["latest_run"]["inserted"] = 2
         self.save()
         with self.assertRaisesRegex(ValueError, "Latest run counts"):
+            validate(self.root)
+
+    def test_three_source_cumulative_database(self):
+        self.add_ft()
+        self.cumulative()
+        result = validate(self.root)
+        self.assertEqual(result["total_articles"], 3)
+        self.assertEqual(result["source_counts"], {"BBC News": 1, "新浪财经": 1, "Financial Times": 1})
+
+    def test_enabled_ft_source_may_be_empty(self):
+        self.add_ft(empty=True)
+        self.cumulative()
+        result = validate(self.root)
+        self.assertEqual(result["total_articles"], 2)
+        self.assertEqual(result["source_counts"]["Financial Times"], 0)
+
+    def test_empty_ft_requires_null_dates(self):
+        self.add_ft(empty=True)
+        self.manifest["sources"]["Financial Times"]["earliest_publish_time"] = self.window["start"]
+        self.save()
+        with self.assertRaisesRegex(ValueError, "Empty source"):
+            validate(self.root)
+
+    def test_empty_ft_report_must_match_zero_count(self):
+        self.add_ft(empty=True)
+        self.write_json("data/source_reports/ft.json", {"source": "Financial Times", "saved_full_text_articles": 1})
+        self.save()
+        with self.assertRaisesRegex(ValueError, "Source report count"):
+            validate(self.root)
+
+    def test_ft_cannot_use_another_sources_domain(self):
+        self.add_ft(url="https://www.bbc.com/content/12345678-abcd-4567-89ab-0123456789ab")
+        with self.assertRaisesRegex(ValueError, "outside the article source"):
+            validate(self.root)
+
+    def test_ft_requires_content_article_path(self):
+        self.add_ft(url="https://www.ft.com/subscription")
+        with self.assertRaisesRegex(ValueError, "Invalid FT content URL"):
+            validate(self.root)
+
+    def test_ft_view_required_only_when_configured(self):
+        self.add_ft(empty=True)
+        with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db, db:
+            db.execute("DROP VIEW ft_news")
+        self.save()
+        with self.assertRaisesRegex(ValueError, "Missing ft_news"):
+            validate(self.root)
+
+    def test_ft_view_count_must_match(self):
+        self.add_ft(empty=True)
+        with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db, db:
+            db.execute("DROP VIEW ft_news")
+            db.execute("CREATE VIEW ft_news AS SELECT * FROM news WHERE source='BBC News'")
+        self.save()
+        with self.assertRaisesRegex(ValueError, "ft_news count"):
+            validate(self.root)
+
+    def test_unknown_manifest_source_rejected_even_when_empty(self):
+        self.add_ft(empty=True)
+        self.manifest["sources"]["Unknown publisher"] = self.manifest["sources"].pop("Financial Times")
+        self.save()
+        with self.assertRaisesRegex(ValueError, "Unknown configured source"):
+            validate(self.root)
+
+    def test_unconfigured_article_source_rejected(self):
+        self.add_ft()
+        del self.manifest["sources"]["Financial Times"]
+        self.save()
+        with self.assertRaisesRegex(ValueError, "unconfigured article source"):
+            validate(self.root)
+
+    def test_credentials_rejected_in_metadata_but_words_allowed_in_news(self):
+        self.add_ft()
+        self.assertEqual(validate(self.root)["status"], "ok")
+        self.write_json("data/source_reports/ft.json", {"source": "Financial Times", "saved_full_text_articles": 1,
+                                                       "health": {"cookie": "dummy-secret"}})
+        self.save()
+        with self.assertRaisesRegex(ValueError, "Credential value"):
             validate(self.root)
 
 

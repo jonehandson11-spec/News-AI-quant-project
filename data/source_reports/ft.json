@@ -1,0 +1,35 @@
+{
+  "source": "Financial Times",
+  "saved_full_text_articles": 10,
+  "collection_mode": "cumulative",
+  "publication_window": {
+    "start": "2026-09-25T21:07:26+08:00",
+    "end": "2026-09-27T22:20:35+08:00",
+    "inclusive": true
+  },
+  "latest_run": {
+    "status": "complete",
+    "counts": {
+      "discovered": 205,
+      "known": 0,
+      "skipped": 0,
+      "outside_window": 0,
+      "success": 10,
+      "failed": 0,
+      "deferred": 0,
+      "inserted": 10
+    },
+    "errors": [],
+    "source": "Financial Times",
+    "stopped": false,
+    "publication_basis": "article original publication time",
+    "credential_storage": "environment; memory only"
+  },
+  "health": {
+    "status": "complete",
+    "last_attempt_at": "2026-09-27T22:20:35+08:00",
+    "last_success_at": "2026-09-27T22:20:35+08:00",
+    "needs_attention": false,
+    "last_reason": null
+  }
+}

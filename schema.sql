@@ -23,6 +23,8 @@ CREATE VIEW raw_news AS SELECT * FROM news;
 
 CREATE VIEW sina_news AS SELECT * FROM news WHERE source='新浪财经';
 
+CREATE VIEW ft_news AS SELECT * FROM news WHERE source='Financial Times';
+
 CREATE VIEW source_summary AS SELECT source, count(*) AS article_count,
                 min(publish_time) AS earliest_publish_time, max(publish_time) AS latest_publish_time
                 FROM news GROUP BY source;

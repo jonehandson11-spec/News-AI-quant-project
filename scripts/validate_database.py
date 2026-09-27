@@ -16,6 +16,14 @@ from urllib.parse import urlsplit, urlunsplit
 
 FIELDS = ("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language")
 LOCAL_PATH = re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\|/(?:Users|home)/)")
+SOURCE_DOMAINS = {
+    "BBC News": ("bbc.com", "bbc.co.uk"),
+    "新浪财经": ("sina.com.cn", "sina.cn"),
+    "Financial Times": ("www.ft.com",),
+}
+FT_CONTENT_PATH = re.compile(r"/content/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.IGNORECASE)
+SECRET_FIELDS = {"cookie", "cookies", "cookie_header", "authorization", "password",
+                 "access_token", "refresh_token", "session_token", "credentials", "ft_cookie", "ft_cookies"}
 
 
 def require(condition: bool, message: str) -> None:
@@ -27,6 +35,18 @@ def timestamp(value: str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     require(parsed.tzinfo is not None, f"Timezone missing: {value!r}")
     return parsed
+
+
+def check_metadata(value) -> None:
+    """Reject credential fields without searching article text for ordinary words."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            require(str(key).lower().replace("-", "_") not in SECRET_FIELDS or not item,
+                    "Credential value found in metadata")
+            check_metadata(item)
+    elif isinstance(value, list):
+        for item in value:
+            check_metadata(item)
 
 
 def file_in_root(root: Path, relative: str) -> Path:
@@ -42,7 +62,10 @@ def validate(root: Path) -> dict:
     manifest_text = manifest_path.read_text(encoding="utf-8")
     require(not LOCAL_PATH.search(manifest_text), "Local absolute path found in manifest")
     manifest = json.loads(manifest_text)
+    check_metadata(manifest)
     require(manifest["format_version"] in (1, 2), "Unsupported manifest format")
+    require(isinstance(manifest["sources"], dict) and bool(manifest["sources"]), "No configured sources")
+    require(set(manifest["sources"]) <= SOURCE_DOMAINS.keys(), "Unknown configured source")
     for artifact in manifest["artifacts"]:
         path = file_in_root(root, artifact["path"])
         require(path.stat().st_size == artifact["bytes"], f"Size mismatch: {artifact['path']}")
@@ -78,6 +101,7 @@ def validate(root: Path) -> dict:
         require(required_artifacts <= {artifact["path"] for artifact in manifest["artifacts"]},
                 "Cumulative artifacts are not all hashed")
         progress = json.loads(file_in_root(root, "data/progress.json").read_text(encoding="utf-8"))
+        check_metadata(progress)
         for field, expected in (("target_articles", target), ("total_articles", total), ("remaining_articles", target - total)):
             require(type(progress[field]) is int and progress[field] == expected,
                     f"Progress {field} differs from manifest")
@@ -103,8 +127,11 @@ def validate(root: Path) -> dict:
         require(len(rows) == manifest["total_articles"], "Article count differs from manifest")
         require(len({row["url"] for row in rows}) == len(rows), "Duplicate URLs")
         require(len({row["article_id"] for row in rows}) == len(rows), "Duplicate article identifiers")
-        counts = dict(Counter(row["source"] for row in rows))
+        actual_counts = dict(Counter(row["source"] for row in rows))
         expected_counts = {source: detail["article_count"] for source, detail in manifest["sources"].items()}
+        require(set(actual_counts) <= expected_counts.keys(), "Unknown or unconfigured article source")
+        require(all(type(count) is int and count >= 0 for count in expected_counts.values()), "Invalid source article count")
+        counts = {source: actual_counts.get(source, 0) for source in expected_counts}
         require(counts == expected_counts, "Source counts differ from manifest")
         for row in rows:
             require(all(isinstance(row[field], str) and row[field].strip() for field in FIELDS),
@@ -113,6 +140,13 @@ def validate(root: Path) -> dict:
             parts = urlsplit(row["url"])
             require(parts.scheme == "https" and bool(parts.hostname) and not parts.username and not parts.password,
                     f"Invalid URL: {row['url']}")
+            domains = SOURCE_DOMAINS[row["source"]]
+            host = parts.hostname.lower()
+            allowed_host = host == "www.ft.com" if row["source"] == "Financial Times" else any(
+                host == domain or host.endswith("." + domain) for domain in domains)
+            require(allowed_host and parts.port is None, f"URL is outside the article source: {row['url']}")
+            if row["source"] == "Financial Times":
+                require(FT_CONTENT_PATH.fullmatch(parts.path) is not None, f"Invalid FT content URL: {row['url']}")
             canonical = urlunsplit(("https", parts.netloc.lower(), parts.path, "", ""))
             require(canonical == row["url"], f"Noncanonical URL: {row['url']}")
             require(row["article_id"] == hashlib.sha256(row["url"].encode("utf-8")).hexdigest()[:32], "Article identifier mismatch")
@@ -121,23 +155,33 @@ def validate(root: Path) -> dict:
             require(published.utcoffset() == timedelta(hours=8) and crawled.utcoffset() == timedelta(hours=8), "Unexpected time zone")
             require(crawled >= published, f"Crawl precedes publication: {row['url']}")
         info = dict(db.execute("SELECT key, value FROM collection_info"))
+        check_metadata(info)
         require(not any(LOCAL_PATH.search(value) for value in info.values()), "Local absolute path in collection_info")
         require(timestamp(info["requested_start"]) == start and timestamp(info["requested_end"]) == end, "Stored window differs from manifest")
         require(int(info["total_articles"]) == len(rows), "Stored article count differs")
         stored_reports = json.loads(info["source_reports"])
+        check_metadata(stored_reports)
         for source, detail in manifest["sources"].items():
             report_path = file_in_root(root, detail["report"])
             require(stored_reports[source]["report_path"] == detail["report"], "Source report path mismatch")
             report = json.loads(report_path.read_text(encoding="utf-8"))
+            check_metadata(report)
             require(report["source"] == source and report["saved_full_text_articles"] == counts[source], "Source report count mismatch")
             source_rows = [row for row in rows if row["source"] == source]
-            earliest = min(timestamp(row["publish_time"]) for row in source_rows)
-            latest = max(timestamp(row["publish_time"]) for row in source_rows)
-            require(earliest == timestamp(detail["earliest_publish_time"]) and latest == timestamp(detail["latest_publish_time"]), "Source time range mismatch")
+            if source_rows:
+                earliest = min(timestamp(row["publish_time"]) for row in source_rows)
+                latest = max(timestamp(row["publish_time"]) for row in source_rows)
+                require(earliest == timestamp(detail["earliest_publish_time"]) and latest == timestamp(detail["latest_publish_time"]), "Source time range mismatch")
+            else:
+                require(detail["earliest_publish_time"] is None and detail["latest_publish_time"] is None,
+                        "Empty source must have null publication range")
         summaries = {row["source"]: row["article_count"] for row in db.execute("SELECT * FROM source_summary")}
-        require(summaries == counts, "source_summary view mismatch")
-        for view, source in (("bbc_news", "BBC News"), ("sina_news", "新浪财经")):
-            require(db.execute(f"SELECT count(*) FROM {view}").fetchone()[0] == counts[source], f"{view} count mismatch")
+        require(summaries == {source: count for source, count in counts.items() if count}, "source_summary view mismatch")
+        views = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='view'")}
+        for view, source in (("bbc_news", "BBC News"), ("sina_news", "新浪财经"), ("ft_news", "Financial Times")):
+            if source in counts:
+                require(view in views, f"Missing {view} view")
+                require(db.execute(f"SELECT count(*) FROM {view}").fetchone()[0] == counts[source], f"{view} count mismatch")
         require(db.execute("SELECT count(*) FROM raw_news").fetchone()[0] == len(rows), "raw_news count mismatch")
 
     require(csv_path.read_bytes().startswith(b"\xef\xbb\xbf"), "CSV requires UTF-8 BOM")

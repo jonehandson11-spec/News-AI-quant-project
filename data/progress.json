@@ -1,13 +1,61 @@
 {
   "target_articles": 3000,
-  "total_articles": 181,
-  "remaining_articles": 2819,
+  "total_articles": 191,
+  "remaining_articles": 2809,
   "completed": false,
   "schedule": {
     "timezone": "Asia/Shanghai",
     "local_time": "20:00",
     "cron_utc": "0 12 * * *"
   },
-  "latest_run": null,
+  "latest_run": {
+    "started_at": "2026-09-27T22:20:35+08:00",
+    "start": "2026-09-25T22:20:35+08:00",
+    "end": "2026-09-27T22:20:35+08:00",
+    "sources": {
+      "Financial Times": {
+        "status": "complete",
+        "counts": {
+          "discovered": 205,
+          "known": 0,
+          "skipped": 0,
+          "outside_window": 0,
+          "success": 10,
+          "failed": 0,
+          "deferred": 0,
+          "inserted": 10
+        },
+        "errors": [],
+        "source": "Financial Times",
+        "stopped": false,
+        "publication_basis": "article original publication time",
+        "credential_storage": "environment; memory only"
+      },
+      "BBC News": {
+        "status": "not_needed",
+        "counts": {
+          "inserted": 0
+        },
+        "reason": "Source not selected for this run"
+      },
+      "新浪财经": {
+        "status": "not_needed",
+        "counts": {
+          "inserted": 0
+        },
+        "reason": "Source not selected for this run"
+      }
+    },
+    "scope": "selected",
+    "selected_sources": [
+      "Financial Times"
+    ],
+    "before": 181,
+    "after": 191,
+    "inserted": 10,
+    "status": "success",
+    "target_reached": false,
+    "finished_at": "2026-09-27T22:21:15+08:00"
+  },
   "next_scheduled_at": "2026-09-28T20:00:00+08:00"
 }

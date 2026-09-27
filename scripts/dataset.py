@@ -11,7 +11,8 @@ import sqlite3
 
 BEIJING = timezone(timedelta(hours=8))
 FIELDS = ("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language")
-SOURCES = {"BBC News": "bbc", "新浪财经": "sina"}
+# Run the capped FT source first so a large Sina batch cannot consume its slots.
+SOURCES = {"Financial Times": "ft", "BBC News": "bbc", "新浪财经": "sina"}
 
 
 def read_json(path: Path):
@@ -56,23 +57,40 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
         total = len(rows)
         if total > target:
             raise ValueError("Database already exceeds the configured target; no rows will be removed")
+        db.execute("CREATE VIEW IF NOT EXISTS ft_news AS SELECT * FROM news WHERE source='Financial Times'")
         for source, slug in SOURCES.items():
             source_rows = [row for row in rows if row["source"] == source]
-            detail = manifest["sources"][source]
+            detail = manifest["sources"].setdefault(source, {"report": f"data/source_reports/{slug}.json"})
             detail.update(article_count=len(source_rows),
                           earliest_publish_time=min((row["publish_time"] for row in source_rows), default=None),
                           latest_publish_time=max((row["publish_time"] for row in source_rows), default=None))
             report_path = root / detail["report"]
-            report = read_json(report_path)
+            report = read_json(report_path) if report_path.exists() else {"source": source}
             report["saved_full_text_articles"] = len(source_rows)
             report["collection_mode"] = "cumulative"
             report["publication_window"] = window
             if run and source in run.get("sources", {}):
                 report["latest_run"] = run["sources"][source]
+                latest = report["latest_run"]
+                if latest["status"] != "not_needed":
+                    previous_health = report.get("health", {})
+                    report["health"] = {
+                        "status": latest["status"],
+                        "last_attempt_at": run["started_at"],
+                        "last_success_at": run["started_at"] if latest.get("counts", {}).get("inserted", 0) > 0 else previous_health.get("last_success_at"),
+                        "needs_attention": latest["status"] in {"failed", "partial"},
+                        "last_reason": latest.get("reason"),
+                    }
             write_json(report_path, report)
             reports[source] = dict(report, report_path=detail["report"])
 
         latest_run = run if run is not None else manifest.get("latest_run")
+        last_full_run_at = manifest.get("last_full_run_at")
+        previous_run = manifest.get("latest_run")
+        if not last_full_run_at and previous_run and previous_run.get("scope", "all") == "all":
+            last_full_run_at = previous_run["started_at"]
+        if run and run.get("scope", "all") == "all":
+            last_full_run_at = run["started_at"]
         completed = total >= target
         progress = {
             "target_articles": target, "total_articles": total,
@@ -87,7 +105,7 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
             "total_articles": total, "source_reports": reports, "summary": summary,
             "source_counts": {source: {"total_articles": reports[source]["saved_full_text_articles"]} for source in SOURCES},
             "filters": "Cumulative unique URLs; original page publication time; new daily articles must fall within the configured lookback window",
-            "updated_at": iso(now), "latest_run": latest_run,
+            "updated_at": iso(now), "latest_run": latest_run, "last_full_run_at": last_full_run_at,
         }
         db.executemany("INSERT OR REPLACE INTO collection_info(key,value) VALUES (?,?)", [
             (key, value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
@@ -110,13 +128,14 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
         target_reached=completed, remaining_articles=max(0, target - total),
         automatic_refresh=not completed, total_articles=total,
         schedule=config["schedule"], latest_run=latest_run,
+        last_full_run_at=last_full_run_at,
         package_created_at=now.isoformat(),
-        title="BBC + Sina Finance cumulative news database",
+        title="BBC + Sina Finance + Financial Times cumulative news database",
         filters=updates["filters"],
-        coverage_limit="Cumulative BBC World RSS and Sina Finance roll-feed articles; each daily run discovers recent articles, not a complete archive",
+        coverage_limit="Cumulative BBC World RSS, Sina Finance roll-feed, and Financial Times RSS articles; each daily run discovers recent articles, not a complete archive",
     )
-    artifact_paths = ["data/news.sqlite3", "data/news.csv", "data/source_reports/bbc.json",
-                      "data/source_reports/sina.json", "data/progress.json", "schema.sql"]
+    artifact_paths = ["data/news.sqlite3", "data/news.csv", "data/progress.json", "schema.sql"]
+    artifact_paths.extend(detail["report"] for detail in manifest["sources"].values())
     manifest["artifacts"] = [
         {"path": relative, "bytes": (root / relative).stat().st_size,
          "sha256": hashlib.sha256((root / relative).read_bytes()).hexdigest()}

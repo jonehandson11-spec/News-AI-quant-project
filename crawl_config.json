@@ -1,6 +1,7 @@
 {
   "target_articles": 3000,
   "daily_lookback_hours": 48,
+  "source_max_new": {"Financial Times": 100},
   "schedule": {
     "timezone": "Asia/Shanghai",
     "local_time": "20:00",
