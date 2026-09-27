@@ -1,16 +1,16 @@
 {
-  "format_version": 1,
-  "title": "BBC + 新浪财经新闻共享快照",
+  "format_version": 2,
+  "title": "BBC + Sina Finance cumulative news database",
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-09-27T13:31:11+00:00",
+  "package_created_at": "2026-09-27T13:45:24+00:00",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
     "end": "2026-09-27T21:07:26+08:00",
     "inclusive": true
   },
-  "window_hours": 48,
+  "window_hours": 48.0,
   "time_zone": "UTC+08:00 (Beijing)",
   "total_articles": 181,
   "fields": [
@@ -42,14 +42,14 @@
       "report": "data/source_reports/sina.json"
     }
   },
-  "coverage_limit": "Fixed snapshot from BBC World RSS and Sina Finance roll feed; not a complete archive of either website.",
-  "filters": "Inclusive original publication time; URLs unique; nonempty full text required upstream",
-  "automatic_refresh": false,
+  "coverage_limit": "Cumulative BBC World RSS and Sina Finance roll-feed articles; each daily run discovers recent articles, not a complete archive",
+  "filters": "Cumulative unique URLs; original page publication time; new daily articles must fall within the configured lookback window",
+  "automatic_refresh": true,
   "artifacts": [
     {
       "path": "data/news.sqlite3",
       "bytes": 634880,
-      "sha256": "b90a445bbb86c8ec550258a76e682e947f529b3076c185007ab913af7db74180"
+      "sha256": "0a1058fd352366c1ea184e4ee049d3548039dee1bda6455cf18116916cbba4ea"
     },
     {
       "path": "data/news.csv",
@@ -58,18 +58,39 @@
     },
     {
       "path": "data/source_reports/bbc.json",
-      "bytes": 464,
-      "sha256": "a9f114fa8a6b382a698918a292c1cd52d9d74a7817f94fa34cd0fae1488f8ab2"
+      "bytes": 640,
+      "sha256": "8cd0418b326ecc8b7fb22e74c90852e1d5158bd5b769d46ceeb3e3bc4e8f80dd"
     },
     {
       "path": "data/source_reports/sina.json",
-      "bytes": 508,
-      "sha256": "b26ff91bbfe27a85825b9f56e7d505c6e14c3daea37367b89c91bbccf4f6cacf"
+      "bytes": 684,
+      "sha256": "b14c130f73954171203e407bdcad2bf30dd4436ca46ebdb20627fd71208160b4"
+    },
+    {
+      "path": "data/progress.json",
+      "bytes": 304,
+      "sha256": "71a45b7fe4b1e4fc791ae12141d36aa3159f41b845211960e219a075a91c1f73"
     },
     {
       "path": "schema.sql",
       "bytes": 1043,
       "sha256": "fc59e3fd126ec8bc9d133845c106f65dd96505e3d7505aa8cbee763c846a9844"
     }
-  ]
+  ],
+  "collection_mode": "cumulative",
+  "seed_window": {
+    "start": "2026-09-25T21:07:26+08:00",
+    "end": "2026-09-27T21:07:26+08:00",
+    "inclusive": true
+  },
+  "daily_lookback_hours": 48,
+  "target_articles": 3000,
+  "target_reached": false,
+  "remaining_articles": 2819,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "local_time": "20:00",
+    "cron_utc": "0 12 * * *"
+  },
+  "latest_run": null
 }

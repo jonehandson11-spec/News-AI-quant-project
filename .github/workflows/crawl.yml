@@ -1,0 +1,101 @@
+name: Daily news crawl (20:00 Beijing)
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'probe = test both sources without saving; crawl = collect and save now'
+        type: choice
+        options: [probe, crawl]
+        default: probe
+
+concurrency:
+  group: news-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out the latest data
+        uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Validate the existing database
+        run: python3 scripts/validate_database.py
+      - name: Check the target
+        id: target
+        run: |
+          python3 - <<'PY'
+          import json, os, sqlite3
+          target = json.load(open('crawl_config.json'))['target_articles']
+          with sqlite3.connect('data/news.sqlite3') as db:
+              count = db.execute('SELECT count(*) FROM news').fetchone()[0]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'needed={str(count < target).lower()}', file=output)
+          print(f'Current articles: {count}; target: {target}')
+          PY
+      - name: Install crawler dependencies
+        if: steps.target.outputs.needed == 'true'
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Collect recent articles
+        if: steps.target.outputs.needed == 'true'
+        env:
+          RUN_MODE: ${{ inputs.mode }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          args=()
+          if [ "$RUN_MODE" = "probe" ]; then
+            args+=(--probe)
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            args+=(--force)
+          fi
+          .venv/bin/python scripts/crawl_daily.py "${args[@]}" --result-file "$RUNNER_TEMP/crawl_result.json"
+      - name: Validate the resulting database, CSV, and metadata
+        run: python3 scripts/validate_database.py
+      - name: Save the updated shared data
+        if: steps.target.outputs.needed == 'true' && inputs.mode != 'probe'
+        run: |
+          if ! git diff --quiet -- data; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add data/
+            git commit -m 'data: update cumulative news collection'
+            git push origin HEAD:main
+          fi
+      - name: Report progress and source failures
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          progress = json.load(open('data/progress.json'))
+          result_path = Path(os.environ['RUNNER_TEMP']) / 'crawl_result.json'
+          result = json.loads(result_path.read_text()) if result_path.exists() else {}
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              print(f"Articles: **{progress['total_articles']} / {progress['target_articles']}**", file=summary)
+              print(f"Remaining: {progress['remaining_articles']}. Schedule: daily 20:00 Asia/Shanghai.", file=summary)
+              if result:
+                  print(f"Run: {result.get('status')}; new articles: {result.get('inserted', 0)}; probe: {result.get('probe', False)}.", file=summary)
+              if progress['completed']:
+                  print('Target reached. Future runs skip all collection requests.', file=summary)
+          if result.get('status') in {'failed', 'partial'}:
+              raise SystemExit('At least one source failed. Successfully saved articles are retained; inspect collection logs.')
+          PY
+      - name: Preserve data for recovery when a run fails
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: news-recovery-${{ github.run_id }}
+          retention-days: 14
+          path: |
+            data/
+            ${{ runner.temp }}/crawl_result.json

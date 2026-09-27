@@ -1,0 +1,13 @@
+{
+  "target_articles": 3000,
+  "total_articles": 181,
+  "remaining_articles": 2819,
+  "completed": false,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "local_time": "20:00",
+    "cron_utc": "0 12 * * *"
+  },
+  "latest_run": null,
+  "next_scheduled_at": "2026-09-28T20:00:00+08:00"
+}

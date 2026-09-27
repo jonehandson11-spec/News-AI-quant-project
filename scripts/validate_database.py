@@ -42,7 +42,7 @@ def validate(root: Path) -> dict:
     manifest_text = manifest_path.read_text(encoding="utf-8")
     require(not LOCAL_PATH.search(manifest_text), "Local absolute path found in manifest")
     manifest = json.loads(manifest_text)
-    require(manifest["format_version"] == 1, "Unsupported manifest format")
+    require(manifest["format_version"] in (1, 2), "Unsupported manifest format")
     for artifact in manifest["artifacts"]:
         path = file_in_root(root, artifact["path"])
         require(path.stat().st_size == artifact["bytes"], f"Size mismatch: {artifact['path']}")
@@ -57,6 +57,43 @@ def validate(root: Path) -> dict:
     start, end = timestamp(window["start"]), timestamp(window["end"])
     require(start < end and window["inclusive"] is True, "Invalid publication window")
     require(end - start == timedelta(hours=manifest["window_hours"]), "Window duration mismatch")
+    if manifest["format_version"] == 2:
+        require(manifest["collection_mode"] == "cumulative", "Invalid collection mode")
+        require(manifest["daily_lookback_hours"] == 48, "Unexpected daily lookback")
+        seed = manifest["seed_window"]
+        seed_start, seed_end = timestamp(seed["start"]), timestamp(seed["end"])
+        require(seed["inclusive"] is True and seed_end - seed_start == timedelta(hours=48),
+                "Invalid seed window")
+        require(start == seed_start and end >= seed_end, "Cumulative window excludes seed window")
+        target, total = manifest["target_articles"], manifest["total_articles"]
+        require(type(target) is int and target > 0, "Invalid article target")
+        require(type(total) is int and 0 <= total <= target, "Article count exceeds target or is invalid")
+        completed = total == target
+        require(manifest["target_reached"] is completed, "Target flag differs from article count")
+        require(manifest["automatic_refresh"] is (not completed), "Refresh flag differs from article count")
+        require(type(manifest["remaining_articles"]) is int and manifest["remaining_articles"] == target - total,
+                "Remaining article count differs")
+        required_artifacts = {manifest["database"], manifest["csv"], "data/progress.json"}
+        required_artifacts.update(detail["report"] for detail in manifest["sources"].values())
+        require(required_artifacts <= {artifact["path"] for artifact in manifest["artifacts"]},
+                "Cumulative artifacts are not all hashed")
+        progress = json.loads(file_in_root(root, "data/progress.json").read_text(encoding="utf-8"))
+        for field, expected in (("target_articles", target), ("total_articles", total), ("remaining_articles", target - total)):
+            require(type(progress[field]) is int and progress[field] == expected,
+                    f"Progress {field} differs from manifest")
+        require(progress["completed"] is completed, "Progress completion differs from manifest")
+        latest = manifest["latest_run"]
+        require(latest is None or isinstance(latest, dict), "Invalid latest run")
+        if latest is not None:
+            require(isinstance(latest["status"], str) and bool(latest["status"].strip()), "Missing latest run status")
+            run_start, run_end = timestamp(latest["start"]), timestamp(latest["end"])
+            require(run_end - run_start == timedelta(hours=manifest["daily_lookback_hours"]) and run_end <= end,
+                    "Invalid latest run window")
+            before, after, inserted = latest["before"], latest["after"], latest["inserted"]
+            require(all(type(value) is int for value in (before, after, inserted)) and
+                    0 <= before <= after == total and inserted == after - before,
+                    "Latest run counts differ from manifest")
+            require(isinstance(latest["sources"], dict), "Invalid latest source reports")
     with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
         db.row_factory = sqlite3.Row
         require([row[0] for row in db.execute("PRAGMA integrity_check")] == ["ok"], "SQLite integrity check failed")
@@ -84,7 +121,7 @@ def validate(root: Path) -> dict:
             require(published.utcoffset() == timedelta(hours=8) and crawled.utcoffset() == timedelta(hours=8), "Unexpected time zone")
             require(crawled >= published, f"Crawl precedes publication: {row['url']}")
         info = dict(db.execute("SELECT key, value FROM collection_info"))
-        require(not LOCAL_PATH.search(json.dumps(info)), "Local absolute path in collection_info")
+        require(not any(LOCAL_PATH.search(value) for value in info.values()), "Local absolute path in collection_info")
         require(timestamp(info["requested_start"]) == start and timestamp(info["requested_end"]) == end, "Stored window differs from manifest")
         require(int(info["total_articles"]) == len(rows), "Stored article count differs")
         stored_reports = json.loads(info["source_reports"])
