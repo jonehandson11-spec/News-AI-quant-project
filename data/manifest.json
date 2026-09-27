@@ -1,0 +1,75 @@
+{
+  "format_version": 1,
+  "title": "BBC + 新浪财经新闻共享快照",
+  "database": "data/news.sqlite3",
+  "csv": "data/news.csv",
+  "snapshot_created_at": "2026-09-27T21:15:52+08:00",
+  "package_created_at": "2026-09-27T13:31:11+00:00",
+  "publication_window": {
+    "start": "2026-09-25T21:07:26+08:00",
+    "end": "2026-09-27T21:07:26+08:00",
+    "inclusive": true
+  },
+  "window_hours": 48,
+  "time_zone": "UTC+08:00 (Beijing)",
+  "total_articles": 181,
+  "fields": [
+    "article_id",
+    "source",
+    "title",
+    "content",
+    "publish_time",
+    "crawl_time",
+    "url",
+    "language"
+  ],
+  "csv_encoding": "UTF-8 with BOM",
+  "sources": {
+    "BBC News": {
+      "article_count": 23,
+      "earliest_publish_time": "2026-09-26T02:02:55.955000+08:00",
+      "latest_publish_time": "2026-09-27T20:36:57.739000+08:00",
+      "scope": "Articles discoverable in the supplied BBC World RSS feed; not a complete archive",
+      "publication_basis": "public article JSON-LD datePublished",
+      "report": "data/source_reports/bbc.json"
+    },
+    "新浪财经": {
+      "article_count": 158,
+      "earliest_publish_time": "2026-09-25T21:11:36+08:00",
+      "latest_publish_time": "2026-09-27T20:51:06+08:00",
+      "scope": "Public finance roll feed only; inaccessible/non-text articles excluded. Not all Sina channels.",
+      "publication_basis": "Original publication time from public article page metadata",
+      "report": "data/source_reports/sina.json"
+    }
+  },
+  "coverage_limit": "Fixed snapshot from BBC World RSS and Sina Finance roll feed; not a complete archive of either website.",
+  "filters": "Inclusive original publication time; URLs unique; nonempty full text required upstream",
+  "automatic_refresh": false,
+  "artifacts": [
+    {
+      "path": "data/news.sqlite3",
+      "bytes": 634880,
+      "sha256": "b90a445bbb86c8ec550258a76e682e947f529b3076c185007ab913af7db74180"
+    },
+    {
+      "path": "data/news.csv",
+      "bytes": 456879,
+      "sha256": "7527ad5a33ac698143839a1ec30e41d6fecf392f722612818dd3962b9a6fe309"
+    },
+    {
+      "path": "data/source_reports/bbc.json",
+      "bytes": 464,
+      "sha256": "a9f114fa8a6b382a698918a292c1cd52d9d74a7817f94fa34cd0fae1488f8ab2"
+    },
+    {
+      "path": "data/source_reports/sina.json",
+      "bytes": 508,
+      "sha256": "b26ff91bbfe27a85825b9f56e7d505c6e14c3daea37367b89c91bbccf4f6cacf"
+    },
+    {
+      "path": "schema.sql",
+      "bytes": 1043,
+      "sha256": "fc59e3fd126ec8bc9d133845c106f65dd96505e3d7505aa8cbee763c846a9844"
+    }
+  ]
+}

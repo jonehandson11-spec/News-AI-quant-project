@@ -1,0 +1,14 @@
+{
+  "saved_full_text_articles": 23,
+  "rss_items": 27,
+  "outcomes": {
+    "success": 23,
+    "skipped": 4
+  },
+  "scope": "Articles discoverable in the supplied BBC World RSS feed; not a complete archive",
+  "publication_basis": "public article JSON-LD datePublished",
+  "source": "BBC News",
+  "report_kind": "collection_summary",
+  "publication_window_start": "2026-09-25T21:07:26+08:00",
+  "publication_window_end": "2026-09-27T21:07:26+08:00"
+}
