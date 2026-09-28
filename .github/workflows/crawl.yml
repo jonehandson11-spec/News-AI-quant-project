@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'probe = test all sources; crawl = save all sources; ft = save up to 30 FT articles'
+        description: 'probe = test BBC and Sina; crawl = save BBC and Sina (FT is collected locally)'
         type: choice
-        options: [probe, crawl, ft]
+        options: [probe, crawl]
         default: probe
 
 concurrency:
@@ -51,13 +51,10 @@ jobs:
         env:
           RUN_MODE: ${{ inputs.mode }}
           EVENT_NAME: ${{ github.event_name }}
-          FT_COOKIE: ${{ secrets.FT_COOKIE }}
         run: |
-          args=()
+          args=(--cloud-only)
           if [ "$RUN_MODE" = "probe" ]; then
             args+=(--probe)
-          elif [ "$RUN_MODE" = "ft" ]; then
-            args+=(--ft-only --force --max-new 30)
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             args+=(--force)
           fi
@@ -90,9 +87,7 @@ jobs:
                   print(f"Run: {result.get('status')}; new articles: {result.get('inserted', 0)}; probe: {result.get('probe', False)}.", file=summary)
                   for source, detail in result.get('sources', {}).items():
                       print(f"\n- {source}: {detail.get('status')}; inserted {detail.get('counts', {}).get('inserted', 0)}; reason {detail.get('reason', 'none')}", file=summary)
-                  ft = result.get('sources', {}).get('Financial Times', {})
-                  if ft.get('reason') in {'auth_required', 'auth_expired', 'login_or_subscription_required'}:
-                      print('\nFT needs attention: sign in normally, confirm article access, and update the FT_COOKIE Actions secret. Existing data is retained.', file=summary)
+              print('\nFT is collected on the owner\'s computer and merged separately. This cloud workflow does not request FT pages or use FT credentials.', file=summary)
               if progress['completed']:
                   print('Target reached. Future runs skip all collection requests.', file=summary)
           if result.get('status') in {'failed', 'partial'}:

@@ -19,6 +19,8 @@ if str(ROOT) not in sys.path:
 
 from scripts.dataset import BEIJING, FIELDS, SOURCES, read_json, refresh, iso, write_json
 
+CLOUD_SOURCES = frozenset(("BBC News", "新浪财经"))
+
 
 def normalize(row: dict, source: str, start: datetime, end: datetime) -> dict:
     row = {key: row[key] for key in FIELDS}
@@ -62,7 +64,8 @@ def source_error(error: Exception, source: str) -> str:
 
 def run_daily(root: Path, *, now: datetime | None = None, collectors=None,
               force: bool = False, max_new: int | None = None,
-              per_source_limit: int | None = None) -> dict:
+              per_source_limit: int | None = None, cloud_only: bool = False,
+              execution_location: str | None = None) -> dict:
     now = (now or datetime.now(timezone.utc)).replace(microsecond=0)
     if now.tzinfo is None:
         raise ValueError("Current time must be timezone-aware")
@@ -70,10 +73,15 @@ def run_daily(root: Path, *, now: datetime | None = None, collectors=None,
     config = read_json(root / "crawl_config.json")
     target = config["target_articles"]
     start = now - timedelta(hours=config["daily_lookback_hours"])
-    selected = set(SOURCES) if collectors is None else set(collectors)
+    if cloud_only and collectors is not None:
+        collectors = {source: collector for source, collector in collectors.items() if source in CLOUD_SOURCES}
+    selected = (set(CLOUD_SOURCES) if cloud_only else set(SOURCES)) if collectors is None else set(collectors)
+    execution_location = execution_location or ("github_actions" if cloud_only else "local")
+    if execution_location not in {"github_actions", "local"}:
+        raise ValueError("Unsupported execution location")
     run = {"started_at": iso(now), "start": iso(start), "end": iso(now), "sources": {},
-           "scope": "all" if selected >= set(SOURCES) else "selected",
-           "selected_sources": sorted(selected)}
+           "scope": "all" if cloud_only or selected >= set(SOURCES) else "selected",
+           "selected_sources": sorted(selected), "execution_location": execution_location}
     with closing(sqlite3.connect(root / "data/news.sqlite3")) as db:
         before = db.execute("SELECT count(*) FROM news").fetchone()[0]
         if before >= target:
@@ -82,13 +90,17 @@ def run_daily(root: Path, *, now: datetime | None = None, collectors=None,
         last_full_run = manifest.get("last_full_run_at")
         if not last_full_run and last_run and last_run.get("scope", "all") == "all":
             last_full_run = last_run["started_at"]
-        if not force and last_full_run and datetime.fromisoformat(last_full_run).astimezone(BEIJING).date() == now.astimezone(BEIJING).date():
+        # Local FT runs have their own scheduling. A completed cloud run must
+        # not prevent them from collecting and merging on the same Beijing day.
+        if selected != {"Financial Times"} and not force and last_full_run and datetime.fromisoformat(last_full_run).astimezone(BEIJING).date() == now.astimezone(BEIJING).date():
             return {"status": "already_ran_today", "before": before, "after": before, "inserted": 0}
         if collectors is None:
             from crawler.bbc import collect as collect_bbc
             from crawler.sina import collect as collect_sina
-            from crawler.ft import collect as collect_ft
-            collectors = {"BBC News": collect_bbc, "新浪财经": collect_sina, "Financial Times": collect_ft}
+            collectors = {"BBC News": collect_bbc, "新浪财经": collect_sina}
+            if not cloud_only:
+                from crawler.ft import collect as collect_ft
+                collectors["Financial Times"] = collect_ft
         known = {row[0] for row in db.execute("SELECT url FROM news")}
         inserted = 0
         budget = min(target - before, max_new) if max_new is not None else target - before
@@ -96,6 +108,9 @@ def run_daily(root: Path, *, now: datetime | None = None, collectors=None,
             raise ValueError("max_new must be positive")
         with tempfile.TemporaryDirectory(prefix="news-collect-") as cache:
             for source, slug in SOURCES.items():
+                if cloud_only and source == "Financial Times":
+                    run["sources"][source] = {"status": "not_needed", "counts": {"inserted": 0}, "reason": "collected_locally"}
+                    continue
                 if source not in collectors:
                     run["sources"][source] = {"status": "not_needed", "counts": {"inserted": 0}, "reason": "Source not selected for this run"}
                     continue
@@ -168,7 +183,9 @@ def main() -> int:
     parser.add_argument("--probe", action="store_true", help="Use a temporary database and do not change published files")
     parser.add_argument("--force", action="store_true", help="Allow an explicit retry on the same Beijing date")
     parser.add_argument("--max-new", type=int, help="Cap this run, primarily for smoke tests")
-    parser.add_argument("--ft-only", action="store_true", help="Collect only FT, for initial setup or a credential retry")
+    source_mode = parser.add_mutually_exclusive_group()
+    source_mode.add_argument("--ft-only", action="store_true", help="Collect only FT on this computer")
+    source_mode.add_argument("--cloud-only", action="store_true", help="Collect BBC and Sina in the cloud; FT is collected locally")
     parser.add_argument("--result-file", type=Path)
     args = parser.parse_args()
     root = args.root.resolve()
@@ -185,12 +202,16 @@ def main() -> int:
             shutil.copytree(root / "data", isolated / "data")
             for filename in ("schema.sql", "crawl_config.json"):
                 shutil.copy2(root / filename, isolated / filename)
-            result = run_daily(isolated, collectors=collectors, force=True, max_new=args.max_new or len(SOURCES), per_source_limit=1)
+            probe_sources = len(CLOUD_SOURCES) if args.cloud_only else len(collectors or SOURCES)
+            result = run_daily(isolated, collectors=collectors, force=True,
+                               max_new=args.max_new or probe_sources, per_source_limit=1,
+                               cloud_only=args.cloud_only)
             import subprocess
             subprocess.run([sys.executable, str(ROOT / "scripts/validate_database.py"), "--root", str(isolated)], check=True)
             result["probe"] = True
     else:
-        result = run_daily(root, collectors=collectors, force=args.force, max_new=args.max_new)
+        result = run_daily(root, collectors=collectors, force=args.force, max_new=args.max_new,
+                           cloud_only=args.cloud_only)
     if args.result_file:
         write_json(args.result_file, result)
     print(json.dumps(result, ensure_ascii=False, indent=2))

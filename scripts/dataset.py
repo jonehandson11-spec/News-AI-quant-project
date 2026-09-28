@@ -69,7 +69,8 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
             report["saved_full_text_articles"] = len(source_rows)
             report["collection_mode"] = "cumulative"
             report["publication_window"] = window
-            if run and source in run.get("sources", {}):
+            if (run and source in run.get("sources", {})
+                    and run["sources"][source]["status"] != "not_needed"):
                 report["latest_run"] = run["sources"][source]
                 latest = report["latest_run"]
                 if latest["status"] != "not_needed":
@@ -80,6 +81,7 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
                         "last_success_at": run["started_at"] if latest.get("counts", {}).get("inserted", 0) > 0 else previous_health.get("last_success_at"),
                         "needs_attention": latest["status"] in {"failed", "partial"},
                         "last_reason": latest.get("reason"),
+                        "execution_location": latest.get("execution_location", run.get("execution_location")),
                     }
             write_json(report_path, report)
             reports[source] = dict(report, report_path=detail["report"])

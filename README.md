@@ -6,31 +6,30 @@
 
 ## 自动采集
 
-任务在 GitHub Actions 的云端运行，个人电脑无需开机。调度为 UTC `12:00`，即北京时间 `20:00`，不受欧洲夏令时影响。GitHub 调度可能有延迟，不能保证在整点立即启动。
+每天北京时间 **20:00** 开始，UTC 为 **12:00**，每轮只新增最近 48 小时发布的文章。三个来源合计达到 **3000 篇唯一正文**后停止新增；已有数据保留。网站没有足够文章时不会生成填充数据。
 
-- 目标是三个来源合计 **3000 篇唯一新闻**，包括初始的 181 篇；不是每天新增 3000 篇。
-- 达到目标后，后续任务只检查数量并跳过采集请求，不删除历史文章。
-- 每轮同步更新 SQLite、CSV、来源报告、进度和校验摘要。旧文章保持原样；达到目标的最后一轮严格限制新增数。
-- 网页访问失败或受到限制时记录原因，不绕过限制；另一来源仍可继续，已成功抓取的数据会保存。故障会让 Actions 标为失败，便于发现问题。
-- 预计完成日期取决于新文章数量和网站可访问性。没有足够的真实新闻时，不会生成填充数据。
+- **BBC、新浪财经：** GitHub Actions 云端采集，不依赖个人电脑。
+- **Financial Times：** 在已授权的本机环境采集，每轮最多 100 篇；本机自动任务通过 GitHub 连接器上传文章批次，云端验证后合并。电脑须联网、保持开机且 Codex 正在运行；关闭或休眠时无法本地采集，恢复运行后可补一次最近计划周期。
+- 两条云端写入工作流使用同一个并发锁。FT 批次进入独立的接收分支，云端取得最新主库后追加、去重，保留 BBC、新浪和历史 FT 数据。不会用旧本机数据库覆盖云端主库。
+- GitHub 调度及本机任务可能有延迟，不能保证整点立即启动。当前数量与剩余条数见 [data/progress.json](data/progress.json)。
 
-在 [Actions → Daily news crawl (20:00 Beijing)](https://github.com/jonehandson11-spec/News-AI-quant-project/actions/workflows/crawl.yml) 查看运行记录。需要手动验证时，选择 **Run workflow → probe**，每个来源最多测试一篇并验证临时数据库，不修改共享数据。选择 **crawl** 会立即采集并保存，可用于同日故障重试。选择 **ft** 仅补采最多 30 篇 FT 新闻，用于首次接入或更新凭据后的验证。
+运行入口：[BBC／新浪每日采集](https://github.com/jonehandson11-spec/News-AI-quant-project/actions/workflows/crawl.yml)、[本地 FT 批次导入](https://github.com/jonehandson11-spec/News-AI-quant-project/actions/workflows/import-ft.yml)。云端每日任务的 **probe** 只验证 BBC／新浪的临时数据库；**crawl** 立即正式采集这两个来源。
 
-配置见 [crawl_config.json](crawl_config.json)，调度见 [.github/workflows/crawl.yml](.github/workflows/crawl.yml)。修改运行时间时须同时修改两处。公开仓库长时间没有活动时，GitHub 可能停用定时工作流；届时可在 Actions 中重新启用。
+配置见 [crawl_config.json](crawl_config.json)。FT 本地程序见 [scripts/ft_sync.py](scripts/ft_sync.py)，批次验证与合并见 [scripts/ft_local.py](scripts/ft_local.py)。本地状态和凭据目录必须在 Git 仓库外；上传仅限准备程序列出的文章批次，不上传 Cookie 或本机日志。只有在主库报告中核验批次回执后才确认完成；上传失败或导入被取消时保留原批次，用同一批次重试。
 
 ## FT 登录与长期运行
 
-**2026-09-27 接入状态：** 已保存并上传 10 篇 FT 正文，共享库现有 191 篇。[首次云端试采](https://github.com/jonehandson11-spec/News-AI-quant-project/actions/runs/36325951447) 中，BBC 和新浪均成功，FT 正文请求返回 HTTP 403（`access_denied`）。同一文章在本机使用现有会话可正常读取，因此不能判定为 Cookie 过期，GitHub 云端持续采集尚未验证成功。原因仍需确认；不会重试绕过网站限制。此前保存的 FT 数据会继续保留。
+FT 在 GitHub 云端曾返回 HTTP 403（access_denied），同一文章在本机可读。此次改为本地采集、云端合并，云端任务不再请求 FT 页面。403 不等同于 Cookie 过期。
 
-FT 作为第三来源读取 13 个新闻分类 RSS，并逐篇核对网页的原始发布时间和可见正文。日常每轮 FT 最多新增 100 篇，优先处理这一有上限的来源，避免新浪批次先耗尽剩余名额。旧的 FT 数据库不自动导入：其中文章超出本项目的初始时间窗口，且有订阅宣传残文。
+FT 从 13 个分类 RSS 发现文章，并核对网页原始发布时间和正文。只保存账户获准读取的正文，不把 RSS 摘要或订阅提示当作新闻。FT Cookie 保存在仓库外的本机私密文件中，由本地程序读取；当前工作流不使用 GitHub FT_COOKIE Secret。不要将账号、密码、Cookie 或浏览器状态文件提交到仓库。
 
-FT 需要有效且具有文章访问权限的登录会话。凭据放在 [Settings → Secrets and variables → Actions](https://github.com/jonehandson11-spec/News-AI-quant-project/settings/secrets/actions) 的仓库 Secret **FT_COOKIE** 中，只注入采集步骤。不要把 Cookie、账号密码、浏览器状态文件或带凭据的日志提交到仓库。
+会话无法保证永久有效。最近一次本地采集结果见 [data/source_reports/ft.json](data/source_reports/ft.json)，其中 execution_location 为 local，batch_id 用于核对已合并的批次。云端每日任务对 FT 的 collected_locally 跳过不会覆盖本地健康状态。没有新文章不代表已验证登录仍有效。
 
-采集器以 CookieJar 保留跳转中的登录状态，并接受当轮服务器的 Cookie 更新；不把 Cookie 写入数据库、工件或日志。GitHub 每轮是新运行环境，不能保证会话永久有效。会话过期、退出登录、订阅权限变化或访问受限时，FT 停止当轮请求，BBC 与新浪仍可继续，成功取得的文章照常保存。
+- auth_expired：会话过期或 HTTP 401。
+- auth_required／login_or_subscription_required：缺少登录或订阅验证未通过。在浏览器正常登录并确认文章可读后，更新本机私密 Cookie 文件，再运行本地程序验证；仅在浏览器登录不会自动改写该文件。
+- access_denied、rate_limited、网络或解析故障分别记录，不推断为 Cookie 过期，不绕过网站访问限制。
 
-最近写入共享库的 FT 结果、最近尝试时间、最近成功新增时间和是否需要处理，见 [data/source_reports/ft.json](data/source_reports/ft.json)。手动 `probe` 不修改该文件，须同时检查 Actions 中较新的试采结果；旧的本地成功不能证明云端可用。`auth_expired` 表示会话过期/HTTP 401；`auth_required` 表示缺少登录凭据或跳转到登录；`login_or_subscription_required` 表示返回登录/订阅提示，不能仅凭这一项断定会话过期；`access_denied`、`rate_limited` 和网络错误分别记录。
-
-登录或订阅验证失败时，在浏览器正常登录 FT 并确认目标文章可读，更新 **FT_COOKIE** Secret，然后手动运行 **ft**。对于 HTTP 403，应先确认 FT 允许所使用的云端环境访问；更新 Cookie 不一定能解决。无需清空已有数据。仅正常完成且新增正文的时间才记为最近成功时间；没有新文章不等于验证了登录有效。
+本机的 FT 监控在出现新的可处理故障时提醒；同一未变化故障不重复提醒，恢复后通知一次。历史正文不会因登录失效被删除。
 
 ## 下载和在 DBeaver 中打开
 
@@ -68,7 +67,7 @@ GitHub 保存的是**版本化文件快照**，不是可让多台电脑直接连
 | [scripts/crawl_daily.py](scripts/crawl_daily.py) | 每日采集、去重、上限控制和安全试跑 |
 | [crawler/](crawler/) | BBC、新浪与 FT 适配器和正文解析代码 |
 
-仓库包含新闻数据、爬虫代码、测试和工作流。原始网页缓存、个人日志和连接凭据均未包含。Actions 使用仓库内置的临时令牌保存数据；FT 登录使用单独的加密 Secret。
+仓库包含新闻数据、爬虫代码、测试和工作流。原始网页缓存、个人日志和连接凭据均未包含。Actions 使用仓库内置的临时令牌保存数据；FT 登录凭据只由本地采集程序读取。
 
 ## 数据表结构
 
@@ -117,7 +116,7 @@ python scripts/validate_database.py --root <仓库目录>
 ```sh
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
-python scripts/crawl_daily.py --probe
+python scripts/crawl_daily.py --probe --cloud-only
 ```
 
-正式采集请使用 GitHub 定时任务，避免同时从本地和云端写入数据库。GitHub 使用并发锁串行运行；遇到人工提交冲突时停止推送，不强制覆盖仓库。
+BBC／新浪使用 GitHub 定时任务；FT 使用本机定时任务上传批次，交由 GitHub 串行合并。遇到人工提交冲突时停止推送，不强制覆盖仓库。

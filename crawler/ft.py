@@ -20,9 +20,9 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
             workdir: Path, report: dict):
     """Yield at most limit authenticated, full-text articles in an aware window.
 
-    FT_COOKIE must be injected from a private server secret. The CookieJar is
-    renewed in memory during redirects, but expired credentials require the
-    account owner to sign in normally and update that secret. workdir is unused;
+    The local runner injects FT_COOKIE from a private file outside the repository.
+    The CookieJar is renewed in memory during redirects; expired credentials
+    require the owner to sign in normally and update that file. workdir is unused;
     authenticated HTML and cookies are deliberately never written to disk.
     """
     counts = {key: 0 for key in ("discovered", "known", "skipped", "outside_window",

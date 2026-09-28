@@ -2,6 +2,7 @@
   "target_articles": 3000,
   "daily_lookback_hours": 48,
   "source_max_new": {"Financial Times": 100},
+  "source_execution": {"BBC News": "github_actions", "新浪财经": "github_actions", "Financial Times": "local"},
   "schedule": {
     "timezone": "Asia/Shanghai",
     "local_time": "20:00",

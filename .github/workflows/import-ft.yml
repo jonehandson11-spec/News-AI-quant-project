@@ -1,0 +1,100 @@
+name: Merge local FT batch
+
+on:
+  push:
+    branches: [codex/ft-inbox]
+
+concurrency:
+  group: news-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the latest shared database
+        uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Validate the existing shared database
+        run: python3 scripts/validate_database.py
+      - name: Read the submitted batch from its exact commit
+        env:
+          BATCH_COMMIT: ${{ github.sha }}
+        run: |
+          if [[ ! "$BATCH_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Invalid batch commit identifier.'
+            exit 1
+          fi
+          git fetch --no-tags --depth=1 origin "$BATCH_COMMIT"
+          git show FETCH_HEAD:incoming/ft-batch.json > "$RUNNER_TEMP/ft-batch.json"
+      - name: Merge validated local articles into the latest database
+        run: |
+          python3 scripts/ft_local.py merge --root . \
+            --batch-file "$RUNNER_TEMP/ft-batch.json" \
+            --result-file "$RUNNER_TEMP/ft-merge-result.json"
+      - name: Validate the merged database, CSV, and metadata
+        run: python3 scripts/validate_database.py
+      - name: Save the merged shared data
+        id: publish
+        run: |
+          if ! git diff --quiet -- data; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -- data/
+            git commit -m 'data: merge locally collected FT articles'
+            git push origin HEAD:main
+          fi
+          echo 'completed=true' >> "$GITHUB_OUTPUT"
+      - name: Report the merge and local FT health
+        if: always()
+        env:
+          BATCH_COMMIT: ${{ github.sha }}
+          PUBLISH_COMPLETED: ${{ steps.publish.outputs.completed }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          result_path = Path(os.environ['RUNNER_TEMP']) / 'ft-merge-result.json'
+          result = json.loads(result_path.read_text()) if result_path.exists() else {}
+          allowed = {'success', 'partial', 'failed', 'stale_batch', 'target_reached'}
+          status = result.get('status')
+          status = status if isinstance(status, str) and status in allowed else 'not_completed'
+          def count(key):
+              value = result.get(key, 0)
+              return value if type(value) is int and value >= 0 else 0
+          batch_commit = os.environ.get('BATCH_COMMIT', '')
+          batch_id = result.get('batch_id', '')
+          published = os.environ.get('PUBLISH_COMPLETED') == 'true'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              print('FT was collected locally. This workflow only validates and merges its batch; it does not use FT credentials or request FT pages.', file=summary)
+              print(f'\nMerge: **{status}**; publication completed: **{published}**.', file=summary)
+              if type(result.get('after')) is int:
+                  print(f"New articles: {count('inserted')}; duplicates: {count('duplicates')}; deferred at target: {count('deferred_cap')}; resulting total: {count('after')}.", file=summary)
+              if re.fullmatch(r'[0-9a-f]{40}', batch_commit):
+                  print(f'\nInbox commit: `{batch_commit}`.', file=summary)
+              if isinstance(batch_id, str) and re.fullmatch(r'[0-9a-f]{64}', batch_id):
+                  print(f'\nBatch: `{batch_id}`.', file=summary)
+              if result.get('health_preserved') is True:
+                  print('\nA newer source health record was retained.', file=summary)
+              if status in {'partial', 'failed'}:
+                  if published:
+                      print('\nThe local FT collector needs attention. Successfully merged articles and safe health diagnostics were saved before this failure was reported.', file=summary)
+                  else:
+                      print('\nThe local FT collector needs attention, and publication did not complete. Inspect the failed step and recovery artifact.', file=summary)
+          if status in {'partial', 'failed'}:
+              raise SystemExit('Local FT collection reported a failure; inspect the safe source health record.')
+          PY
+      - name: Preserve shared data for recovery
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: local-ft-merge-recovery-${{ github.run_id }}
+          retention-days: 14
+          path: |
+            data/
+            ${{ runner.temp }}/ft-merge-result.json
