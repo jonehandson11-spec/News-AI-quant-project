@@ -1,7 +1,7 @@
 {
   "target_articles": 3000,
-  "total_articles": 509,
-  "remaining_articles": 2491,
+  "total_articles": 512,
+  "remaining_articles": 2488,
   "completed": false,
   "schedule": {
     "timezone": "Asia/Shanghai",
@@ -9,59 +9,60 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-09-29T00:27:39+08:00",
-    "start": "2026-09-27T00:27:39+08:00",
-    "end": "2026-09-29T00:27:39+08:00",
+    "started_at": "2026-09-29T00:39:25.434819+08:00",
+    "finished_at": "2026-09-29T00:39:50.363054+08:00",
+    "merged_at": "2026-09-29T00:44:28.270218+08:00",
+    "start": "2026-09-27T00:39:25.434819+08:00",
+    "end": "2026-09-29T00:39:25.434819+08:00",
+    "scope": "selected",
+    "selected_sources": [
+      "Financial Times"
+    ],
     "sources": {
       "Financial Times": {
-        "status": "failed",
+        "source": "Financial Times",
+        "execution_location": "local",
+        "status": "partial",
         "counts": {
           "discovered": 197,
           "known": 0,
           "skipped": 0,
           "outside_window": 0,
-          "success": 0,
+          "success": 3,
           "failed": 1,
-          "deferred": 196,
-          "inserted": 0
+          "deferred": 193,
+          "collected": 3,
+          "inserted": 3,
+          "duplicates": 0,
+          "deferred_cap": 0
         },
         "errors": [
           {
-            "url": "https://www.ft.com/content/49bff877-ae51-481d-8223-5c0d04f4ba87",
-            "reason": "access_denied"
+            "reason": "login_or_subscription_required"
           }
         ],
-        "source": "Financial Times",
         "stopped": true,
-        "publication_basis": "article original publication time",
-        "credential_storage": "environment; memory only",
-        "reason": "access_denied"
-      },
-      "BBC News": {
-        "status": "not_needed",
-        "counts": {
-          "inserted": 0
-        },
-        "reason": "Source not selected for this run"
-      },
-      "新浪财经": {
-        "status": "not_needed",
-        "counts": {
-          "inserted": 0
-        },
-        "reason": "Source not selected for this run"
+        "reason": "login_or_subscription_required",
+        "batch_id": "6a397b9d42389c86fa4f2d1322d6e579e5ad82cb904ca93d7d5beb93205bac0e"
       }
     },
-    "scope": "selected",
-    "selected_sources": [
-      "Financial Times"
-    ],
-    "before": 509,
-    "after": 509,
-    "inserted": 0,
-    "status": "failed",
+    "local_batch": {
+      "batch_id": "6a397b9d42389c86fa4f2d1322d6e579e5ad82cb904ca93d7d5beb93205bac0e",
+      "collected": 3,
+      "duplicates": 0,
+      "deferred_cap": 0,
+      "inserted": 3
+    },
     "target_reached": false,
-    "finished_at": "2026-09-29T00:27:56+08:00"
+    "status": "partial",
+    "before": 509,
+    "after": 512,
+    "inserted": 3,
+    "duplicates": 0,
+    "deferred_cap": 0,
+    "batch_id": "6a397b9d42389c86fa4f2d1322d6e579e5ad82cb904ca93d7d5beb93205bac0e",
+    "execution_location": "local",
+    "health_preserved": false
   },
   "next_scheduled_at": "2026-09-29T20:00:00+08:00"
 }
