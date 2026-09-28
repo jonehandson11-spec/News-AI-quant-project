@@ -4,32 +4,38 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-27T22:20:35+08:00",
+    "end": "2026-09-28T20:09:53+08:00",
     "inclusive": true
   },
   "latest_run": {
-    "status": "complete",
+    "status": "failed",
     "counts": {
-      "discovered": 205,
+      "discovered": 195,
       "known": 0,
       "skipped": 0,
       "outside_window": 0,
-      "success": 10,
-      "failed": 0,
-      "deferred": 0,
-      "inserted": 10
+      "success": 0,
+      "failed": 1,
+      "deferred": 194,
+      "inserted": 0
     },
-    "errors": [],
+    "errors": [
+      {
+        "url": "https://www.ft.com/content/571a3103-ec01-464b-ab39-0c0da58d9524",
+        "reason": "access_denied"
+      }
+    ],
     "source": "Financial Times",
-    "stopped": false,
+    "stopped": true,
     "publication_basis": "article original publication time",
-    "credential_storage": "environment; memory only"
+    "credential_storage": "environment; memory only",
+    "reason": "access_denied"
   },
   "health": {
-    "status": "complete",
-    "last_attempt_at": "2026-09-27T22:20:35+08:00",
+    "status": "failed",
+    "last_attempt_at": "2026-09-28T20:09:53+08:00",
     "last_success_at": "2026-09-27T22:20:35+08:00",
-    "needs_attention": false,
-    "last_reason": null
+    "needs_attention": true,
+    "last_reason": "access_denied"
   }
 }
