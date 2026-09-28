@@ -4,24 +4,24 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-28T20:09:53+08:00",
+    "end": "2026-09-29T00:27:39+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "failed",
     "counts": {
-      "discovered": 195,
+      "discovered": 197,
       "known": 0,
       "skipped": 0,
       "outside_window": 0,
       "success": 0,
       "failed": 1,
-      "deferred": 194,
+      "deferred": 196,
       "inserted": 0
     },
     "errors": [
       {
-        "url": "https://www.ft.com/content/571a3103-ec01-464b-ab39-0c0da58d9524",
+        "url": "https://www.ft.com/content/49bff877-ae51-481d-8223-5c0d04f4ba87",
         "reason": "access_denied"
       }
     ],
@@ -33,7 +33,7 @@
   },
   "health": {
     "status": "failed",
-    "last_attempt_at": "2026-09-28T20:09:53+08:00",
+    "last_attempt_at": "2026-09-29T00:27:39+08:00",
     "last_success_at": "2026-09-27T22:20:35+08:00",
     "needs_attention": true,
     "last_reason": "access_denied"
