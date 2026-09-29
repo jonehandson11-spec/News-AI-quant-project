@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 33,
+  "saved_full_text_articles": 52,
   "rss_items": 27,
   "outcomes": {
     "success": 23,
@@ -14,21 +14,33 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-29T00:39:25.434819+08:00",
+    "end": "2026-09-29T20:10:42+08:00",
     "inclusive": true
   },
   "latest_run": {
-    "status": "not_needed",
+    "status": "complete",
     "counts": {
-      "inserted": 0
+      "discovered": 25,
+      "known": 1,
+      "skipped": 5,
+      "outside_window": 0,
+      "success": 19,
+      "failed": 0,
+      "deferred": 0,
+      "inserted": 19
     },
-    "reason": "Source not selected for this run"
+    "errors": [],
+    "source": "BBC News",
+    "scope": "BBC World RSS",
+    "stopped": false,
+    "publication_basis": "public article JSON-LD datePublished"
   },
   "health": {
     "status": "complete",
-    "last_attempt_at": "2026-09-28T20:09:53+08:00",
-    "last_success_at": "2026-09-28T20:09:53+08:00",
+    "last_attempt_at": "2026-09-29T20:10:42+08:00",
+    "last_success_at": "2026-09-29T20:10:42+08:00",
     "needs_attention": false,
-    "last_reason": null
+    "last_reason": null,
+    "execution_location": "github_actions"
   }
 }

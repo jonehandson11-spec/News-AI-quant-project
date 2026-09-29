@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 466,
+  "saved_full_text_articles": 901,
   "feed_pages": 6,
   "candidates_in_window": 158,
   "final_failed_articles": 0,
@@ -12,21 +12,55 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-29T00:39:25.434819+08:00",
+    "end": "2026-09-29T20:10:42+08:00",
     "inclusive": true
   },
   "latest_run": {
-    "status": "not_needed",
+    "status": "partial",
     "counts": {
-      "inserted": 0
+      "pages": 17,
+      "discovered": 848,
+      "skipped_known": 400,
+      "skipped_window": 8,
+      "invalid": 5,
+      "fetched": 440,
+      "yielded": 435,
+      "requests": 459,
+      "network_errors": 0,
+      "robots_denied": 0,
+      "errors": 5,
+      "inserted": 435
     },
-    "reason": "Source not selected for this run"
+    "errors": [
+      {
+        "url": "https://finance.sina.com.cn/stock/usstock/c/2026-09-29/doc-initmkkp8225698.shtml",
+        "reason": "article rejected: article full text missing or shorter than 40 characters"
+      },
+      {
+        "url": "https://finance.sina.com.cn/jryx/bank/2026-09-28/doc-initkxut8395263.shtml",
+        "reason": "article rejected: article full text missing or shorter than 40 characters"
+      },
+      {
+        "url": "https://finance.sina.com.cn/money/future/2026-09-28/doc-initkhxe3007308.shtml",
+        "reason": "article rejected: article full text missing or shorter than 40 characters"
+      },
+      {
+        "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-28/doc-initirzi8815294.shtml",
+        "reason": "article rejected: article full text missing or shorter than 40 characters"
+      },
+      {
+        "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-28/doc-initirzn2912890.shtml",
+        "reason": "article rejected: article full text missing or shorter than 40 characters"
+      }
+    ],
+    "reason": "two consecutive pages older than window"
   },
   "health": {
     "status": "partial",
-    "last_attempt_at": "2026-09-28T20:09:53+08:00",
-    "last_success_at": "2026-09-28T20:09:53+08:00",
+    "last_attempt_at": "2026-09-29T20:10:42+08:00",
+    "last_success_at": "2026-09-29T20:10:42+08:00",
     "needs_attention": true,
-    "last_reason": "two consecutive pages older than window"
+    "last_reason": "two consecutive pages older than window",
+    "execution_location": "github_actions"
   }
 }
