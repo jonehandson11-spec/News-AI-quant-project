@@ -1,7 +1,7 @@
 {
   "target_articles": 3000,
-  "total_articles": 509,
-  "remaining_articles": 2491,
+  "total_articles": 966,
+  "remaining_articles": 2034,
   "completed": false,
   "schedule": {
     "timezone": "Asia/Shanghai",
@@ -9,59 +9,88 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-09-29T00:27:39+08:00",
-    "start": "2026-09-27T00:27:39+08:00",
-    "end": "2026-09-29T00:27:39+08:00",
+    "started_at": "2026-09-29T20:10:42+08:00",
+    "start": "2026-09-27T20:10:42+08:00",
+    "end": "2026-09-29T20:10:42+08:00",
     "sources": {
       "Financial Times": {
-        "status": "failed",
+        "status": "not_needed",
         "counts": {
-          "discovered": 197,
-          "known": 0,
-          "skipped": 0,
-          "outside_window": 0,
-          "success": 0,
-          "failed": 1,
-          "deferred": 196,
           "inserted": 0
+        },
+        "reason": "collected_locally"
+      },
+      "BBC News": {
+        "status": "complete",
+        "counts": {
+          "discovered": 25,
+          "known": 1,
+          "skipped": 5,
+          "outside_window": 0,
+          "success": 19,
+          "failed": 0,
+          "deferred": 0,
+          "inserted": 19
+        },
+        "errors": [],
+        "source": "BBC News",
+        "scope": "BBC World RSS",
+        "stopped": false,
+        "publication_basis": "public article JSON-LD datePublished"
+      },
+      "新浪财经": {
+        "status": "partial",
+        "counts": {
+          "pages": 17,
+          "discovered": 848,
+          "skipped_known": 400,
+          "skipped_window": 8,
+          "invalid": 5,
+          "fetched": 440,
+          "yielded": 435,
+          "requests": 459,
+          "network_errors": 0,
+          "robots_denied": 0,
+          "errors": 5,
+          "inserted": 435
         },
         "errors": [
           {
-            "url": "https://www.ft.com/content/49bff877-ae51-481d-8223-5c0d04f4ba87",
-            "reason": "access_denied"
+            "url": "https://finance.sina.com.cn/stock/usstock/c/2026-09-29/doc-initmkkp8225698.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          },
+          {
+            "url": "https://finance.sina.com.cn/jryx/bank/2026-09-28/doc-initkxut8395263.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          },
+          {
+            "url": "https://finance.sina.com.cn/money/future/2026-09-28/doc-initkhxe3007308.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          },
+          {
+            "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-28/doc-initirzi8815294.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          },
+          {
+            "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-28/doc-initirzn2912890.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
           }
         ],
-        "source": "Financial Times",
-        "stopped": true,
-        "publication_basis": "article original publication time",
-        "credential_storage": "environment; memory only",
-        "reason": "access_denied"
-      },
-      "BBC News": {
-        "status": "not_needed",
-        "counts": {
-          "inserted": 0
-        },
-        "reason": "Source not selected for this run"
-      },
-      "新浪财经": {
-        "status": "not_needed",
-        "counts": {
-          "inserted": 0
-        },
-        "reason": "Source not selected for this run"
+        "reason": "two consecutive pages older than window"
       }
     },
-    "scope": "selected",
+    "scope": "all",
     "selected_sources": [
-      "Financial Times"
+      "BBC News",
+      "新浪财经"
     ],
-    "before": 509,
-    "after": 509,
-    "inserted": 0,
-    "status": "failed",
+    "execution_location": "github_actions",
+    "before": 512,
+    "after": 966,
+    "inserted": 454,
+    "status": "partial",
     "target_reached": false,
-    "finished_at": "2026-09-29T00:27:56+08:00"
+    "finished_at": "2026-09-29T20:19:04+08:00"
   },
-  "next_scheduled_at": "2026-09-29T20:00:00+08:00"
+  "next_scheduled_at": "2026-09-30T20:00:00+08:00"
 }
