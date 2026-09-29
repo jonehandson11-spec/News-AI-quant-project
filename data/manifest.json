@@ -4,13 +4,13 @@
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-09-29T12:10:42+00:00",
+  "package_created_at": "2026-09-29T15:18:38.435916+00:00",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-29T20:10:42+08:00",
+    "end": "2026-09-29T23:16:34.295015+08:00",
     "inclusive": true
   },
-  "window_hours": 95.05444444444444,
+  "window_hours": 98.15230417083333,
   "time_zone": "UTC+08:00 (Beijing)",
   "total_articles": 966,
   "fields": [
@@ -55,7 +55,7 @@
     {
       "path": "data/news.sqlite3",
       "bytes": 3809280,
-      "sha256": "7e331bb27be91f1b01d30549139e47e808c237099311608ccac41a20f82da67e"
+      "sha256": "5aec9feb640ef0c14906c4b448c6515ffdc5eac8fc934de15d9cc625c03b4a35"
     },
     {
       "path": "data/news.csv",
@@ -64,8 +64,8 @@
     },
     {
       "path": "data/progress.json",
-      "bytes": 3013,
-      "sha256": "326c9740864d7b97cb6731148f39c80eccd688972958e3dee6c6767accd632d9"
+      "bytes": 1892,
+      "sha256": "4768ab22d48db20d1ed1c9ed50edc1923968fd18b4678c359e893928b6dab017"
     },
     {
       "path": "schema.sql",
@@ -74,18 +74,18 @@
     },
     {
       "path": "data/source_reports/bbc.json",
-      "bytes": 1270,
-      "sha256": "8f15cfd06ebfc4e1b5daf80adb3d790caa84e29678d5c82f203e0c44601b0547"
+      "bytes": 1277,
+      "sha256": "950179c5b3b36f65d2057145f0045d82783d7e1d2f7b5b7877859dab94a0f465"
     },
     {
       "path": "data/source_reports/sina.json",
-      "bytes": 2426,
-      "sha256": "6675e108771b47fea049585c811f760d34db7146a4ebcb894f35357a19693b6b"
+      "bytes": 2433,
+      "sha256": "f6e4ad81294d84bb4a3850ecad235ade08d5acb4d31a7d154ed6aca1bb45ea82"
     },
     {
       "path": "data/source_reports/ft.json",
-      "bytes": 1139,
-      "sha256": "dad9b426db42b0d3a6f6bc957f3e0b17a4b37819da426d459cbfed3da294d78f"
+      "bytes": 1144,
+      "sha256": "d186d66fede3ae3c5d76c2f10d12e44242a26f81b5871a5ff310bc6501ade963"
     }
   ],
   "collection_mode": "cumulative",
@@ -104,88 +104,60 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-09-29T20:10:42+08:00",
-    "start": "2026-09-27T20:10:42+08:00",
-    "end": "2026-09-29T20:10:42+08:00",
+    "started_at": "2026-09-29T23:16:34.295015+08:00",
+    "finished_at": "2026-09-29T23:17:02.682942+08:00",
+    "merged_at": "2026-09-29T23:18:38.435916+08:00",
+    "start": "2026-09-27T23:16:34.295015+08:00",
+    "end": "2026-09-29T23:16:34.295015+08:00",
+    "scope": "selected",
+    "selected_sources": [
+      "Financial Times"
+    ],
     "sources": {
       "Financial Times": {
-        "status": "not_needed",
+        "source": "Financial Times",
+        "execution_location": "local",
+        "status": "failed",
         "counts": {
-          "inserted": 0
-        },
-        "reason": "collected_locally"
-      },
-      "BBC News": {
-        "status": "complete",
-        "counts": {
-          "discovered": 25,
-          "known": 1,
-          "skipped": 5,
+          "discovered": 206,
+          "known": 0,
+          "skipped": 0,
           "outside_window": 0,
-          "success": 19,
-          "failed": 0,
-          "deferred": 0,
-          "inserted": 19
-        },
-        "errors": [],
-        "source": "BBC News",
-        "scope": "BBC World RSS",
-        "stopped": false,
-        "publication_basis": "public article JSON-LD datePublished"
-      },
-      "新浪财经": {
-        "status": "partial",
-        "counts": {
-          "pages": 17,
-          "discovered": 848,
-          "skipped_known": 400,
-          "skipped_window": 8,
-          "invalid": 5,
-          "fetched": 440,
-          "yielded": 435,
-          "requests": 459,
-          "network_errors": 0,
-          "robots_denied": 0,
-          "errors": 5,
-          "inserted": 435
+          "success": 0,
+          "failed": 1,
+          "deferred": 205,
+          "collected": 0,
+          "inserted": 0,
+          "duplicates": 0,
+          "deferred_cap": 0
         },
         "errors": [
           {
-            "url": "https://finance.sina.com.cn/stock/usstock/c/2026-09-29/doc-initmkkp8225698.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
-          },
-          {
-            "url": "https://finance.sina.com.cn/jryx/bank/2026-09-28/doc-initkxut8395263.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
-          },
-          {
-            "url": "https://finance.sina.com.cn/money/future/2026-09-28/doc-initkhxe3007308.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
-          },
-          {
-            "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-28/doc-initirzi8815294.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
-          },
-          {
-            "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-28/doc-initirzn2912890.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
+            "reason": "login_or_subscription_required"
           }
         ],
-        "reason": "two consecutive pages older than window"
+        "stopped": true,
+        "reason": "login_or_subscription_required",
+        "batch_id": "598c6e2f99cf050a8cc31c809d42b6cbf330eaa066efe0458e2b525b02f6e60d"
       }
     },
-    "scope": "all",
-    "selected_sources": [
-      "BBC News",
-      "新浪财经"
-    ],
-    "execution_location": "github_actions",
-    "before": 512,
-    "after": 966,
-    "inserted": 454,
-    "status": "partial",
+    "local_batch": {
+      "batch_id": "598c6e2f99cf050a8cc31c809d42b6cbf330eaa066efe0458e2b525b02f6e60d",
+      "collected": 0,
+      "duplicates": 0,
+      "deferred_cap": 0,
+      "inserted": 0
+    },
     "target_reached": false,
-    "finished_at": "2026-09-29T20:19:04+08:00"
+    "status": "failed",
+    "before": 966,
+    "after": 966,
+    "inserted": 0,
+    "duplicates": 0,
+    "deferred_cap": 0,
+    "batch_id": "598c6e2f99cf050a8cc31c809d42b6cbf330eaa066efe0458e2b525b02f6e60d",
+    "execution_location": "local",
+    "health_preserved": false
   },
   "last_full_run_at": "2026-09-29T20:10:42+08:00"
 }
