@@ -33,14 +33,14 @@ class NewsCliTests(unittest.TestCase):
         with path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-            writer.writerow(("abc", "���˲ƾ�", "���ǵϷ����³�", "��һ��\n�ڶ���", "2026-09-25T10:00:00+08:00", "2026-09-25T10:05:00+08:00", "https://example.test/a", "zh-CN"))
+            writer.writerow(("abc", "新浪财经", "比亚迪发布新车", "第一段\n第二段", "2026-09-25T10:00:00+08:00", "2026-09-25T10:05:00+08:00", "https://example.test/a", "zh-CN"))
         items = read_news(path)
         self.assertEqual(len(items), 1)
-        self.assertEqual(items[0].content, "��һ��\n�ڶ���")
+        self.assertEqual(items[0].content, "第一段\n第二段")
         self.assertEqual(items[0].published_at.isoformat(), "2026-09-25T10:00:00+08:00")
         match = find_direct_match(items[0], resolve_asset("BYD"))
         self.assertEqual(match.kind, "title_mention")
-        self.assertEqual(match.evidence, "���ǵ�")
+        self.assertEqual(match.evidence, "比亚迪")
 
     def test_bbc_six_column_time_is_hong_kong_time(self):
         path = self.root / "bbc.csv"
@@ -57,7 +57,7 @@ class NewsCliTests(unittest.TestCase):
         with path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-            writer.writerow(("abc", "���˲ƾ�", "﮵�ؼ۸��µ�", "����Դ������Ӱ��", "2026-09-25T10:00:00+08:00", "2026-09-25T10:05:00+08:00", "https://example.test/c", "zh-CN"))
+            writer.writerow(("abc", "新浪财经", "锂电池价格下跌", "新能源汽车受影响", "2026-09-25T10:00:00+08:00", "2026-09-25T10:05:00+08:00", "https://example.test/c", "zh-CN"))
         self.assertIsNone(find_direct_match(read_news(path)[0], resolve_asset("BYD")))
 
     def test_query_cli_rejects_naive_time_without_timezone(self):
@@ -83,8 +83,8 @@ class NewsCliTests(unittest.TestCase):
         with path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-            writer.writerow(("one", "���˲ƾ�", "���ǵ��³�", "����", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
-            writer.writerow(("two", "���˲ƾ�", "﮵�ؼ۸�", "����", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/two", "zh-CN"))
+            writer.writerow(("one", "新浪财经", "比亚迪新车", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
+            writer.writerow(("two", "新浪财经", "锂电池价格", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/two", "zh-CN"))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = main(["batch", "--asset", "BYD", "--news", str(path), "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--prices", str(self.prices)])
@@ -99,7 +99,7 @@ class NewsCliTests(unittest.TestCase):
         with news.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-            writer.writerow(("one", "���˲ƾ�", "���ǵ��³�", "����", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
+            writer.writerow(("one", "新浪财经", "比亚迪新车", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
         with contextlib.redirect_stderr(io.StringIO()):
             code = main(["batch", "--asset", "BYD", "--news", str(news), "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--prices", str(self.prices), "--format", "csv", "--output", str(output)])
         self.assertEqual(code, 0)
@@ -116,8 +116,8 @@ class NewsCliTests(unittest.TestCase):
         with news.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-            writer.writerow(("one", "���˲ƾ�", "���ǵ��³�", "����", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
-            writer.writerow(("two", "���˲ƾ�", "﮵�ؼ۸�", "����", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/two", "zh-CN"))
+            writer.writerow(("one", "新浪财经", "比亚迪新车", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
+            writer.writerow(("two", "新浪财经", "锂电池价格", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/two", "zh-CN"))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = main(["scan", "--asset", "BYD", "--news", str(news)])
@@ -133,7 +133,7 @@ class NewsCliTests(unittest.TestCase):
         with news.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-            writer.writerow(("one", "���˲ƾ�", "���ǵ��³�", "����", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
+            writer.writerow(("one", "新浪财经", "比亚迪新车", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
         output = self.root / "new-folder" / "scan.json"
         code = main(["scan", "--asset", "BYD", "--news", str(news), "--output", str(output)])
         self.assertEqual(code, 0)
