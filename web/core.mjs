@@ -95,6 +95,13 @@ export function hongKongInputToIso(value) {
   return `${text.length === 16 ? `${text}:00` : text}+08:00`;
 }
 
+export function relativeHongKongInput(hours, now = Date.now()) {
+  if (!Number.isFinite(hours) || hours < 0 || !Number.isFinite(now)) {
+    throw new Error("快捷时间无效。");
+  }
+  return new Date(now - hours * HOUR + HK_OFFSET).toISOString().slice(0, 19);
+}
+
 function hkDateKey(ms) { return new Date(ms + HK_OFFSET).toISOString().slice(0, 10); }
 function isoHk(ms) { return new Date(ms + HK_OFFSET).toISOString().replace("Z", "+08:00"); }
 
