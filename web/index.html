@@ -38,13 +38,22 @@
           <p class="field-help">已登记公司可用名称；其他港股请输入代码，例如 2318.HK。</p>
 
           <label for="publishedAt">新闻发布时间 · 香港时间</label>
+          <div class="time-presets" role="group" aria-label="按现在选择新闻发布时间">
+            <button type="button" data-hours="1" aria-pressed="false">1 小时前</button>
+            <button type="button" data-hours="3" aria-pressed="false">3 小时前</button>
+            <button type="button" data-hours="6" aria-pressed="false">6 小时前</button>
+            <button type="button" data-hours="12" aria-pressed="false">12 小时前</button>
+            <button type="button" data-hours="24" aria-pressed="false">24 小时前</button>
+            <button type="button" data-hours="72" aria-pressed="false">3 天前</button>
+            <button type="button" data-hours="168" aria-pressed="false">1 周前</button>
+          </div>
           <input id="publishedAt" name="publishedAt" type="datetime-local" step="1" required>
-          <p class="field-help">可手动输入，或从下方候选新闻中选择。</p>
+          <p class="field-help">快捷选项按点击时的当前时间计算；也可手动输入，或从下方候选新闻中选择。</p>
 
           <div class="upload-box">
-            <label for="priceFile">行情 CSV</label>
+            <label for="priceFile">上传价格 CSV</label>
             <input id="priceFile" name="priceFile" type="file" accept=".csv,text/csv">
-            <p>若仓库尚无共享行情，请选择本机 CSV。文件只在你的浏览器中读取，不会上传到服务器。</p>
+            <p>选择文件后立即载入，供本次查询使用。文件只在你的浏览器中读取，不会上传到服务器。</p>
           </div>
           <details class="schema-help"><summary>查看 CSV 格式</summary><code>ticker,interval,timestamp,close<br>1211.HK,day,2026-08-28,90.0<br>1211.HK,minute,2026-09-28T09:59:00+08:00,100.0</code><p>日线用于前期窗口，分钟线用于发布时基准价和后期窗口。请使用真实、获准使用的行情数据。</p></details>
           <label class="checkbox"><input id="benchmark" type="checkbox"><span>同时比较盈富基金 2800.HK</span></label>
