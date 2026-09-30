@@ -3,71 +3,71 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="�����ŷ���ʱ���ѯ�۹�ǰ��Ÿ��۸񴰿ڣ�������ʵ��ȡ��ʱ���������Դ��">
-  <title>���� �� �۹ɼ۸��ѯ</title>
+  <meta name="description" content="按新闻发布时间查询港股前后九个价格窗口，并保留实际取价时间和数据来源。">
+  <title>新闻 × 港股价格查询</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
 </head>
 <body>
   <header class="masthead">
-    <div class="brand"><span class="brand-mark">N<span>��</span>P</span><span>ʱ������ �� �Ŷӹ���</span></div>
-    <a href="https://github.com/jonehandson11-spec/News-AI-quant-project" target="_blank" rel="noopener noreferrer">GitHub �ֿ� �J</a>
+    <div class="brand"><span class="brand-mark">N<span>×</span>P</span><span>时政量化 · 团队工具</span></div>
+    <a href="https://github.com/jonehandson11-spec/News-AI-quant-project" target="_blank" rel="noopener noreferrer">GitHub 仓库 ↗</a>
   </header>
 
   <main>
     <section class="intro">
       <p class="eyebrow">NEWS / PRICE / TIME</p>
-      <h1>���ŷ���ǰ��<br><em>�۸�ʵ�ʵ������</em></h1>
-      <p class="lede">����۹������ŷ���ʱ�䣬��ѯǰ 1 ���¡�1 ���ȡ����꣬�Լ��� 1 Сʱ�� 1 �ܵļ۸�ÿ�����������Ŀ��ʱ�䡢ʵ��ȡ��ʱ���������Դ��</p>
+      <h1>新闻发布前后，<br><em>价格实际到了哪里？</em></h1>
+      <p class="lede">输入港股与新闻发布时间，查询前 1 个月、1 季度、半年，以及后 1 小时至 1 周的价格。每个结果都保留目标时间、实际取价时间和行情来源。</p>
       <div class="data-strip">
-        <div><span class="strip-label">��������</span><strong id="newsStatus">�����С�</strong></div>
-        <div><span class="strip-label">��������</span><strong id="priceStatus">����С�</strong></div>
-        <div><span class="strip-label">ʱ��</span><strong>��� UTC+08:00</strong></div>
+        <div><span class="strip-label">新闻索引</span><strong id="newsStatus">载入中…</strong></div>
+        <div><span class="strip-label">共享行情</span><strong id="priceStatus">检查中…</strong></div>
+        <div><span class="strip-label">时区</span><strong>香港 UTC+08:00</strong></div>
       </div>
     </section>
 
     <div class="workspace">
       <section class="panel query-panel" aria-labelledby="queryHeading">
-        <div class="panel-heading"><span class="section-number">01</span><div><p class="eyebrow">QUERY</p><h2 id="queryHeading">���ò�ѯ</h2></div></div>
+        <div class="panel-heading"><span class="section-number">01</span><div><p class="eyebrow">QUERY</p><h2 id="queryHeading">设置查询</h2></div></div>
         <form id="queryForm">
-          <label for="asset">�۹����ƻ����</label>
-          <input id="asset" name="asset" list="assetOptions" value="���ǵ�" autocomplete="off" required placeholder="���� ���ǵ� / 1211.HK">
+          <label for="asset">港股名称或代码</label>
+          <input id="asset" name="asset" list="assetOptions" value="比亚迪" autocomplete="off" required placeholder="例如 比亚迪 / 1211.HK">
           <datalist id="assetOptions">
-            <option value="���ǵ�"><option value="��Ѷ"><option value="����Ͱ�"><option value="��о����"><option value="���"><option value="1211.HK"><option value="2800.HK">
+            <option value="比亚迪"><option value="腾讯"><option value="阿里巴巴"><option value="中芯国际"><option value="汇丰"><option value="1211.HK"><option value="2800.HK">
           </datalist>
-          <p class="field-help">�ѵǼǹ�˾�������ƣ������۹���������룬���� 2318.HK��</p>
+          <p class="field-help">已登记公司可用名称；其他港股请输入代码，例如 2318.HK。</p>
 
-          <label for="publishedAt">���ŷ���ʱ�� �� ���ʱ��</label>
+          <label for="publishedAt">新闻发布时间 · 香港时间</label>
           <input id="publishedAt" name="publishedAt" type="datetime-local" step="1" required>
-          <p class="field-help">���ֶ����룬����·���ѡ������ѡ��</p>
+          <p class="field-help">可手动输入，或从下方候选新闻中选择。</p>
 
           <div class="upload-box">
-            <label for="priceFile">���� CSV</label>
+            <label for="priceFile">行情 CSV</label>
             <input id="priceFile" name="priceFile" type="file" accept=".csv,text/csv">
-            <p>���ֿ����޹������飬��ѡ�񱾻� CSV���ļ�ֻ�����������ж�ȡ�������ϴ�����������</p>
+            <p>若仓库尚无共享行情，请选择本机 CSV。文件只在你的浏览器中读取，不会上传到服务器。</p>
           </div>
-          <details class="schema-help"><summary>�鿴 CSV ��ʽ</summary><code>ticker,interval,timestamp,close<br>1211.HK,day,2026-08-28,90.0<br>1211.HK,minute,2026-09-28T09:59:00+08:00,100.0</code><p>��������ǰ�ڴ��ڣ����������ڷ���ʱ��׼�ۺͺ��ڴ��ڡ���ʹ����ʵ����׼ʹ�õ��������ݡ�</p></details>
-          <label class="checkbox"><input id="benchmark" type="checkbox"><span>ͬʱ�Ƚ�ӯ������ 2800.HK</span></label>
-          <button class="primary-button" type="submit">��ѯ�Ÿ��۸񴰿� <span aria-hidden="true">�J</span></button>
+          <details class="schema-help"><summary>查看 CSV 格式</summary><code>ticker,interval,timestamp,close<br>1211.HK,day,2026-08-28,90.0<br>1211.HK,minute,2026-09-28T09:59:00+08:00,100.0</code><p>日线用于前期窗口，分钟线用于发布时基准价和后期窗口。请使用真实、获准使用的行情数据。</p></details>
+          <label class="checkbox"><input id="benchmark" type="checkbox"><span>同时比较盈富基金 2800.HK</span></label>
+          <button class="primary-button" type="submit">查询九个价格窗口 <span aria-hidden="true">↗</span></button>
           <p id="message" class="message" role="status" aria-live="polite"></p>
         </form>
       </section>
 
       <section class="panel news-panel" aria-labelledby="newsHeading">
-        <div class="panel-heading"><span class="section-number">02</span><div><p class="eyebrow">NEWS INDEX</p><h2 id="newsHeading">��غ�ѡ����</h2></div></div>
-        <p class="panel-description">����˾����ֱ���ἰɸѡ�������ἰ��ͬһ�¼����ظ���������Ҫ�˹����ˡ�</p>
-        <div class="news-count" id="matchCount">�����С�</div>
+        <div class="panel-heading"><span class="section-number">02</span><div><p class="eyebrow">NEWS INDEX</p><h2 id="newsHeading">相关候选新闻</h2></div></div>
+        <p class="panel-description">按公司名称直接提及筛选。正文提及与同一事件的重复报道都需要人工复核。</p>
+        <div class="news-count" id="matchCount">载入中…</div>
         <div id="newsList" class="news-list"></div>
       </section>
     </div>
 
     <section id="results" class="panel results-panel" hidden aria-labelledby="resultsHeading">
-      <div class="results-head"><div><p class="eyebrow">RESULTS</p><h2 id="resultsHeading">�۸񴰿�</h2><p id="resultSubtitle"></p></div><div class="download-actions"><button id="downloadJson" type="button">���� JSON</button><button id="downloadCsv" type="button">���� CSV</button></div></div>
-      <div class="baseline-card"><span>����ǰ���һ������ɷ�����</span><strong id="baselinePrice">��</strong><small id="baselineDetail"></small></div>
-      <div class="table-scroll"><table><thead><tr><th>����</th><th>Ŀ��ʱ��</th><th>ʵ��ȡ��</th><th>�۸�</th><th>�ǵ���</th><th>״̬</th></tr></thead><tbody id="resultRows"></tbody></table></div>
-      <p class="result-note">�ǵ���Ϊδ��Ȩ�۸������ʣ�����˳�ӵ�ȡ�۲��ܽ���Ϊ��ȷʱ���ļ۸�仯��������۸�ͬʱ�仯�����������ϵ��</p>
+      <div class="results-head"><div><p class="eyebrow">RESULTS</p><h2 id="resultsHeading">价格窗口</h2><p id="resultSubtitle"></p></div><div class="download-actions"><button id="downloadJson" type="button">下载 JSON</button><button id="downloadCsv" type="button">下载 CSV</button></div></div>
+      <div class="baseline-card"><span>发布前最后一根已完成分钟线</span><strong id="baselinePrice">—</strong><small id="baselineDetail"></small></div>
+      <div class="table-scroll"><table><thead><tr><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
+      <p class="result-note">涨跌幅为未复权价格收益率；休市顺延的取价不能解释为精确时长的价格变化。新闻与价格同时变化不代表因果关系。</p>
     </section>
   </main>
-  <footer><span>���� �� �۹ɼ۸��ѯ �� ������Դ��ʱ��ʼ����������</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">�鿴Դ������ʹ��˵�� �J</a></footer>
+  <footer><span>新闻 × 港股价格查询 · 数据来源与时间始终随结果保留</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">查看源代码与使用说明 ↗</a></footer>
 </body>
 </html>
