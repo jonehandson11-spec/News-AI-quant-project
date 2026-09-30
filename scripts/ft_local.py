@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 from scripts.crawl_daily import normalize
 from scripts.dataset import FIELDS, iso, read_json, refresh, write_json
 from scripts.validate_database import validate
+from crawler.ft_impl.diagnostics import NEW_REASONS, safe_diagnostic
 
 SOURCE = "Financial Times"
 REASONS = {
@@ -30,6 +31,7 @@ REASONS = {
     "article_request_failed", "invalid_or_incomplete_article", "collector_failed",
     "credential_unavailable", "invalid_candidate", "cleanup_failed", "target_reached",
 }
+REASONS.update(NEW_REASONS)
 COUNT_KEYS = {"discovered", "known", "skipped", "outside_window", "success", "failed",
               "deferred", "rejected", "collected", "duplicates", "inserted", "deferred_cap"}
 
@@ -85,9 +87,20 @@ def _report(value):
     errors = value.get("errors", [])
     for error in errors[:20] if isinstance(errors, list) else []:
         reason = error.get("reason") if isinstance(error, dict) else None
-        result["errors"].append({"reason": reason if isinstance(reason, str) and reason in REASONS else "collector_failed"})
+        item = {"reason": reason if isinstance(reason, str) and reason in REASONS else "collector_failed"}
+        diagnostic = error.get("diagnostic") if isinstance(error, dict) else None
+        if isinstance(diagnostic, dict):
+            item["diagnostic"] = safe_diagnostic(item["reason"], diagnostic.get("stage"))
+        result["errors"].append(item)
     if status in {"failed", "partial"} and "reason" not in result:
         result["reason"] = result["errors"][0]["reason"] if result["errors"] else "collector_failed"
+    diagnostic = value.get("diagnostic")
+    if isinstance(diagnostic, dict):
+        reason = result.get("reason", "collector_failed")
+        if diagnostic.get("reason") != reason:
+            diagnostic = next((item["diagnostic"] for item in result["errors"]
+                               if item["reason"] == reason and "diagnostic" in item), diagnostic)
+        result["diagnostic"] = safe_diagnostic(reason, diagnostic.get("stage"))
     return result
 
 

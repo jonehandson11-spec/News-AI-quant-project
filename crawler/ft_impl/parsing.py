@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 
 from .session import StopCollection, validate_url
+from .diagnostics import ArticleParseError
 
 ARTICLE_TYPES = {"NewsArticle", "Article", "ReportageNewsArticle", "AnalysisNewsArticle", "OpinionNewsArticle"}
 PAYWALL_PHRASES = (
@@ -63,10 +64,13 @@ def _articles(value):
 
 def _aware(value):
     if not isinstance(value, str):
-        raise ValueError("missing_publication_time")
-    parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        raise ArticleParseError("missing_publication_time")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        raise ArticleParseError("invalid_publication_time") from None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise ValueError("naive_publication_time")
+        raise ArticleParseError("naive_publication_time")
     return parsed.astimezone(timezone.utc)
 
 
@@ -98,7 +102,7 @@ def publication_time(soup, url):
             candidates.append(_aware(node.get("datetime")))
     distinct = set(candidates)
     if len(distinct) != 1:
-        raise ValueError("missing_or_ambiguous_publication_time")
+        raise ArticleParseError("missing_or_ambiguous_publication_time")
     return distinct.pop()
 
 
@@ -106,18 +110,21 @@ def parse_article(html, url):
     soup = BeautifulSoup(html, "html.parser")
     body = soup.select_one('[itemprop="articleBody"], .article__content-body, '
                            '.article__body, [data-trackable="article-body"]')
+    # Check explicit barriers even when no article container was delivered.
+    # These codes describe the response, not confirmed account entitlement.
+    barriers = soup.select('.barrier, .barrier__heading, .subscription-barrier, '
+                           '[data-trackable="subscription-barrier"]')
+    for barrier in barriers:
+        barrier_text = " ".join(barrier.get_text(" ", strip=True).lower().split())
+        if "subscribe" in barrier_text or "subscription" in barrier_text:
+            raise StopCollection("subscription_barrier_detected")
+        if "sign in" in barrier_text:
+            raise StopCollection("login_prompt_detected")
     if body is None:
         page_text = " ".join(soup.get_text(" ", strip=True).lower().split())
         if any(p in page_text for p in PAYWALL_PHRASES):
-            raise StopCollection("login_or_subscription_required")
-        raise ValueError("visible_article_body_missing")
-    # Reject an explicitly rendered subscription barrier, including one beside
-    # a long teaser. Ordinary navigation Subscribe links do not count.
-    barrier = soup.select_one('.barrier, .barrier__heading, .subscription-barrier, '
-                              '[data-trackable="subscription-barrier"]')
-    if barrier and any(p in barrier.get_text(" ", strip=True).lower()
-                       for p in ("subscribe", "sign in", "subscription")):
-        raise StopCollection("login_or_subscription_required")
+            raise StopCollection("paywall_page_text_detected")
+        raise ArticleParseError("visible_article_body_missing")
     for node in body.select("script, style, noscript, nav, aside, form, button, "
                             ".n-content-tag, .article__related-content, [aria-hidden='true']"):
         node.decompose()
@@ -126,11 +133,11 @@ def parse_article(html, url):
     lowered = " ".join(text.lower().split())
     hits = sum(phrase in lowered for phrase in PAYWALL_PHRASES)
     if hits >= 2 or "subscribe to unlock" in lowered or "sign in to continue" in lowered:
-        raise StopCollection("login_or_subscription_required")
+        raise StopCollection("paywall_body_text_detected")
     if len(text) < 600 or len(paragraphs) < 2 or "\ufffd" in text:
-        raise ValueError("incomplete_article_body")
+        raise ArticleParseError("incomplete_article_body")
     title = soup.find("h1")
     title = title.get_text(" ", strip=True) if title else ""
     if not title:
-        raise ValueError("article_title_missing")
+        raise ArticleParseError("article_title_missing")
     return {"title": title, "content": text, "published": publication_time(soup, url)}

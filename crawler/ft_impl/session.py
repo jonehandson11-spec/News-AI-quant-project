@@ -46,7 +46,9 @@ def validate_url(url):
         valid = False
     if not valid:
         raise StopCollection("unsafe_destination")
-    if re.match(r"^/(?:login|signin|sign-in|subscribe|subscription|products)(?:/|$)",
+    if re.match(r"^/(?:subscribe|subscription|products)(?:/|$)", parsed.path, re.I):
+        raise StopCollection("subscription_required")
+    if re.match(r"^/(?:login|signin|sign-in)(?:/|$)",
                 parsed.path, re.I):
         raise StopCollection("auth_required")
 
@@ -85,14 +87,17 @@ class FTSession(requests.Session):
                 time.sleep(max(0, self.delay - (time.monotonic() - self._last_request)))
             self._last_request = time.monotonic()
             response = super().request(method, url, allow_redirects=False, **kwargs)
-            if response.status_code in (401, 403, 429):
-                reason = {401: "auth_expired", 403: "access_denied", 429: "rate_limited"}[response.status_code]
+            if response.status_code in (401, 402, 403, 429):
+                reason = {401: "auth_expired", 402: "subscription_required",
+                          403: "access_denied", 429: "rate_limited"}[response.status_code]
                 response.close()
                 raise StopCollection(reason)
             if response.is_redirect or response.is_permanent_redirect:
                 destination = urljoin(url, response.headers.get("Location", ""))
                 response.close()
-                if urlsplit(destination).hostname in ("accounts.ft.com", "subs.ft.com"):
+                if urlsplit(destination).hostname == "subs.ft.com":
+                    raise StopCollection("subscription_required")
+                if urlsplit(destination).hostname == "accounts.ft.com":
                     raise StopCollection("auth_required")
                 validate_url(destination)
                 # Session.send has already applied Set-Cookie to this CookieJar.

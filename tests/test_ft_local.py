@@ -144,6 +144,22 @@ class LocalFTTests(unittest.TestCase):
         self.assertEqual(health['last_reason'], 'auth_expired')
         validate(self.root)
 
+    def test_parser_diagnostic_survives_collect_batch_merge_and_health(self):
+        from crawler import ft
+        from test_ft import FakeSession, feed, URLS
+        original = self.rows()
+        session = FakeSession({'feed': feed(URLS[:1]),
+                               URLS[0]: '<div class="barrier">Subscribe for access</div>'})
+        with patch.object(ft, 'FTSession', return_value=session), patch.object(ft, 'RSS_FEEDS', ('feed',)):
+            collect_batch(self.root, self.cookie_file, self.batch_file, now=NOW)
+        merge_batch(self.root, self.batch_file)
+        report = read_json(self.root / 'data/source_reports/ft.json')
+        self.assertEqual(report['health']['last_reason'], 'subscription_barrier_detected')
+        self.assertEqual(report['latest_run']['diagnostic'], {
+            'reason': 'subscription_barrier_detected', 'stage': 'article_parse',
+            'action': 'check_subscription_access'})
+        self.assertEqual(self.rows(), original)
+
     def test_older_failure_cannot_downgrade_newer_ft_health_or_other_sources(self):
         for slug in ('ft', 'bbc', 'sina'):
             path = self.root / f'data/source_reports/{slug}.json'
