@@ -11,7 +11,7 @@ HK = ZoneInfo("Asia/Hong_Kong")
 
 class AssetWindowTests(unittest.TestCase):
     def test_byd_names_resolve_to_same_hk_equity(self):
-        for name in ("���ǵ�", "BYD", "1211.HK", "HK.01211"):
+        for name in ("比亚迪", "BYD", "1211.HK", "HK.01211"):
             with self.subTest(name=name):
                 asset = resolve_asset(name)
                 self.assertEqual(asset.ticker, "1211.HK")
@@ -20,7 +20,7 @@ class AssetWindowTests(unittest.TestCase):
 
     def test_unknown_asset_does_not_guess(self):
         with self.assertRaisesRegex(ValueError, "Unknown asset"):
-            resolve_asset("﮵��")
+            resolve_asset("锂电池")
 
     def test_unlisted_hk_ticker_is_accepted(self):
         asset = resolve_asset("2318.HK")
