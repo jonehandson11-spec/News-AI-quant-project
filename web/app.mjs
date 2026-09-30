@@ -1,4 +1,4 @@
-import { WINDOW_LABELS, hongKongInputToIso, parsePricesCsv, queryPrices, resolveAsset } from "./core.mjs";
+import { WINDOW_LABELS, hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset } from "./core.mjs";
 
 const byId = (id) => document.getElementById(id);
 const state = { bars: [], news: [], result: null, priceSource: "" };
@@ -9,6 +9,11 @@ const statusText = {
 const showTime = (value) => value ? value.slice(0, 19).replace("T", " ") : "—";
 const showPrice = (value) => value === null || value === undefined ? "—" : Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 4 });
 const showReturn = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+const timePresetButtons = [...document.querySelectorAll(".time-presets button")];
+
+function clearTimePreset() {
+  for (const button of timePresetButtons) button.setAttribute("aria-pressed", "false");
+}
 
 function message(text, ok = false) {
   byId("message").textContent = text;
@@ -45,6 +50,7 @@ function renderNews() {
     addText(button, "small", `${showTime(item.published_at)} · ${item.source}`);
     button.addEventListener("click", () => {
       byId("publishedAt").value = item.published_at.slice(0, 19);
+      clearTimePreset();
       message(`已选择「${item.title}」；请确认其与资产相关，再查询价格。`, true);
       byId("queryForm").scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -129,6 +135,15 @@ async function loadSiteData() {
 }
 
 byId("asset").addEventListener("input", renderNews);
+byId("publishedAt").addEventListener("input", clearTimePreset);
+for (const button of timePresetButtons) {
+  button.addEventListener("click", () => {
+    byId("publishedAt").value = relativeHongKongInput(Number(button.dataset.hours));
+    clearTimePreset();
+    button.setAttribute("aria-pressed", "true");
+    message(`已选 ${button.textContent.trim()}：${showTime(byId("publishedAt").value)}（香港时间）。`, true);
+  });
+}
 byId("priceFile").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
