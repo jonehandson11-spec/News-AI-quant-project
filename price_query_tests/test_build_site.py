@@ -21,6 +21,7 @@ class SiteBuildTests(unittest.TestCase):
             index = json.loads((output / "news-index.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["news_articles_total"], 1)
             self.assertEqual(index["matches"][0]["ticker"], "1211.HK")
+            self.assertTrue((output / "local-prices.mjs").exists())
             self.assertNotIn("private body text", (output / "news-index.json").read_text(encoding="utf-8"))
             self.assertFalse((output / "price-history.csv").exists())
 
