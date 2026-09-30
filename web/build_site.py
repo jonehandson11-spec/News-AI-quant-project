@@ -17,7 +17,7 @@ from news_price_query.prices import CsvPriceProvider  # noqa: E402
 
 def build(news_path: Path, output: Path, public_prices: Path | None = None) -> dict:
     output.mkdir(parents=True, exist_ok=True)
-    for filename in ("index.html", "styles.css", "core.mjs", "app.mjs"):
+    for filename in ("index.html", "styles.css", "core.mjs", "app.mjs", "local-prices.mjs"):
         shutil.copy2(ROOT / "web" / filename, output / filename)
     (output / ".nojekyll").write_text("", encoding="utf-8")
 
