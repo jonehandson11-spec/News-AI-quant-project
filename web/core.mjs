@@ -3,12 +3,12 @@ const DAY = 24 * HOUR;
 const HK_OFFSET = 8 * HOUR;
 
 export const ASSETS = [
-  { ticker: "1211.HK", names: ["���ǵ�", "���ǵϹɷ�", "BYD"] },
-  { ticker: "0700.HK", names: ["��Ѷ", "��Ѷ�ع�", "Tencent"] },
-  { ticker: "9988.HK", names: ["����Ͱ�", "����Ͱͼ���", "Alibaba"] },
-  { ticker: "0981.HK", names: ["��о����", "SMIC"] },
-  { ticker: "0005.HK", names: ["���", "���ع�", "HSBC"] },
-  { ticker: "2800.HK", names: ["ӯ������"] },
+  { ticker: "1211.HK", names: ["比亚迪", "比亚迪股份", "BYD"] },
+  { ticker: "0700.HK", names: ["腾讯", "腾讯控股", "Tencent"] },
+  { ticker: "9988.HK", names: ["阿里巴巴", "阿里巴巴集团", "Alibaba"] },
+  { ticker: "0981.HK", names: ["中芯国际", "SMIC"] },
+  { ticker: "0005.HK", names: ["汇丰", "汇丰控股", "HSBC"] },
+  { ticker: "2800.HK", names: ["盈富基金"] },
 ];
 
 export function resolveAsset(name) {
@@ -23,7 +23,7 @@ export function resolveAsset(name) {
     const number = Number(match[1] || match[2]);
     if (number > 0) return `${String(number).padStart(4, "0")}.HK`;
   }
-  throw new Error(`δ֪�۹ɣ�${name}���������ѵǼ����ƻ�۹ɴ��루���� 2318.HK����`);
+  throw new Error(`未知港股：${name}。请输入已登记名称或港股代码（例如 2318.HK）。`);
 }
 
 function csvRows(text) {
@@ -44,7 +44,7 @@ function csvRows(text) {
       row = []; field = "";
     } else field += char;
   }
-  if (quoted) throw new Error("�۸� CSV ��δ�պϵ����š�");
+  if (quoted) throw new Error("价格 CSV 有未闭合的引号。");
   row.push(field);
   if (row.some((value) => value.trim())) rows.push(row);
   return rows;
@@ -55,32 +55,32 @@ function parseTime(value, interval) {
   const timestamp = interval === "day" && /^\d{4}-\d{2}-\d{2}$/.test(text)
     ? `${text}T16:00:00+08:00` : text;
   if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(timestamp)) {
-    throw new Error(`�۸�ʱ��ȱ��ʱ����${text}`);
+    throw new Error(`价格时间缺少时区：${text}`);
   }
   const valueMs = Date.parse(timestamp);
-  if (!Number.isFinite(valueMs)) throw new Error(`�޷������۸�ʱ�䣺${text}`);
+  if (!Number.isFinite(valueMs)) throw new Error(`无法解析价格时间：${text}`);
   return valueMs;
 }
 
 export function parsePricesCsv(text, source = "local CSV") {
   const rows = csvRows(text);
-  if (!rows.length) throw new Error("�۸� CSV Ϊ�ա�");
+  if (!rows.length) throw new Error("价格 CSV 为空。");
   const header = rows.shift().map((name) => name.trim().toLowerCase());
   const required = ["ticker", "interval", "timestamp", "close"];
   if (required.some((name) => !header.includes(name))) {
-    throw new Error(`�۸� CSV ������� ${required.join(", ")} ���С�`);
+    throw new Error(`价格 CSV 必须包含 ${required.join(", ")} 四列。`);
   }
   const seen = new Set(), bars = [];
   for (const [index, row] of rows.entries()) {
     const item = Object.fromEntries(header.map((name, column) => [name, row[column] ?? ""]));
     const ticker = resolveAsset(item.ticker);
     const interval = item.interval.trim().toLowerCase();
-    if (!["minute", "day"].includes(interval)) throw new Error(`�� ${index + 2} �У�interval ����Ϊ minute �� day��`);
+    if (!["minute", "day"].includes(interval)) throw new Error(`第 ${index + 2} 行：interval 必须为 minute 或 day。`);
     const timestamp = parseTime(item.timestamp, interval);
     const close = Number(item.close);
-    if (!Number.isFinite(close) || close <= 0) throw new Error(`�� ${index + 2} �У����̼۱���Ϊ�����������֡�`);
+    if (!Number.isFinite(close) || close <= 0) throw new Error(`第 ${index + 2} 行：收盘价必须为正的有限数字。`);
     const key = `${ticker}|${interval}|${timestamp}`;
-    if (seen.has(key)) throw new Error(`�� ${index + 2} �У��ظ��۸� K �� ${key}��`);
+    if (seen.has(key)) throw new Error(`第 ${index + 2} 行：重复价格 K 线 ${key}。`);
     seen.add(key);
     bars.push({ ticker, interval, timestamp, close, basis: item.basis?.trim() || "raw", source });
   }
@@ -90,7 +90,7 @@ export function parsePricesCsv(text, source = "local CSV") {
 export function hongKongInputToIso(value) {
   const text = String(value).trim();
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(text)) {
-    throw new Error("���������ʱ�䣬��ʽΪ YYYY-MM-DD HH:MM��");
+    throw new Error("请输入香港时间，格式为 YYYY-MM-DD HH:MM。");
   }
   return `${text.length === 16 ? `${text}:00` : text}+08:00`;
 }
@@ -115,11 +115,11 @@ const WINDOWS = [
 ];
 
 function eventQuery(ticker, eventMs, asOfMs, bars) {
-  if (eventMs > asOfMs) throw new Error("����ʱ�����ڵ�ǰ��ѯ��ֹʱ�䡣");
+  if (eventMs > asOfMs) throw new Error("新闻时间晚于当前查询截止时间。");
   const minutes = bars.filter((bar) => bar.ticker === ticker && bar.interval === "minute" && bar.timestamp + 60000 <= asOfMs);
   const days = bars.filter((bar) => bar.ticker === ticker && bar.interval === "day");
   const baselineBar = minutes.filter((bar) => bar.timestamp + 60000 <= eventMs).at(-1);
-  if (!baselineBar) throw new Error(`${ticker} �����ŷ���ǰû������ɵ�һ���� K �ߡ�`);
+  if (!baselineBar) throw new Error(`${ticker} 在新闻发布前没有已完成的一分钟 K 线。`);
   const gapSeconds = Math.round((eventMs - baselineBar.timestamp - 60000) / 1000);
   const baseline = {
     observed_at: isoHk(baselineBar.timestamp), price: baselineBar.close,
@@ -134,7 +134,7 @@ function eventQuery(ticker, eventMs, asOfMs, bars) {
     if (direction === "before") {
       const bar = days.filter((item) => hkDateKey(item.timestamp) <= hkDateKey(target)).at(-1);
       if (!bar) { output[label] = empty; continue; }
-      if (bar.basis !== baseline.basis) throw new Error(`${ticker} �����˲�ͬ��Ȩ�ھ��ļ۸�`);
+      if (bar.basis !== baseline.basis) throw new Error(`${ticker} 混用了不同复权口径的价格。`);
       output[label] = { ...empty, observed_at: isoHk(bar.timestamp), price: bar.close,
         return_pct: (baseline.price - bar.close) / bar.close * 100,
         status: hkDateKey(bar.timestamp) === hkDateKey(target) ? "on_date" : "deferred_back",
@@ -143,7 +143,7 @@ function eventQuery(ticker, eventMs, asOfMs, bars) {
     else {
       const bar = minutes.find((item) => item.timestamp >= target);
       if (!bar) { output[label] = empty; continue; }
-      if (bar.basis !== baseline.basis) throw new Error(`${ticker} �����˲�ͬ��Ȩ�ھ��ļ۸�`);
+      if (bar.basis !== baseline.basis) throw new Error(`${ticker} 混用了不同复权口径的价格。`);
       const delay = Math.round((bar.timestamp - target) / 1000);
       output[label] = { ...empty, observed_at: isoHk(bar.timestamp), price: bar.close,
         return_pct: (bar.close - baseline.price) / baseline.price * 100,
@@ -156,9 +156,9 @@ function eventQuery(ticker, eventMs, asOfMs, bars) {
 
 export function queryPrices(assetName, publishedAt, bars, { asOf = Date.now(), benchmark = false } = {}) {
   const ticker = resolveAsset(assetName);
-  if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(publishedAt)) throw new Error("����ʱ��������ʱ����");
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(publishedAt)) throw new Error("新闻时间必须包含时区。");
   const eventMs = Date.parse(publishedAt), asOfMs = typeof asOf === "number" ? asOf : Date.parse(asOf);
-  if (!Number.isFinite(eventMs) || !Number.isFinite(asOfMs)) throw new Error("����ʱ����ֹʱ����Ч��");
+  if (!Number.isFinite(eventMs) || !Number.isFinite(asOfMs)) throw new Error("新闻时间或截止时间无效。");
   const result = eventQuery(ticker, eventMs, asOfMs, bars);
   if (benchmark && ticker !== "2800.HK") {
     const market = eventQuery("2800.HK", eventMs, asOfMs, bars);
@@ -182,7 +182,7 @@ export function queryPrices(assetName, publishedAt, bars, { asOf = Date.now(), b
 }
 
 export const WINDOW_LABELS = {
-  before_1m: "����ǰ 1 ����", before_3m: "����ǰ 1 ����", before_6m: "����ǰ����",
-  after_1h: "���ź� 1 Сʱ", after_3h: "���ź� 3 Сʱ", after_12h: "���ź� 12 Сʱ",
-  after_24h: "���ź� 24 Сʱ", after_3d: "���ź� 3 ��", after_1w: "���ź� 1 ��",
+  before_1m: "新闻前 1 个月", before_3m: "新闻前 1 季度", before_6m: "新闻前半年",
+  after_1h: "新闻后 1 小时", after_3h: "新闻后 3 小时", after_12h: "新闻后 12 小时",
+  after_24h: "新闻后 24 小时", after_3d: "新闻后 3 天", after_1w: "新闻后 1 周",
 };
