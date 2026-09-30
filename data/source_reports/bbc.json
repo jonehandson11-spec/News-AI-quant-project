@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 52,
+  "saved_full_text_articles": 70,
   "rss_items": 27,
   "outcomes": {
     "success": 23,
@@ -14,20 +14,20 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-30T20:01:47.847299+08:00",
+    "end": "2026-09-30T20:11:25+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "complete",
     "counts": {
-      "discovered": 25,
+      "discovered": 26,
       "known": 1,
-      "skipped": 5,
+      "skipped": 7,
       "outside_window": 0,
-      "success": 19,
+      "success": 18,
       "failed": 0,
       "deferred": 0,
-      "inserted": 19
+      "inserted": 18
     },
     "errors": [],
     "source": "BBC News",
@@ -37,8 +37,8 @@
   },
   "health": {
     "status": "complete",
-    "last_attempt_at": "2026-09-29T20:10:42+08:00",
-    "last_success_at": "2026-09-29T20:10:42+08:00",
+    "last_attempt_at": "2026-09-30T20:11:25+08:00",
+    "last_success_at": "2026-09-30T20:11:25+08:00",
     "needs_attention": false,
     "last_reason": null,
     "execution_location": "github_actions"
