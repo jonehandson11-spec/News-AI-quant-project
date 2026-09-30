@@ -17,9 +17,9 @@ const fixture = header + [
 ].join("\n");
 
 test("asset names and arbitrary Hong Kong tickers resolve", () => {
-  assert.equal(resolveAsset("���ǵ�"), "1211.HK");
+  assert.equal(resolveAsset("比亚迪"), "1211.HK");
   assert.equal(resolveAsset("HK.02318"), "2318.HK");
-  assert.throws(() => resolveAsset("�綯��"), /δ֪�۹�/);
+  assert.throws(() => resolveAsset("电动车"), /未知港股/);
   assert.equal(hongKongInputToIso("2026-09-28T10:00"), "2026-09-28T10:00:00+08:00");
 });
 
@@ -52,10 +52,10 @@ test("calendar month end clamps and missing earlier daily bars remain missing", 
 });
 
 test("bad price CSV is rejected before a query", () => {
-  assert.throws(() => parsePricesCsv(header + "1211.HK,minute,2026-09-28T09:59:00,100\n"), /ʱ��/);
-  assert.throws(() => parsePricesCsv(header + "1211.HK,minute,2026-09-28T09:59:00+08:00,nan\n"), /��������/);
+  assert.throws(() => parsePricesCsv(header + "1211.HK,minute,2026-09-28T09:59:00,100\n"), /时区/);
+  assert.throws(() => parsePricesCsv(header + "1211.HK,minute,2026-09-28T09:59:00+08:00,nan\n"), /有限数字/);
   const duplicated = header + "1211.HK,minute,2026-09-28T09:59:00+08:00,100\n1211.HK,minute,2026-09-28T09:59:00+08:00,101\n";
-  assert.throws(() => parsePricesCsv(duplicated), /�ظ��۸�/);
+  assert.throws(() => parsePricesCsv(duplicated), /重复价格/);
 });
 
 test("benchmark excess return needs aligned baselines", () => {
