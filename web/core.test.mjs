@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hongKongInputToIso, parsePricesCsv, queryPrices, resolveAsset } from "./core.mjs";
+import { hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset } from "./core.mjs";
 
 const header = "ticker,interval,timestamp,close\n";
 const fixture = header + [
@@ -21,6 +21,13 @@ test("asset names and arbitrary Hong Kong tickers resolve", () => {
   assert.equal(resolveAsset("HK.02318"), "2318.HK");
   assert.throws(() => resolveAsset("电动车"), /未知港股/);
   assert.equal(hongKongInputToIso("2026-09-28T10:00"), "2026-09-28T10:00:00+08:00");
+});
+
+test("relative time presets use the click time in Hong Kong across date boundaries", () => {
+  const now = Date.parse("2026-10-01T00:30:45+08:00");
+  assert.equal(relativeHongKongInput(1, now), "2026-09-30T23:30:45");
+  assert.equal(relativeHongKongInput(6, now), "2026-09-30T18:30:45");
+  assert.equal(relativeHongKongInput(24, now), "2026-09-30T00:30:45");
 });
 
 test("query uses completed minute bars and reports actual observations", () => {
