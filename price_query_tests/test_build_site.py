@@ -15,7 +15,7 @@ class SiteBuildTests(unittest.TestCase):
             with news.open("w", encoding="utf-8", newline="") as handle:
                 writer = csv.writer(handle)
                 writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-                writer.writerow(("id-1", "test", "���ǵϷ����³���", "private body text", "2026-09-28T10:00:00+08:00", "2026-09-28T10:05:00+08:00", "https://example.com/1", "zh-CN"))
+                writer.writerow(("id-1", "test", "比亚迪发布新车型", "private body text", "2026-09-28T10:00:00+08:00", "2026-09-28T10:05:00+08:00", "https://example.com/1", "zh-CN"))
             output = root / "site"
             manifest = build(news, output)
             index = json.loads((output / "news-index.json").read_text(encoding="utf-8"))
