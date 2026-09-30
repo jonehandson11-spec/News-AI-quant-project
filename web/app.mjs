@@ -1,7 +1,8 @@
 import { WINDOW_LABELS, hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset } from "./core.mjs";
+import { deleteSavedPriceCsv, loadSavedPriceCsv, savePriceCsv } from "./local-prices.mjs";
 
 const byId = (id) => document.getElementById(id);
-const state = { bars: [], news: [], result: null, priceSource: "" };
+const state = { bars: [], news: [], result: null, priceSource: "", fileSelected: false };
 const statusText = {
   on_date: "目标日期", deferred_back: "前一交易日", on_time: "准时",
   deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情",
@@ -134,6 +135,20 @@ async function loadSiteData() {
   }
 }
 
+async function restoreSavedPrices() {
+  try {
+    const saved = await loadSavedPriceCsv();
+    if (!saved || state.fileSelected) return;
+    byId("clearSavedPrices").hidden = false;
+    state.bars = parsePricesCsv(saved.text, `本机保存：${saved.name}`);
+    state.priceSource = `本机保存：${saved.name}`;
+    byId("priceStatus").textContent = `${state.bars.length.toLocaleString("zh-CN")} 根 K 线 · 已自动载入`;
+    message(`已从此浏览器自动载入 ${saved.name}。`, true);
+  } catch (error) {
+    message(`无法自动载入已保存的 CSV：${error.message}。请重新选择文件。`);
+  }
+}
+
 byId("asset").addEventListener("input", renderNews);
 byId("publishedAt").addEventListener("input", clearTimePreset);
 for (const button of timePresetButtons) {
@@ -147,14 +162,30 @@ for (const button of timePresetButtons) {
 byId("priceFile").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
+  state.fileSelected = true;
   try {
-    state.bars = parsePricesCsv(await file.text(), `本机文件：${file.name}`);
+    const csv = await file.text();
+    state.bars = parsePricesCsv(csv, `本机文件：${file.name}`);
     state.priceSource = `本机文件：${file.name}`;
     byId("priceStatus").textContent = `${state.bars.length.toLocaleString("zh-CN")} 根 K 线 · 本机文件`;
-    message(`已读取 ${file.name}，共 ${state.bars.length} 根价格 K 线。`, true);
+    try {
+      await savePriceCsv(file.name, csv);
+      byId("clearSavedPrices").hidden = false;
+      message(`已读取并保存在此浏览器：${file.name}，共 ${state.bars.length} 根价格 K 线。`, true);
+    } catch (error) {
+      message(`已读取 ${file.name}，但无法在此浏览器保存：${error.message}。本次仍可查询。`);
+    }
   } catch (error) {
     state.bars = []; state.priceSource = "";
     message(error.message);
+  }
+});
+byId("clearSavedPrices").addEventListener("click", async () => {
+  try {
+    await deleteSavedPriceCsv();
+    window.location.reload();
+  } catch (error) {
+    message(`无法清除已保存的 CSV：${error.message}`);
   }
 });
 byId("queryForm").addEventListener("submit", (event) => {
@@ -171,4 +202,4 @@ byId("downloadJson").addEventListener("click", () => {
   if (state.result) download(`${state.result.ticker}-news-price.json`, JSON.stringify(state.result, null, 2), "application/json;charset=utf-8");
 });
 byId("downloadCsv").addEventListener("click", downloadCsv);
-loadSiteData();
+loadSiteData().then(restoreSavedPrices);
