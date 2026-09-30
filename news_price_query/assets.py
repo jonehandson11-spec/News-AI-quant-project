@@ -14,13 +14,13 @@ class Asset:
 
 
 ASSETS = (
-    Asset("1211.HK", "HK.01211", "equity", ("���ǵ�", "���ǵϹɷ�", "BYD")),
-    Asset("0700.HK", "HK.00700", "equity", ("��Ѷ", "��Ѷ�ع�", "Tencent")),
-    Asset("9988.HK", "HK.09988", "equity", ("����Ͱ�", "����Ͱͼ���", "Alibaba")),
-    Asset("0981.HK", "HK.00981", "equity", ("��о����", "SMIC")),
-    Asset("0005.HK", "HK.00005", "equity", ("���", "���ع�", "HSBC")),
-    Asset("2800.HK", "HK.02800", "benchmark", ("ӯ������", "Tracker Fund of Hong Kong")),
-    Asset("3033.HK", "HK.03033", "benchmark", ("�Ϸ������Ƽ�ETF", "�����Ƽ�ETF")),
+    Asset("1211.HK", "HK.01211", "equity", ("比亚迪", "比亚迪股份", "BYD")),
+    Asset("0700.HK", "HK.00700", "equity", ("腾讯", "腾讯控股", "Tencent")),
+    Asset("9988.HK", "HK.09988", "equity", ("阿里巴巴", "阿里巴巴集团", "Alibaba")),
+    Asset("0981.HK", "HK.00981", "equity", ("中芯国际", "SMIC")),
+    Asset("0005.HK", "HK.00005", "equity", ("汇丰", "汇丰控股", "HSBC")),
+    Asset("2800.HK", "HK.02800", "benchmark", ("盈富基金", "Tracker Fund of Hong Kong")),
+    Asset("3033.HK", "HK.03033", "benchmark", ("南方恒生科技ETF", "恒生科技ETF")),
 )
 
 
