@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 52,
+  "saved_full_text_articles": 89,
   "rss_items": 27,
   "outcomes": {
     "success": 23,
@@ -14,15 +14,15 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-29T23:16:34.295015+08:00",
+    "end": "2026-10-01T20:12:08+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "complete",
     "counts": {
-      "discovered": 25,
-      "known": 1,
-      "skipped": 5,
+      "discovered": 37,
+      "known": 11,
+      "skipped": 7,
       "outside_window": 0,
       "success": 19,
       "failed": 0,
@@ -37,8 +37,8 @@
   },
   "health": {
     "status": "complete",
-    "last_attempt_at": "2026-09-29T20:10:42+08:00",
-    "last_success_at": "2026-09-29T20:10:42+08:00",
+    "last_attempt_at": "2026-10-01T20:12:08+08:00",
+    "last_success_at": "2026-10-01T20:12:08+08:00",
     "needs_attention": false,
     "last_reason": null,
     "execution_location": "github_actions"

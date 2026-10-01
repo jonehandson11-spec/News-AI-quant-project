@@ -252,3 +252,6 @@ cookie.bmp
 ft_cookie*
 *cookie-jar*
 *storage-state*
+
+# Built GitHub Pages artifact
+/_site/
