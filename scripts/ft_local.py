@@ -27,11 +27,18 @@ REASONS = {
     "login_or_subscription_required", "unsafe_destination", "unsupported_method",
     "redirect_limit", "robots_unavailable", "robots_disallowed",
     "consecutive_network_failures", "feed_request_failed", "invalid_feed",
+    "category_request_failed", "invalid_category_listing",
     "article_request_failed", "invalid_or_incomplete_article", "collector_failed",
     "credential_unavailable", "invalid_candidate", "cleanup_failed", "target_reached",
 }
 COUNT_KEYS = {"discovered", "known", "skipped", "outside_window", "success", "failed",
               "deferred", "rejected", "collected", "duplicates", "inserted", "deferred_cap"}
+DISCOVERY_COUNTS = {"pages_fetched", "page_limit", "category_page_limit", "categories_completed", "categories_total"}
+DISCOVERY_REASONS = {"window_boundary", "no_next_page", "page_limit", "total_page_limit",
+                     "request_failed", "invalid_listing", "no_progress", "collection_stopped"}
+DISCOVERY_URLS = {"https://www.ft.com/" + category for category in (
+    "world", "global-economy", "europe", "us", "asia-pacific", "markets", "central-banks",
+    "equities", "commodities", "currencies", "technology", "companies", "energy")}
 
 
 class LocalFTError(ValueError):
@@ -88,6 +95,21 @@ def _report(value):
         result["errors"].append({"reason": reason if isinstance(reason, str) and reason in REASONS else "collector_failed"})
     if status in {"failed", "partial"} and "reason" not in result:
         result["reason"] = result["errors"][0]["reason"] if result["errors"] else "collector_failed"
+    discovery = value.get("discovery")
+    if isinstance(discovery, dict) and discovery.get("mode") in ("rss", "rss_and_category_pages"):
+        summary = {"mode": discovery["mode"], "coverage_limited": True,
+                   "coverage_note": "FT RSS and selected category listings do not guarantee a complete archive."}
+        summary.update({key: count for key, count in discovery.items()
+                        if key in DISCOVERY_COUNTS and type(count) is int and count >= 0})
+        outcomes = discovery.get("category_outcomes", [])
+        summary["category_outcomes"] = []
+        for outcome in outcomes[:13] if isinstance(outcomes, list) else []:
+            if (isinstance(outcome, dict) and isinstance(outcome.get("url"), str)
+                    and outcome["url"] in DISCOVERY_URLS and isinstance(outcome.get("reason"), str)
+                    and outcome["reason"] in DISCOVERY_REASONS
+                    and type(outcome.get("pages")) is int and outcome["pages"] >= 0):
+                summary["category_outcomes"].append({key: outcome[key] for key in ("url", "pages", "reason")})
+        result["discovery"] = summary
     return result
 
 
@@ -113,7 +135,20 @@ def _row(candidate, start, end, seed_start, finished=None):
         raise LocalFTError("invalid_batch_row") from None
 
 
-def collect_batch(root, cookie_file, batch_file, *, max_new=100, now=None, collector=None):
+def _batch_window_settings(batch):
+    """Old unmarked batches mean 48 hours; extended windows require both markers."""
+    if "lookback_hours" not in batch and "collection_mode" not in batch:
+        return 48, "daily"
+    lookback = batch.get("lookback_hours")
+    if type(lookback) is not int or lookback not in (48, 120):
+        raise LocalFTError("invalid_batch_lookback")
+    mode = "backfill" if lookback == 120 else "daily"
+    if batch.get("collection_mode") != mode:
+        raise LocalFTError("invalid_batch_collection_mode")
+    return lookback, mode
+
+
+def collect_batch(root, cookie_file, batch_file, *, max_new=100, lookback_hours=48, now=None, collector=None):
     """Read a verified snapshot without changing it; persist only a private batch."""
     root = Path(root).resolve()
     cookie_file, batch_file = _external(cookie_file, root), _external(batch_file, root)
@@ -121,10 +156,13 @@ def collect_batch(root, cookie_file, batch_file, *, max_new=100, now=None, colle
         raise LocalFTError("batch_cannot_replace_credential")
     if type(max_new) is not int or not 1 <= max_new <= 100:
         raise LocalFTError("max_new_must_be_between_1_and_100")
+    if type(lookback_hours) is not int or lookback_hours not in (48, 120):
+        raise LocalFTError("lookback_hours_must_be_48_or_120")
+    collection_mode = "backfill" if lookback_hours == 120 else "daily"
     checked = validate(root)
     config, manifest = read_json(root / "crawl_config.json"), read_json(root / "data/manifest.json")
     started = _clock(now)
-    start = started - timedelta(hours=48)
+    start = started - timedelta(hours=lookback_hours)
     seed_start = timestamp(manifest.get("seed_window", manifest["publication_window"])["start"])
     before = checked["total_articles"]
     target = config["target_articles"]
@@ -189,10 +227,12 @@ def collect_batch(root, cookie_file, batch_file, *, max_new=100, now=None, colle
         except LocalFTError:
             _failure(report, "invalid_candidate", len(valid))
     report = _report(report)
+    report.update(lookback_hours=lookback_hours, collection_mode=collection_mode)
     report["counts"].update(collected=len(valid), inserted=0)
     if report["status"] in {"failed", "partial"} or report["counts"].get("rejected"):
         report["status"] = "partial" if valid else "failed"
     batch = {"format_version": 1, "source": SOURCE, "execution_location": "local",
+             "lookback_hours": lookback_hours, "collection_mode": collection_mode,
              "started_at": iso(started), "finished_at": iso(finished),
              "window": {"start": iso(start), "end": iso(started)},
              "snapshot_total": before, "rows": valid, "report": report}
@@ -201,6 +241,7 @@ def collect_batch(root, cookie_file, batch_file, *, max_new=100, now=None, colle
     return {"status": report["status"], "reason": report.get("reason"),
             "collected": len(valid), "snapshot_total": before,
             "batch_id": batch["batch_id"],
+            "lookback_hours": lookback_hours, "collection_mode": collection_mode,
             "batch_file": str(batch_file), "execution_location": "local"}
 
 
@@ -211,7 +252,8 @@ def _validated_batch(batch_file, manifest, now):
         raise LocalFTError("invalid_batch")
     start, end = timestamp(batch["window"]["start"]), timestamp(batch["window"]["end"])
     started, finished = timestamp(batch["started_at"]), timestamp(batch["finished_at"])
-    if end - start != timedelta(hours=48) or end != started or not started <= finished <= now:
+    lookback_hours, collection_mode = _batch_window_settings(batch)
+    if end - start != timedelta(hours=lookback_hours) or end != started or not started <= finished <= now:
         raise LocalFTError("invalid_batch_window")
     source_rows = batch.get("rows")
     if not isinstance(source_rows, list) or len(source_rows) > 100:
@@ -219,6 +261,7 @@ def _validated_batch(batch_file, manifest, now):
     seed_start = timestamp(manifest.get("seed_window", manifest["publication_window"])["start"])
     rows = [_row(candidate, start, end, seed_start, finished) for candidate in source_rows]
     report = _report(batch.get("report"))
+    report.update(lookback_hours=lookback_hours, collection_mode=collection_mode)
     if report["status"] == "not_needed" and rows:
         raise LocalFTError("invalid_batch_report")
     return batch, rows, report
@@ -232,6 +275,7 @@ def merge_batch(root, batch_file, *, now=None):
     manifest, config = read_json(root / "data/manifest.json"), read_json(root / "crawl_config.json")
     # Entire batch is validated before any database/file mutation.
     batch, rows, report = _validated_batch(batch_file, manifest, now)
+    lookback_hours, collection_mode = _batch_window_settings(batch)
     source_path = root / manifest["sources"][SOURCE]["report"]
     previous = read_json(source_path)
     attempted = previous.get("health", {}).get("last_attempt_at")
@@ -264,13 +308,15 @@ def merge_batch(root, batch_file, *, now=None):
               "before": before, "after": before + inserted, "inserted": inserted,
               "duplicates": duplicates, "deferred_cap": deferred,
               "batch_id": _batch_id(batch),
+              "lookback_hours": lookback_hours, "collection_mode": collection_mode,
               "execution_location": "local", "health_preserved": stale}
     if not (stale and inserted == 0):
         run = {"started_at": batch["started_at"], "finished_at": batch["finished_at"],
                "merged_at": iso(now), "start": batch["window"]["start"],
                "end": batch["window"]["end"], "scope": "selected",
                "selected_sources": [SOURCE], "sources": {} if stale else {SOURCE: report},
-               "local_batch": {"batch_id": result["batch_id"], "collected": len(rows), "duplicates": duplicates,
+               "local_batch": {"batch_id": result["batch_id"], "lookback_hours": lookback_hours,
+                               "collection_mode": collection_mode, "collected": len(rows), "duplicates": duplicates,
                                "deferred_cap": deferred, "inserted": inserted},
                "target_reached": before + inserted >= config["target_articles"], **result}
         refresh(root, run=run, now=now)
@@ -286,6 +332,8 @@ def main(argv=None):
     collect.add_argument("--cookie-file", type=Path, required=True)
     collect.add_argument("--batch-file", type=Path, required=True)
     collect.add_argument("--max-new", type=int, default=100)
+    collect.add_argument("--lookback-hours", type=int, choices=(48, 120), default=48,
+                         help="Default daily window is 48 hours; 120 requests an explicit five-day backfill")
     collect.add_argument("--result-file", type=Path)
     merge = commands.add_parser("merge")
     merge.add_argument("--root", type=Path, required=True)
@@ -298,7 +346,8 @@ def main(argv=None):
                             or (args.command == "collect" and result_path == args.cookie_file.resolve())):
             raise LocalFTError("result_cannot_replace_batch_or_credential")
         if args.command == "collect":
-            result = collect_batch(args.root, args.cookie_file, args.batch_file, max_new=args.max_new)
+            result = collect_batch(args.root, args.cookie_file, args.batch_file,
+                                   max_new=args.max_new, lookback_hours=args.lookback_hours)
         else:
             result = merge_batch(args.root, args.batch_file)
         if result_path:

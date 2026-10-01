@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
 import re
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 import xml.etree.ElementTree as ET
 
 from bs4 import BeautifulSoup
@@ -46,6 +46,50 @@ def parse_feed(text):
     if not entries and root.find("channel") is None:
         raise ValueError("unsupported_feed")
     return entries
+
+
+def parse_category_page(html, url):
+    """Read only the visible chronological stream and its explicit next link.
+
+    Category pages are discovery hints, never article text or publication proof.
+    Follow only a consecutive page on the same category, without extra queries.
+    """
+    validate_url(url)
+    soup = BeautifulSoup(html, "html.parser")
+    barrier = soup.select_one('.barrier, .barrier__heading, .subscription-barrier, '
+                              '[data-trackable="subscription-barrier"]')
+    if barrier and any(p in barrier.get_text(" ", strip=True).lower()
+                       for p in ("subscribe", "sign in", "subscription")):
+        raise StopCollection("login_or_subscription_required")
+    stream = soup.select_one(".js-stream-list")
+    if stream is None:
+        raise ValueError("category_stream_missing")
+    entries = {}
+    for link in stream.select(".stream-item a.js-teaser-heading-link[href]"):
+        try:
+            article_url = canonical_url(urljoin(url, link["href"]))
+        except (ValueError, StopCollection):
+            continue
+        entries.setdefault(article_url, {"url": article_url,
+                                        "title": link.get_text(" ", strip=True)})
+    next_link = soup.select_one('a[data-trackable="next-page"][href]')
+    next_url = None
+    if next_link is not None:
+        candidate = urljoin(url, next_link["href"])
+        try:
+            validate_url(candidate)
+            current, target = urlsplit(url), urlsplit(candidate)
+            query = parse_qs(target.query, keep_blank_values=True)
+            current_page = int(parse_qs(current.query).get("page", ["1"])[0])
+            valid = (target.path == current.path and not target.fragment
+                     and set(query) == {"page"} and len(query["page"]) == 1
+                     and query["page"][0] == str(current_page + 1))
+        except (ValueError, StopCollection):
+            valid = False
+        if not valid:
+            raise ValueError("invalid_category_pagination")
+        next_url = candidate
+    return list(entries.values()), next_url
 
 
 def _articles(value):

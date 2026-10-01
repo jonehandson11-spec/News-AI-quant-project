@@ -1,19 +1,23 @@
 """Credentialed FT collection: no credential files, RSS summaries or paywalls stored."""
-from datetime import datetime, timezone
+from collections import deque
+from datetime import datetime, timedelta, timezone
 import hashlib
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import requests
 
-from .ft_impl.parsing import parse_article, parse_feed
+from .ft_impl.parsing import parse_article, parse_category_page, parse_feed
 from .ft_impl.session import FTSession, StopCollection
 
 SOURCE = "Financial Times"
-RSS_FEEDS = tuple("https://www.ft.com/" + category + "?format=rss" for category in (
+CATEGORY_PAGES = tuple("https://www.ft.com/" + category for category in (
     "world", "global-economy", "europe", "us", "asia-pacific", "markets",
     "central-banks", "equities", "commodities", "currencies", "technology",
     "companies", "energy"))
+RSS_FEEDS = tuple(url + "?format=rss" for url in CATEGORY_PAGES)
+CATEGORY_PAGE_LIMIT = 5
+DISCOVERY_PAGE_LIMIT = 40
 
 
 def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
@@ -35,6 +39,17 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
     if (start.tzinfo is None or start.utcoffset() is None or end.tzinfo is None
             or end.utcoffset() is None or start >= end):
         raise ValueError("FT requires an aware increasing publication window")
+    extended_discovery = end - start > timedelta(hours=48)
+    discovery = {
+        "mode": "rss_and_category_pages" if extended_discovery else "rss",
+        "pages_fetched": 0, "page_limit": DISCOVERY_PAGE_LIMIT,
+        "category_page_limit": CATEGORY_PAGE_LIMIT, "categories_completed": 0,
+        "categories_total": len(CATEGORY_PAGES) if extended_discovery else 0,
+        "coverage_limited": True,
+        "coverage_note": "Bounded discovery from selected FT categories; not an exhaustive FT archive.",
+        "category_outcomes": [],
+    }
+    report["discovery"] = discovery
 
     def failure(url, reason):
         counts["failed"] += 1
@@ -67,6 +82,62 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     return
             except (ValueError, ET.ParseError):
                 failure(feed, "invalid_feed")
+        if extended_discovery:
+            # Round-robin prevents high-volume categories consuming the budget
+            # before any of the other configured categories has been inspected.
+            pending = deque()
+            for category in CATEGORY_PAGES:
+                outcome = {"url": category, "pages": 0, "reason": "total_page_limit"}
+                discovery["category_outcomes"].append(outcome)
+                pending.append((category + "?page=1", outcome, set()))
+
+            def mark_discovery_stopped():
+                for outcome in discovery["category_outcomes"]:
+                    if outcome["reason"] == "total_page_limit":
+                        outcome["reason"] = "collection_stopped"
+
+            while pending and discovery["pages_fetched"] < DISCOVERY_PAGE_LIMIT:
+                page_url, outcome, seen = pending.popleft()
+                try:
+                    if not session.has_login_cookie():
+                        raise StopCollection("auth_expired")
+                    # Charge attempts, including failed requests, to the budget.
+                    discovery["pages_fetched"] += 1
+                    outcome["pages"] += 1
+                    text = session.fetch(page_url)
+                    network_failures = 0
+                    items, next_url = parse_category_page(text, page_url)
+                    page_urls = {item["url"] for item in items}
+                    for item in items:
+                        found.setdefault(item["url"], item)
+                    if not next_url:
+                        outcome["reason"] = "no_next_page"
+                        discovery["categories_completed"] += 1
+                    elif not page_urls.difference(seen):
+                        outcome["reason"] = "no_progress"
+                    elif outcome["pages"] >= CATEGORY_PAGE_LIMIT:
+                        outcome["reason"] = "page_limit"
+                    else:
+                        seen.update(page_urls)
+                        pending.append((next_url, outcome, seen))
+                except StopCollection as error:
+                    failure(page_url, error.reason)
+                    report.update(stopped=True, reason=error.reason)
+                    mark_discovery_stopped()
+                    counts["discovered"] = len(found)
+                    return
+                except requests.RequestException:
+                    network_failures += 1
+                    outcome["reason"] = "request_failed"
+                    failure(page_url, "category_request_failed")
+                    if network_failures >= 3:
+                        report.update(stopped=True, reason="consecutive_network_failures")
+                        mark_discovery_stopped()
+                        counts["discovered"] = len(found)
+                        return
+                except ValueError:
+                    outcome["reason"] = "invalid_listing"
+                    failure(page_url, "invalid_category_listing")
         rows = sorted(found.values(), key=lambda row: row.get("rss_published")
                       or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
         counts["discovered"] = len(rows)
