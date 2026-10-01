@@ -1,57 +1,123 @@
 {
   "source": "Financial Times",
-  "saved_full_text_articles": 13,
+  "saved_full_text_articles": 41,
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-01T23:52:30.461632+08:00",
+    "end": "2026-10-02T00:53:55.928436+08:00",
     "inclusive": true
   },
   "latest_run": {
     "source": "Financial Times",
     "execution_location": "local",
-    "status": "failed",
+    "status": "partial",
     "counts": {
-      "discovered": 0,
+      "discovered": 617,
       "known": 0,
       "skipped": 0,
       "outside_window": 0,
-      "success": 0,
+      "success": 28,
       "failed": 1,
-      "deferred": 0,
-      "collected": 0,
-      "inserted": 0,
+      "deferred": 588,
+      "collected": 28,
+      "inserted": 28,
       "duplicates": 0,
       "deferred_cap": 0
     },
     "errors": [
       {
-        "reason": "rate_limited"
+        "reason": "unsafe_destination"
       }
     ],
     "stopped": true,
-    "reason": "rate_limited",
+    "reason": "unsafe_destination",
     "discovery": {
       "mode": "rss_and_category_pages",
       "coverage_limited": true,
       "coverage_note": "FT RSS and selected category listings do not guarantee a complete archive.",
-      "pages_fetched": 0,
+      "pages_fetched": 40,
       "page_limit": 40,
       "category_page_limit": 5,
       "categories_completed": 0,
       "categories_total": 13,
-      "category_outcomes": []
+      "category_outcomes": [
+        {
+          "url": "https://www.ft.com/world",
+          "pages": 4,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/global-economy",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/europe",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/us",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/asia-pacific",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/markets",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/central-banks",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/equities",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/commodities",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/currencies",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/technology",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/companies",
+          "pages": 3,
+          "reason": "total_page_limit"
+        },
+        {
+          "url": "https://www.ft.com/energy",
+          "pages": 3,
+          "reason": "total_page_limit"
+        }
+      ]
     },
     "lookback_hours": 120,
     "collection_mode": "backfill",
-    "batch_id": "b77693b6fa9a517f739ca870978aa9c54c884f5d1add4a919f962362e0e1e14e"
+    "batch_id": "127b9ae0464af1b62aa9916b0f86916ad48671f68e563f9ee2c8c0da1ed70af4"
   },
   "health": {
-    "status": "failed",
-    "last_attempt_at": "2026-10-01T23:52:30.461632+08:00",
-    "last_success_at": "2026-09-29T00:39:25.434819+08:00",
+    "status": "partial",
+    "last_attempt_at": "2026-10-02T00:53:55.928436+08:00",
+    "last_success_at": "2026-10-02T00:53:55.928436+08:00",
     "needs_attention": true,
-    "last_reason": "rate_limited",
+    "last_reason": "unsafe_destination",
     "execution_location": "local"
   }
 }
