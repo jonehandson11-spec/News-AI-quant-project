@@ -490,7 +490,9 @@ def main(argv=None):
         result = run(settings)
     except (AutorunError, ft_sync.SyncError) as error:
         reason = str(error)
-        result = {"status": "needs_attention" if reason in ("receipt_history_limit_reached", "main_history_changed") else "error",
+        status = ("idle" if reason == "already_running" else "needs_attention"
+                  if reason in ("receipt_history_limit_reached", "main_history_changed") else "error")
+        result = {"status": status,
                   "reason": reason if re.fullmatch(r"[a-z_]{1,80}", reason) else "autorun_failed"}
     except Exception:
         result = {"status": "error", "reason": "autorun_failed"}
