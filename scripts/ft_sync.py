@@ -103,21 +103,41 @@ def _outside(root: Path, path: Path, reason: str) -> Path:
 
 @contextmanager
 def _lock(state: Path):
-    state.mkdir(parents=True, exist_ok=True)
-    path = state / "prepare.lock"
+    # The OS releases this lock even if the process crashes or is terminated.
+    # Keep the file permanently: unlinking it could let a new process lock a
+    # different inode while another waiter still has the original file open.
     try:
-        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError:
-        raise SyncError("state_locked") from None
+        state.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(state / "prepare.lock", os.O_CREAT | os.O_RDWR, 0o600)
     except OSError:
         raise SyncError("state_unavailable") from None
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(str(os.getpid()) + "\n")
-        yield
-    finally:
-        # Only a lock created by this invocation is ever removed.
-        path.unlink(missing_ok=True)
+    with os.fdopen(descriptor, "r+b", buffering=0) as handle:
+        locked = False
+        try:
+            try:
+                handle.seek(0)
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+            except OSError as error:
+                import errno
+                reason = "state_locked" if error.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK) else "state_unavailable"
+                raise SyncError(reason) from None
+            handle.seek(0)
+            handle.write((str(os.getpid()) + "\n").encode("ascii"))
+            handle.truncate()
+            yield
+        finally:
+            if locked:
+                handle.seek(0)
+                if os.name == "nt":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _fetch(root: Path) -> tuple[str, str]:

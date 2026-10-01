@@ -1,13 +1,21 @@
 """Restricted FT session with a mutable CookieJar and robots-aware requests."""
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+import math
 import os
 import re
 import time
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import requests
 
 USER_AGENT = "NewsResearchCollector/1.0"
+DEFAULT_REQUEST_DELAY_SECONDS = 10.0
+MIN_REQUEST_DELAY_SECONDS = 5.0
+DEFAULT_RETRY_AFTER_SECONDS = 3600
+MAX_RETRY_AFTER_SECONDS = 2_147_483_647
+ENDPOINT_KINDS = {"robots", "feed", "category", "article"}
 COOKIE_KEYS = (
     "FTSession_s", "FTSession", "ft-access-decision-policy", "FTConsent",
     "FTCookieConsentGDPR", "consentDate", "consentUUID", "usnatUUID",
@@ -16,9 +24,46 @@ COOKIE_KEYS = (
 
 class StopCollection(RuntimeError):
     """The reason is a fixed, safe code, never a remote exception message."""
-    def __init__(self, reason):
+    def __init__(self, reason, *, retry_after_seconds=None, endpoint_kind=None):
         self.reason = reason
+        self.retry_after_seconds = (retry_after_seconds
+                                    if type(retry_after_seconds) is int
+                                    and 0 <= retry_after_seconds <= MAX_RETRY_AFTER_SECONDS else None)
+        self.endpoint_kind = endpoint_kind if isinstance(endpoint_kind, str) and endpoint_kind in ENDPOINT_KINDS else None
         super().__init__(reason)
+
+
+def retry_after_seconds(value, *, now=None):
+    """Reduce Retry-After to a bounded integer; never retain the raw header."""
+    if not isinstance(value, str) or not value.strip():
+        return DEFAULT_RETRY_AFTER_SECONDS
+    value = value.strip()
+    if re.fullmatch(r"[0-9]+", value):
+        if len(value) > 10:
+            return MAX_RETRY_AFTER_SECONDS
+        return min(int(value), MAX_RETRY_AFTER_SECONDS)
+    try:
+        if len(value) > 200:
+            return DEFAULT_RETRY_AFTER_SECONDS
+        deadline = parsedate_to_datetime(value)
+        if deadline.tzinfo is None or deadline.utcoffset() is None:
+            return DEFAULT_RETRY_AFTER_SECONDS
+        remaining = (deadline - (now or datetime.now(timezone.utc))).total_seconds()
+        return min(MAX_RETRY_AFTER_SECONDS, max(0, math.ceil(remaining)))
+    except (TypeError, ValueError, OverflowError):
+        return DEFAULT_RETRY_AFTER_SECONDS
+
+
+def endpoint_kind(url):
+    """Classify the actual restricted request without exposing its URL."""
+    parsed = urlsplit(url)
+    if parsed.path == "/robots.txt":
+        return "robots"
+    if parse_qs(parsed.query).get("format") == ["rss"]:
+        return "feed"
+    if parsed.path.startswith("/content/"):
+        return "article"
+    return "category"
 
 
 def effective_cookies(raw):
@@ -52,9 +97,16 @@ def validate_url(url):
 
 
 class FTSession(requests.Session):
-    def __init__(self, raw_cookie=None, delay=1.2):
+    def __init__(self, raw_cookie=None, delay=None):
         super().__init__()
-        self.delay = max(1.0, delay)
+        configured = os.environ.get("FT_REQUEST_DELAY_SECONDS", DEFAULT_REQUEST_DELAY_SECONDS) if delay is None else delay
+        try:
+            configured = float(configured)
+        except (TypeError, ValueError, OverflowError):
+            configured = DEFAULT_REQUEST_DELAY_SECONDS
+        if not math.isfinite(configured):
+            configured = DEFAULT_REQUEST_DELAY_SECONDS
+        self.delay = max(MIN_REQUEST_DELAY_SECONDS, configured)
         self._last_request = None
         self._robots = None
         self.headers.update({"User-Agent": USER_AGENT,
@@ -87,8 +139,10 @@ class FTSession(requests.Session):
             response = super().request(method, url, allow_redirects=False, **kwargs)
             if response.status_code in (401, 403, 429):
                 reason = {401: "auth_expired", 403: "access_denied", 429: "rate_limited"}[response.status_code]
+                retry = retry_after_seconds(response.headers.get("Retry-After")) if response.status_code == 429 else None
                 response.close()
-                raise StopCollection(reason)
+                raise StopCollection(reason, retry_after_seconds=retry,
+                                     endpoint_kind=endpoint_kind(url) if response.status_code == 429 else None)
             if response.is_redirect or response.is_permanent_redirect:
                 destination = urljoin(url, response.headers.get("Location", ""))
                 response.close()

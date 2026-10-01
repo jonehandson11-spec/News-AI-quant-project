@@ -206,16 +206,20 @@ max(publish_time) AS latest_publish_time FROM news GROUP BY source;
                 ft_sync.prepare(self.repo, state, cookie, now=NOW)
         self.state.mkdir()
         lock = self.state / "prepare.lock"
-        lock.write_text("stale-or-active-lock", encoding="utf-8")
-        with self.assertRaisesRegex(ft_sync.SyncError, "state_locked"):
-            self.prepare()
-        self.assertEqual(lock.read_text(), "stale-or-active-lock")
+        with ft_sync._lock(self.state):
+            with self.assertRaisesRegex(ft_sync.SyncError, "state_locked"):
+                self.prepare()
+        self.assertTrue(lock.is_file())
+        with ft_sync._lock(self.state):
+            pass
 
     def test_failed_attempt_is_not_repeated_and_lock_is_released(self):
         with patch.object(ft_sync, "_collect_batch", side_effect=RuntimeError("mock failure")):
             with self.assertRaises(RuntimeError):
                 ft_sync.prepare(self.repo, self.state, self.cookie, now=NOW)
-        self.assertFalse((self.state / "prepare.lock").exists())
+        self.assertTrue((self.state / "prepare.lock").is_file())
+        with ft_sync._lock(self.state):
+            pass
         plan, calls = self.prepare()
         self.assertEqual(calls, 0)
         self.assertEqual(plan["result_summary"]["reason"], "local_attempt_already_started")
