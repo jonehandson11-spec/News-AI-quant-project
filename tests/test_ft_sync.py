@@ -274,6 +274,46 @@ max(publish_time) AS latest_publish_time FROM news GROUP BY source;
             with self.assertRaisesRegex(ft_sync.SyncError, "^git_fetch_failed$"):
                 ft_sync._git(self.repo, "fetch", reason="git_fetch_failed")
 
+    def test_explicit_backfill_runs_after_daily_attempt_without_changing_schedule(self):
+        report = json.loads((self.writer / "data/source_reports/ft.json").read_text())
+        report["health"] = {"execution_location": "local", "last_attempt_at": NOW.isoformat(), "status": "failed"}
+        write_json(self.writer / "data/source_reports/ft.json", report)
+        refresh(self.writer, now=NOW)
+        self.push_data()
+        daily, calls = self.prepare()
+        self.assertEqual(calls, 0)
+        self.assertEqual(daily["result_summary"]["reason"], "already_attempted_due_slot")
+        plan, calls = self.prepare(lookback_hours=120)
+        self.assertEqual(calls, 1)
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(plan["lookback_hours"], 120)
+        batch = json.loads(Path(plan["batch_file"]).read_text())
+        self.assertEqual(batch["collection_mode"], "backfill")
+        self.assertEqual(datetime.fromisoformat(batch["window"]["end"]) -
+                         datetime.fromisoformat(batch["window"]["start"]), timedelta(hours=120))
+        self.assertEqual(json.loads((self.repo / "crawl_config.json").read_text())["daily_lookback_hours"], 48)
+
+    def test_backfill_and_force_never_replace_unacknowledged_batch(self):
+        first, _ = self.prepare()
+        for options in ({"lookback_hours": 120}, {"force": True}):
+            with self.subTest(options=options):
+                resumed, calls = self.prepare(**options)
+                self.assertEqual(calls, 0)
+                self.assertEqual(resumed["batch_file"], first["batch_file"])
+                self.assertEqual(resumed["batch_sha256"], first["batch_sha256"])
+
+    def test_backfill_preserves_batch_if_plan_was_not_saved(self):
+        first, _ = self.prepare()
+        Path(first["plan_file"]).unlink()
+        with self.assertRaisesRegex(ft_sync.SyncError, "^pending_batch_without_plan$"):
+            self.prepare(lookback_hours=120)
+        self.assertTrue(Path(first["batch_file"]).is_file())
+
+    def test_invalid_lookback_is_rejected_before_collection(self):
+        for value in (0, 49, 121, True, 120.0):
+            with self.subTest(value=value), self.assertRaisesRegex(ft_sync.SyncError, "^invalid_lookback_hours$"):
+                self.prepare(lookback_hours=value)
+
 
 if __name__ == "__main__":
     unittest.main()

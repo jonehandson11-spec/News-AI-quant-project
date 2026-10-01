@@ -17,11 +17,15 @@
 
 配置见 [crawl_config.json](crawl_config.json)。FT 本地程序见 [scripts/ft_sync.py](scripts/ft_sync.py)，批次验证与合并见 [scripts/ft_local.py](scripts/ft_local.py)。本地状态和凭据目录必须在 Git 仓库外；上传仅限准备程序列出的文章批次，不上传 Cookie 或本机日志。只有在主库报告中核验批次回执后才确认完成；上传失败或导入被取消时保留原批次，用同一批次重试。
 
+需要手动补录最近五天的 FT 时，在同一 `prepare` 命令中明确加上 `--lookback-hours 120`。此模式可在当天自动采集已执行后运行，但仍先恢复未确认批次，每批最多 100 篇、三个来源合计最多 3000 篇。每批须核验主库回执并执行 `acknowledge` 后才能继续。默认每日采集窗口仍是 48 小时；补录不会更改定时计划。补录只接受符合真实发布时间窗口且获准读取的正文，发现范围或访问权限不足时不能保证补满 3000 篇。
+
 ## FT 登录与长期运行
 
 FT 在 GitHub 云端曾返回 HTTP 403（access_denied），同一文章在本机可读。此次改为本地采集、云端合并，云端任务不再请求 FT 页面。403 不等同于 Cookie 过期。
 
 FT 从 13 个分类 RSS 发现文章，并核对网页原始发布时间和正文。只保存账户获准读取的正文，不把 RSS 摘要或订阅提示当作新闻。FT Cookie 保存在仓库外的本机私密文件中，由本地程序读取；当前工作流不使用 GitHub FT_COOKIE Secret。不要将账号、密码、Cookie 或浏览器状态文件提交到仓库。
+
+五天手动补录还会读取上述分类的可见历史列表，最多请求 40 个分类页面、每类最多 5 页，遇到访问限制即停止。分类列表只用于发现链接，最终仍以文章原始发布时间为准。报告中的 `discovery.coverage_limited` 表示这不是完整 FT 档案索引；不能把“本轮发现的文章已处理”解释为“FT 五天全部文章已收齐”。
 
 会话无法保证永久有效。最近一次本地采集结果见 [data/source_reports/ft.json](data/source_reports/ft.json)，其中 execution_location 为 local，batch_id 用于核对已合并的批次。云端每日任务对 FT 的 collected_locally 跳过不会覆盖本地健康状态。没有新文章不代表已验证登录仍有效。
 

@@ -4,13 +4,13 @@
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-10-01T12:12:08+00:00",
+  "package_created_at": "2026-10-01T12:59:53.217068+00:00",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-01T20:12:08+08:00",
+    "end": "2026-10-01T20:57:57.995252+08:00",
     "inclusive": true
   },
-  "window_hours": 143.07833333333335,
+  "window_hours": 143.84222090333333,
   "time_zone": "UTC+08:00 (Beijing)",
   "total_articles": 1687,
   "fields": [
@@ -55,7 +55,7 @@
     {
       "path": "data/news.sqlite3",
       "bytes": 6340608,
-      "sha256": "3f5275f0d6d776adf184d32bbad17c5920bd9435bc20d8ef45756bc44dc3c170"
+      "sha256": "b7f4429a07d2b7eea99498337584bfeb2d2beea1b3e6c9b2198064a43392528c"
     },
     {
       "path": "data/news.csv",
@@ -64,8 +64,8 @@
     },
     {
       "path": "data/progress.json",
-      "bytes": 2775,
-      "sha256": "9906f99532f75b3c1fa72c39b1aa9b3cec162599f4d85d5e8168c742def5e1b4"
+      "bytes": 1855,
+      "sha256": "3023bb817f4efb2d78f87e279ec8cff06964f3f2beaedaa558a5d3b285ab87d3"
     },
     {
       "path": "schema.sql",
@@ -74,18 +74,18 @@
     },
     {
       "path": "data/source_reports/bbc.json",
-      "bytes": 1271,
-      "sha256": "51dd086a1922008b7378e2e9689ba93de4adcd51dfdfeaad3412c7887f9bd829"
+      "bytes": 1278,
+      "sha256": "6006bf1e79fc280fd8b0a8f9a091fb33a90ab8f518e5d1bf53cc570a82339eee"
     },
     {
       "path": "data/source_reports/sina.json",
-      "bytes": 2201,
-      "sha256": "eac4c5864687a0cf990ddfbf02e050e347351ce1cf0a045ebf0822d6d7a8e573"
+      "bytes": 2208,
+      "sha256": "8375c6b025b6d942e546e1a7c560700d2c944e8d0896aa4d3dd7bf0afefc282d"
     },
     {
       "path": "data/source_reports/ft.json",
-      "bytes": 1137,
-      "sha256": "48f00325746bfda562621790f024efc9f964c22e1956790f8e3af0c05e8f894b"
+      "bytes": 1086,
+      "sha256": "e85b45f0c1f07f810db8c210ad3c2e1210d79421f020ce5698edc734d4385688"
     }
   ],
   "collection_mode": "cumulative",
@@ -104,84 +104,60 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-01T20:12:08+08:00",
-    "start": "2026-09-29T20:12:08+08:00",
-    "end": "2026-10-01T20:12:08+08:00",
+    "started_at": "2026-10-01T20:57:57.995252+08:00",
+    "finished_at": "2026-10-01T20:58:13.872727+08:00",
+    "merged_at": "2026-10-01T20:59:53.217068+08:00",
+    "start": "2026-09-29T20:57:57.995252+08:00",
+    "end": "2026-10-01T20:57:57.995252+08:00",
+    "scope": "selected",
+    "selected_sources": [
+      "Financial Times"
+    ],
     "sources": {
       "Financial Times": {
-        "status": "not_needed",
+        "source": "Financial Times",
+        "execution_location": "local",
+        "status": "failed",
         "counts": {
-          "inserted": 0
-        },
-        "reason": "collected_locally"
-      },
-      "BBC News": {
-        "status": "complete",
-        "counts": {
-          "discovered": 37,
-          "known": 11,
-          "skipped": 7,
+          "discovered": 0,
+          "known": 0,
+          "skipped": 0,
           "outside_window": 0,
-          "success": 19,
-          "failed": 0,
+          "success": 0,
+          "failed": 1,
           "deferred": 0,
-          "inserted": 19
-        },
-        "errors": [],
-        "source": "BBC News",
-        "scope": "BBC World RSS",
-        "stopped": false,
-        "publication_basis": "public article JSON-LD datePublished"
-      },
-      "新浪财经": {
-        "status": "partial",
-        "counts": {
-          "pages": 16,
-          "discovered": 800,
-          "skipped_known": 547,
-          "skipped_window": 0,
-          "invalid": 4,
-          "fetched": 253,
-          "yielded": 249,
-          "requests": 271,
-          "network_errors": 0,
-          "robots_denied": 0,
-          "errors": 4,
-          "inserted": 249
+          "collected": 0,
+          "inserted": 0,
+          "duplicates": 0,
+          "deferred_cap": 0
         },
         "errors": [
           {
-            "url": "https://finance.sina.com.cn/world/2026-10-01/doc-initsief6391614.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
-          },
-          {
-            "url": "https://finance.sina.com.cn/stock/usstock/c/2026-10-01/doc-initsiep5446344.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
-          },
-          {
-            "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-30/doc-initqvcf2128340.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
-          },
-          {
-            "url": "https://finance.sina.com.cn/jjxw/2026-09-30/doc-initqefr2563214.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
+            "reason": "rate_limited"
           }
         ],
-        "reason": "two consecutive pages older than window"
+        "stopped": true,
+        "reason": "rate_limited",
+        "batch_id": "2ab413ed774fc44a26cb88a441e4e8a85610decdd069d1daa4859439371047ba"
       }
     },
-    "scope": "all",
-    "selected_sources": [
-      "BBC News",
-      "新浪财经"
-    ],
-    "execution_location": "github_actions",
-    "before": 1419,
-    "after": 1687,
-    "inserted": 268,
-    "status": "partial",
+    "local_batch": {
+      "batch_id": "2ab413ed774fc44a26cb88a441e4e8a85610decdd069d1daa4859439371047ba",
+      "collected": 0,
+      "duplicates": 0,
+      "deferred_cap": 0,
+      "inserted": 0
+    },
     "target_reached": false,
-    "finished_at": "2026-10-01T20:17:21+08:00"
+    "status": "failed",
+    "before": 1687,
+    "after": 1687,
+    "inserted": 0,
+    "duplicates": 0,
+    "deferred_cap": 0,
+    "batch_id": "2ab413ed774fc44a26cb88a441e4e8a85610decdd069d1daa4859439371047ba",
+    "execution_location": "local",
+    "health_preserved": false
   },
   "last_full_run_at": "2026-10-01T20:12:08+08:00"
 }

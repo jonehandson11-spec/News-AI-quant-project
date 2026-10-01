@@ -212,13 +212,16 @@ def _write_plan(path: Path, plan: dict) -> dict:
 
 
 def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 100,
-            force: bool = False, now: datetime | None = None) -> dict:
+            force: bool = False, lookback_hours: int = 48, now: datetime | None = None) -> dict:
     root = _repository(root)
     state = _outside(root, state_dir, "state_must_be_outside_repository")
     cookie = _outside(root, cookie_file, "cookie_must_be_outside_repository")
     now = _now(now)
     if type(max_new) is not int or not 1 <= max_new <= 100:
         raise SyncError("invalid_max_new")
+    if type(lookback_hours) is not int or lookback_hours not in (48, 120):
+        raise SyncError("invalid_lookback_hours")
+    backfill = lookback_hours == 120
     with _lock(state):
         directory = Path(tempfile.mkdtemp(prefix="run-", dir=state)).resolve()
         initial = _snapshot(root, directory)
@@ -233,7 +236,7 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
         if any(value and Path(value.get("repository_root", "")).resolve() != root for value in (receipt, attempted)):
             raise SyncError("state_belongs_to_another_repository")
         slot = due_slot(now)
-        if not force and attempted.get("plan_file") and Path(attempted["plan_file"]).is_file():
+        if attempted.get("plan_file") and Path(attempted["plan_file"]).is_file():
             pending_path, pending = _load_plan(root, Path(attempted["plan_file"]))
             if pending.get("status") == "ready" and not pending.get("receipt_file"):
                 imported_ids = ((manifest.get("latest_run") or {}).get("local_batch", {}).get("batch_id"),
@@ -243,16 +246,21 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
                     return {**pending, "status": "awaiting_acknowledgement", "import_commit_sha": initial["main_sha"]}
                 pending.update(_upload_base(root))
                 return _write_plan(pending_path, pending)
+        if backfill and attempted.get("plan_file"):
+            unresolved = Path(attempted["plan_file"])
+            if not unresolved.is_file() and (unresolved.parent / "ft_batch.json").is_file():
+                raise SyncError("pending_batch_without_plan")
         reason = None
         if manifest["total_articles"] >= config["target_articles"]:
             reason = "target_reached"
-        elif not force and ((health.get("execution_location") == "local" and _attempt_covers(health, slot))
+        elif not (force or backfill) and ((health.get("execution_location") == "local" and _attempt_covers(health, slot))
                             or _attempt_covers(receipt, slot)):
             reason = "already_attempted_due_slot"
-        elif not force and _attempt_covers(attempted, slot):
+        elif not (force or backfill) and _attempt_covers(attempted, slot):
             reason = "local_attempt_already_started"
         common = {"format_version": 1, "repository_root": str(root), "state_dir": str(state),
-                  "kind": "ft_inbox_batch", "prepared_at": iso(now), "due_slot": iso(slot)}
+                  "kind": "ft_inbox_batch", "prepared_at": iso(now), "due_slot": iso(slot),
+                  "lookback_hours": lookback_hours, "collection_mode": "backfill" if backfill else "daily"}
         plan_path = directory / "plan.json"
         if reason:
             return _write_plan(plan_path, {**common, **initial, "status": "skipped", "batch_file": None,
@@ -264,7 +272,8 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
         batch = directory / "ft_batch.json"
         write_json(attempt_path, {"repository_root": str(root), "last_attempt_at": iso(now),
                                  "due_slot": iso(slot), "plan_file": str(plan_path)})
-        collected = _collect_batch(staging, cookie, batch, max_new=max_new, now=now)
+        collected = _collect_batch(staging, cookie, batch, max_new=max_new, now=now,
+                                   lookback_hours=lookback_hours)
         # Validate an optional preview against fresh data. Its database is never published.
         latest = _snapshot(root, directory)
         merged = _merge_batch(Path(latest["staging_root"]), batch, now=max(now, datetime.now(timezone.utc)))
@@ -362,6 +371,8 @@ def main() -> int:
     preparing.add_argument("--cookie-file", type=Path, required=True)
     preparing.add_argument("--max-new", type=int, default=100)
     preparing.add_argument("--force", action="store_true")
+    preparing.add_argument("--lookback-hours", type=int, choices=(48, 120), default=48,
+                           help="120 explicitly requests manual backfill; pending batches remain protected")
     acknowledging = commands.add_parser("acknowledge")
     acknowledging.add_argument("--root", type=Path, required=True)
     acknowledging.add_argument("--plan", type=Path, required=True)
@@ -369,7 +380,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "prepare":
-            result = prepare(args.root, args.state_dir, args.cookie_file, max_new=args.max_new, force=args.force)
+            result = prepare(args.root, args.state_dir, args.cookie_file, max_new=args.max_new,
+                             force=args.force, lookback_hours=args.lookback_hours)
         else:
             result = acknowledge(args.root, args.plan, args.commit)
     except SyncError as error:

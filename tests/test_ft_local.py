@@ -49,14 +49,17 @@ class LocalFTTests(unittest.TestCase):
     def contents(self):
         return {str(path.relative_to(self.root)): path.read_bytes() for path in self.root.rglob('*') if path.is_file()}
 
-    def batch(self, rows=None, *, started=NOW, report=None):
+    def batch(self, rows=None, *, started=NOW, report=None, lookback_hours=None):
         value = {
             'format_version': 1, 'source': SOURCE, 'execution_location': 'local',
             'started_at': started.isoformat(), 'finished_at': (started + timedelta(minutes=1)).isoformat(),
-            'window': {'start': (started - timedelta(hours=48)).isoformat(), 'end': started.isoformat()},
+            'window': {'start': (started - timedelta(hours=lookback_hours or 48)).isoformat(), 'end': started.isoformat()},
             'rows': [article(1, SOURCE)] if rows is None else rows,
             'report': report or {'status': 'complete', 'counts': {}, 'errors': []},
         }
+        if lookback_hours is not None:
+            value.update(lookback_hours=lookback_hours,
+                         collection_mode='backfill' if lookback_hours == 120 else 'daily')
         write_json(self.batch_file, value)
         return value
 
@@ -184,6 +187,125 @@ class LocalFTTests(unittest.TestCase):
         self.assertEqual(self.contents(), original)
         self.assertNotIn('FAKE-TEST-SECRET', self.batch_file.read_text(encoding='utf-8'))
         self.assertNotIn('FAKE-TEST-SECRET', output.getvalue())
+        batch = read_json(self.batch_file)
+        self.assertEqual((batch['lookback_hours'], batch['collection_mode']), (48, 'daily'))
+
+    def test_explicit_backfill_collects_and_merges_article_older_than_48_hours(self):
+        started = NOW + timedelta(days=4)
+        row = article(1, SOURCE)
+        row.update(publish_time=(started - timedelta(hours=72)).isoformat(), crawl_time=started.isoformat())
+        def collector(**kwargs):
+            self.assertEqual(kwargs['end'] - kwargs['start'], timedelta(hours=120))
+            yield row
+        before = self.contents()
+        result = collect_batch(self.root, self.cookie_file, self.batch_file, now=started,
+                               lookback_hours=120, collector=collector)
+        self.assertEqual(result['collected'], 1)
+        self.assertEqual(self.contents(), before)
+        batch = read_json(self.batch_file)
+        self.assertEqual((batch['lookback_hours'], batch['collection_mode']), (120, 'backfill'))
+        merged = merge_batch(self.root, self.batch_file,
+                             now=datetime.fromisoformat(batch['finished_at']) + timedelta(seconds=1))
+        self.assertEqual(merged['inserted'], 1)
+        self.assertIn(row['url'], self.rows())
+        manifest = read_json(self.root / 'data/manifest.json')
+        self.assertEqual(manifest['daily_lookback_hours'], 48)
+        self.assertEqual(manifest['latest_run']['lookback_hours'], 120)
+        self.assertEqual(manifest['latest_run']['collection_mode'], 'backfill')
+        self.assertEqual(manifest['latest_run']['local_batch']['lookback_hours'], 120)
+        self.assertEqual(read_json(self.root / 'crawl_config.json')['schedule']['local_time'], '20:00')
+        self.assertEqual(validate(self.root)['total_articles'], 3)
+
+    def test_backfill_rejects_row_older_than_120_hours_before_any_write(self):
+        started = NOW + timedelta(days=4)
+        invalid = dict(article(2, SOURCE), publish_time=(started - timedelta(hours=120, seconds=1)).isoformat(),
+                       crawl_time=started.isoformat())
+        valid = dict(article(1, SOURCE), publish_time=(started - timedelta(hours=72)).isoformat(),
+                     crawl_time=started.isoformat())
+        self.batch([valid, invalid], started=started, lookback_hours=120)
+        before = self.contents()
+        with self.assertRaisesRegex(LocalFTError, 'invalid_batch_row'):
+            merge_batch(self.root, self.batch_file, now=started + timedelta(hours=1))
+        self.assertEqual(self.contents(), before)
+
+    def test_backfill_requires_explicit_markers_and_matching_window(self):
+        started = NOW + timedelta(days=4)
+        mutations = [
+            lambda batch: (batch.pop('lookback_hours'), batch.pop('collection_mode')),
+            lambda batch: batch.pop('collection_mode'),
+            lambda batch: batch.update(collection_mode='daily'),
+            lambda batch: batch.update(lookback_hours=121),
+            lambda batch: batch['window'].update(start=(started - timedelta(hours=119)).isoformat()),
+            lambda batch: batch.update(lookback_hours=48, collection_mode='daily'),
+        ]
+        for mutate in mutations:
+            with self.subTest(mutate=mutate):
+                batch = self.batch([], started=started, lookback_hours=120)
+                mutate(batch)
+                write_json(self.batch_file, batch)
+                before = self.contents()
+                with self.assertRaises(LocalFTError):
+                    merge_batch(self.root, self.batch_file, now=started + timedelta(hours=1))
+                self.assertEqual(self.contents(), before)
+
+    def test_backfill_still_limits_single_batch_to_100(self):
+        started = NOW + timedelta(days=4)
+        candidates = [dict(article(number, SOURCE), publish_time=(started - timedelta(hours=72)).isoformat(),
+                           crawl_time=started.isoformat()) for number in range(101)]
+        result = collect_batch(self.root, self.cookie_file, self.batch_file, now=started,
+                               lookback_hours=120, collector=lambda **kwargs: iter(candidates))
+        self.assertEqual(result['collected'], 100)
+        batch = read_json(self.batch_file)
+        self.assertEqual(len(batch['rows']), 100)
+        batch['rows'] = candidates
+        write_json(self.batch_file, batch)
+        before = self.contents()
+        with self.assertRaisesRegex(LocalFTError, 'invalid_batch_rows'):
+            merge_batch(self.root, self.batch_file,
+                        now=datetime.fromisoformat(batch['finished_at']) + timedelta(seconds=1))
+        self.assertEqual(self.contents(), before)
+
+    def test_invalid_lookback_is_rejected_before_collecting(self):
+        collector = Mock()
+        for value in (0, 49, 121, True, '120'):
+            with self.subTest(value=value), self.assertRaisesRegex(LocalFTError, 'lookback_hours_must_be_48_or_120'):
+                collect_batch(self.root, self.cookie_file, self.batch_file,
+                              lookback_hours=value, now=NOW, collector=collector)
+        collector.assert_not_called()
+        self.assertFalse(self.batch_file.exists())
+
+    def test_cli_explicit_backfill_is_forwarded_without_changing_default(self):
+        for extra, expected in (([], 48), (['--lookback-hours', '120'], 120)):
+            with self.subTest(expected=expected), patch('scripts.ft_local.collect_batch', return_value={'status': 'complete'}) as collect:
+                with redirect_stdout(io.StringIO()):
+                    code = main(['collect', '--root', str(self.root), '--cookie-file', str(self.cookie_file),
+                                 '--batch-file', str(self.batch_file), *extra])
+                self.assertEqual(code, 0)
+                self.assertEqual(collect.call_args.kwargs['lookback_hours'], expected)
+
+    def test_discovery_metadata_is_preserved_without_arbitrary_text_or_credentials(self):
+        def collector(**kwargs):
+            kwargs['report']['discovery'] = {
+                'mode': 'rss_and_category_pages', 'pages_fetched': 2, 'page_limit': 40,
+                'category_page_limit': 5, 'categories_completed': 1, 'categories_total': 13,
+                'coverage_limited': False, 'coverage_note': 'FAKE-TEST-SECRET',
+                'cookie': 'FAKE-TEST-SECRET',
+                'category_outcomes': [
+                    {'url': 'https://www.ft.com/markets', 'pages': 2, 'reason': 'window_boundary',
+                     'cookie': 'FAKE-TEST-SECRET'},
+                    {'url': 'https://www.ft.com/markets?token=FAKE-TEST-SECRET', 'pages': 1, 'reason': 'no_next_page'},
+                ],
+            }
+            yield article(1, SOURCE)
+        collect_batch(self.root, self.cookie_file, self.batch_file, now=NOW,
+                      lookback_hours=120, collector=collector)
+        batch = read_json(self.batch_file)
+        discovery = batch['report']['discovery']
+        self.assertEqual(discovery['pages_fetched'], 2)
+        self.assertTrue(discovery['coverage_limited'])
+        self.assertEqual(discovery['category_outcomes'], [
+            {'url': 'https://www.ft.com/markets', 'pages': 2, 'reason': 'window_boundary'}])
+        self.assertNotIn('FAKE-TEST-SECRET', self.batch_file.read_text(encoding='utf-8'))
 
     def test_collect_failure_still_writes_mergeable_diagnostic_batch(self):
         self.cookie_file.unlink()

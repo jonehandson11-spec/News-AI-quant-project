@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import copy
 from contextlib import closing
 import hashlib
 import json
@@ -106,6 +107,29 @@ class ValidateCumulativeTests(unittest.TestCase):
             writer.writeheader()
             writer.writerows(self.rows)
         self.manifest["total_articles"] = len(self.rows)
+        self.save()
+
+    def ft_backfill(self):
+        self.add_ft()
+        self.cumulative()
+        self.manifest["publication_window"]["end"] = "2026-10-01T20:00:00+08:00"
+        self.manifest["window_hours"] = 144
+        with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db, db:
+            db.execute("UPDATE collection_info SET value=? WHERE key='requested_end'",
+                       (self.manifest["publication_window"]["end"],))
+        self.manifest["latest_run"] = {
+            "status": "success", "start": "2026-09-26T20:00:00+08:00",
+            "end": "2026-10-01T20:00:00+08:00", "before": 2, "after": 3, "inserted": 1,
+            "lookback_hours": 120, "collection_mode": "backfill",
+            "scope": "selected", "selected_sources": ["Financial Times"],
+            "execution_location": "local", "health_preserved": False,
+            "local_batch": {"lookback_hours": 120, "collection_mode": "backfill"},
+            "sources": {"Financial Times": {
+                "source": "Financial Times", "execution_location": "local",
+                "lookback_hours": 120, "collection_mode": "backfill",
+                "status": "complete", "counts": {"inserted": 1},
+            }},
+        }
         self.save()
 
     def test_original_snapshot_still_validates_read_only(self):
@@ -236,6 +260,96 @@ class ValidateCumulativeTests(unittest.TestCase):
         self.save()
         with self.assertRaisesRegex(ValueError, "Credential value"):
             validate(self.root)
+
+    def test_explicit_ft_backfill_keeps_daily_window_and_validates_without_changes(self):
+        self.ft_backfill()
+        before = {artifact["path"]: (self.root / artifact["path"]).read_bytes()
+                  for artifact in self.manifest["artifacts"]}
+        with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db:
+            original_rows = db.execute("SELECT * FROM news ORDER BY url").fetchall()
+        result = validate(self.root)
+        self.assertEqual(result["total_articles"], 3)
+        self.assertEqual(self.manifest["daily_lookback_hours"], 48)
+        self.assertEqual(self.manifest["seed_window"], self.window)
+        self.assertEqual(before, {path: (self.root / path).read_bytes() for path in before})
+        with closing(sqlite3.connect(self.root / "data/news.sqlite3")) as db:
+            self.assertEqual(db.execute("SELECT * FROM news ORDER BY url").fetchall(), original_rows)
+
+    def test_ft_backfill_requires_explicit_consistent_markers_at_every_level(self):
+        self.ft_backfill()
+        valid = copy.deepcopy(self.manifest["latest_run"])
+        cases = [
+            ((), "lookback_hours", None), ((), "collection_mode", None),
+            ((), "lookback_hours", 48), ((), "lookback_hours", 120.0),
+            (("local_batch",), "lookback_hours", None),
+            (("local_batch",), "collection_mode", None),
+            (("sources", "Financial Times"), "lookback_hours", 48),
+            (("sources", "Financial Times"), "collection_mode", None),
+        ]
+        for parents, field, value in cases:
+            with self.subTest(parents=parents, field=field, value=value):
+                candidate = copy.deepcopy(valid)
+                section = candidate
+                for key in parents:
+                    section = section[key]
+                if value is None:
+                    del section[field]
+                else:
+                    section[field] = value
+                self.manifest["latest_run"] = candidate
+                self.save()
+                with self.assertRaises(ValueError):
+                    validate(self.root)
+
+    def test_ft_backfill_rejects_other_sources_and_nonlocal_scope(self):
+        self.ft_backfill()
+        valid = copy.deepcopy(self.manifest["latest_run"])
+        replacements = [
+            {"selected_sources": ["BBC News"]},
+            {"selected_sources": ["Financial Times", "新浪财经"]},
+            {"scope": "all"}, {"execution_location": "github_actions"},
+            {"sources": {"BBC News": valid["sources"]["Financial Times"]}},
+        ]
+        for replacement in replacements:
+            with self.subTest(replacement=replacement):
+                self.manifest["latest_run"] = dict(copy.deepcopy(valid), **replacement)
+                self.save()
+                with self.assertRaisesRegex(ValueError, "FT backfill"):
+                    validate(self.root)
+
+    def test_ft_backfill_rejects_wrong_duration_without_changing_daily_config(self):
+        self.ft_backfill()
+        self.manifest["latest_run"]["start"] = "2026-09-29T20:00:00+08:00"
+        self.save()
+        with self.assertRaisesRegex(ValueError, "Invalid latest run window"):
+            validate(self.root)
+
+    def test_ft_backfill_can_preserve_a_newer_health_report(self):
+        self.ft_backfill()
+        self.manifest["latest_run"].update(sources={}, health_preserved=True)
+        self.save()
+        self.assertEqual(validate(self.root)["status"], "ok")
+        self.manifest["latest_run"]["health_preserved"] = False
+        self.save()
+        with self.assertRaisesRegex(ValueError, "source report is missing"):
+            validate(self.root)
+
+    def test_ft_backfill_does_not_relax_existing_artifact_hash_checks(self):
+        self.ft_backfill()
+        csv_path = self.root / "data/news.csv"
+        csv_path.write_bytes(csv_path.read_bytes().replace(b"A title", b"B title", 1))
+        with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
+            validate(self.root)
+
+    def test_explicit_daily_48_hour_run_remains_compatible(self):
+        self.cumulative()
+        self.manifest["latest_run"] = {
+            "status": "success", "start": "2026-09-26T20:00:00+08:00",
+            "end": "2026-09-28T20:00:00+08:00", "before": 1, "after": 2,
+            "inserted": 1, "sources": {}, "lookback_hours": 48, "collection_mode": "daily",
+        }
+        self.save()
+        self.assertEqual(validate(self.root)["status"], "ok")
 
 
 if __name__ == "__main__":

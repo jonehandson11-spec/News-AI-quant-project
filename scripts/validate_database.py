@@ -57,6 +57,38 @@ def file_in_root(root: Path, relative: str) -> Path:
     return path
 
 
+def run_lookback(latest: dict) -> int:
+    """Only explicitly marked local FT backfills may extend the daily window."""
+    hours = latest.get("lookback_hours", 48)
+    mode = latest.get("collection_mode", "daily")
+    require(type(hours) is int and hours in (48, 120), "Invalid latest run lookback")
+    if hours == 120 or mode == "backfill":
+        require(hours == 120 and mode == "backfill", "FT backfill requires explicit 120-hour markers")
+        require(latest.get("scope") == "selected"
+                and latest.get("selected_sources") == ["Financial Times"]
+                and latest.get("execution_location") == "local",
+                "FT backfill must select only local Financial Times")
+        batch = latest.get("local_batch")
+        require(isinstance(batch, dict) and type(batch.get("lookback_hours")) is int
+                and batch["lookback_hours"] == 120 and batch.get("collection_mode") == "backfill",
+                "FT backfill local batch markers differ")
+        sources = latest["sources"]
+        require(set(sources) <= {"Financial Times"}, "FT backfill contains another source")
+        require(bool(sources) or latest.get("health_preserved") is True,
+                "FT backfill source report is missing")
+        if sources:
+            report = sources["Financial Times"]
+            require(isinstance(report, dict) and report.get("source") == "Financial Times"
+                    and report.get("execution_location") == "local"
+                    and type(report.get("lookback_hours")) is int
+                    and report["lookback_hours"] == 120
+                    and report.get("collection_mode") == "backfill",
+                    "FT backfill source markers differ")
+    else:
+        require(mode == "daily", "Invalid latest run collection mode")
+    return hours
+
+
 def validate(root: Path) -> dict:
     manifest_path = root / "data" / "manifest.json"
     manifest_text = manifest_path.read_text(encoding="utf-8")
@@ -110,14 +142,14 @@ def validate(root: Path) -> dict:
         require(latest is None or isinstance(latest, dict), "Invalid latest run")
         if latest is not None:
             require(isinstance(latest["status"], str) and bool(latest["status"].strip()), "Missing latest run status")
+            require(isinstance(latest["sources"], dict), "Invalid latest source reports")
             run_start, run_end = timestamp(latest["start"]), timestamp(latest["end"])
-            require(run_end - run_start == timedelta(hours=manifest["daily_lookback_hours"]) and run_end <= end,
+            require(run_end - run_start == timedelta(hours=run_lookback(latest)) and run_end <= end,
                     "Invalid latest run window")
             before, after, inserted = latest["before"], latest["after"], latest["inserted"]
             require(all(type(value) is int for value in (before, after, inserted)) and
                     0 <= before <= after == total and inserted == after - before,
                     "Latest run counts differ from manifest")
-            require(isinstance(latest["sources"], dict), "Invalid latest source reports")
     with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
         db.row_factory = sqlite3.Row
         require([row[0] for row in db.execute("PRAGMA integrity_check")] == ["ok"], "SQLite integrity check failed")
