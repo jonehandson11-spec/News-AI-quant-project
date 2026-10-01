@@ -126,7 +126,7 @@ class TestFTSession(unittest.TestCase):
 
     def test_minimum_request_delay(self):
         with FTSession('FTSession_s=fixture', delay=0) as session:
-            self.assertEqual(session.delay, 1)
+            self.assertEqual(session.delay, 5)
 
     def test_robots_disallowed_redirect_is_not_requested(self):
         from urllib.robotparser import RobotFileParser

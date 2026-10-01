@@ -89,6 +89,12 @@ def _report(value):
               "errors": [], "stopped": value.get("stopped") is True}
     if isinstance(value.get("reason"), str) and value["reason"] in REASONS:
         result["reason"] = value["reason"]
+    if result.get("reason") == "rate_limited":
+        retry = value.get("retry_after_seconds")
+        if type(retry) is int and 0 <= retry <= 2_147_483_647:
+            result["retry_after_seconds"] = retry
+        if value.get("endpoint_kind") in ("robots", "feed", "category", "article"):
+            result["endpoint_kind"] = value["endpoint_kind"]
     errors = value.get("errors", [])
     for error in errors[:20] if isinstance(errors, list) else []:
         reason = error.get("reason") if isinstance(error, dict) else None
@@ -238,11 +244,13 @@ def collect_batch(root, cookie_file, batch_file, *, max_new=100, lookback_hours=
              "snapshot_total": before, "rows": valid, "report": report}
     batch["batch_id"] = _batch_id(batch)
     write_json(batch_file, batch)
-    return {"status": report["status"], "reason": report.get("reason"),
+    result = {"status": report["status"], "reason": report.get("reason"),
             "collected": len(valid), "snapshot_total": before,
             "batch_id": batch["batch_id"],
             "lookback_hours": lookback_hours, "collection_mode": collection_mode,
             "batch_file": str(batch_file), "execution_location": "local"}
+    result.update({key: report[key] for key in ("retry_after_seconds", "endpoint_kind") if key in report})
+    return result
 
 
 def _validated_batch(batch_file, manifest, now):

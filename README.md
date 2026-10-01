@@ -125,6 +125,8 @@ python scripts/crawl_daily.py --probe --cloud-only
 
 BBC／新浪使用 GitHub 定时任务；FT 使用本机定时任务上传批次，交由 GitHub 串行合并。遇到人工提交冲突时停止推送，不强制覆盖仓库。
 
+FT 本机自动程序、Windows 任务和故障弹窗的操作方法见[本机自动采集说明](docs/ft-local-automatic.md)。日常采集与上传不需要 Codex 运行。
+
 ## 新闻 × 港股价格查询
 
 团队网页：[打开查询系统](https://jonehandson11-spec.github.io/News-AI-quant-project/)（仓库拥有者启用 GitHub Pages 并成功运行发布工作流后开放）。可输入港股名称／代码和新闻发布时间，查看前 1／3／6 个月及后 1／3／12／24 小时、3 天、1 周的价格、实际取价时间和缺失／休市顺延状态。新闻候选从本仓库 `data/news.csv` 自动生成；候选仍需人工复核。

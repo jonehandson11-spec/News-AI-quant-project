@@ -57,6 +57,14 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
             report["errors"].append({"url": url, "reason": reason})
         report["status"] = "partial" if counts["success"] else "failed"
 
+    def stop(error):
+        report.update(stopped=True, reason=error.reason)
+        if error.reason == "rate_limited":
+            if error.retry_after_seconds is not None:
+                report["retry_after_seconds"] = error.retry_after_seconds
+            if error.endpoint_kind is not None:
+                report["endpoint_kind"] = error.endpoint_kind
+
     network_failures = 0
     with FTSession() as session:
         if not session.has_login_cookie():
@@ -72,7 +80,7 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     found.setdefault(item["url"], item)
             except StopCollection as error:
                 failure(feed, error.reason)
-                report.update(stopped=True, reason=error.reason)
+                stop(error)
                 return
             except requests.RequestException:
                 network_failures += 1
@@ -122,7 +130,7 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                         pending.append((next_url, outcome, seen))
                 except StopCollection as error:
                     failure(page_url, error.reason)
-                    report.update(stopped=True, reason=error.reason)
+                    stop(error)
                     mark_discovery_stopped()
                     counts["discovered"] = len(found)
                     return
@@ -169,7 +177,7 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     return
             except StopCollection as error:
                 failure(url, error.reason)
-                report.update(stopped=True, reason=error.reason)
+                stop(error)
                 counts["deferred"] = len(rows) - index - 1
                 return
             except requests.RequestException:
