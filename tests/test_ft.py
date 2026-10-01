@@ -104,7 +104,8 @@ class TestFTSession(unittest.TestCase):
             self.assertEqual(len(adapter.calls), 1)
 
     def test_restricted_status_stops_without_retry(self):
-        for status, reason in [(401, 'auth_expired'), (403, 'access_denied'), (429, 'rate_limited')]:
+        for status, reason in [(401, 'auth_expired'), (402, 'subscription_required'),
+                               (403, 'access_denied'), (429, 'rate_limited')]:
             with self.subTest(status=status), FTSession('FTSession_s=fixture') as session:
                 adapter = RedirectAdapter(status=status)
                 session.mount('https://', adapter)
@@ -169,12 +170,12 @@ class TestFTParser(unittest.TestCase):
         self.assertEqual(parse_article(html, URLS[0])['published'].hour, 7)
 
     def test_promotion_and_teaser_barrier_rejected(self):
-        cases = [article(body='<p>Subscribe to unlock</p><p>' + PROSE + '</p>'),
-                 article(extra='<div class="barrier">Subscribe for full access</div>')]
-        for html in cases:
+        cases = [(article(body='<p>Subscribe to unlock</p><p>' + PROSE + '</p>'), 'paywall_body_text_detected'),
+                 (article(extra='<div class="barrier">Subscribe for full access</div>'), 'subscription_barrier_detected')]
+        for html, reason in cases:
             with self.assertRaises(StopCollection) as raised:
                 parse_article(html, URLS[0])
-            self.assertEqual(raised.exception.reason, 'login_or_subscription_required')
+            self.assertEqual(raised.exception.reason, reason)
 
     def test_rss_summary_or_short_teaser_is_not_fulltext(self):
         with self.assertRaises(ValueError):

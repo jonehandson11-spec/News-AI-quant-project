@@ -8,6 +8,7 @@ import requests
 
 from .ft_impl.parsing import parse_article, parse_feed
 from .ft_impl.session import FTSession, StopCollection
+from .ft_impl.diagnostics import ArticleParseError, safe_diagnostic
 
 SOURCE = "Financial Times"
 RSS_FEEDS = tuple("https://www.ft.com/" + category + "?format=rss" for category in (
@@ -36,37 +37,41 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
             or end.utcoffset() is None or start >= end):
         raise ValueError("FT requires an aware increasing publication window")
 
-    def failure(url, reason):
+    def failure(url, reason, stage):
         counts["failed"] += 1
         if len(report["errors"]) < 20:
-            report["errors"].append({"url": url, "reason": reason})
+            report["errors"].append({"url": url, "reason": reason,
+                                     "diagnostic": safe_diagnostic(reason, stage)})
+        report["diagnostic"] = safe_diagnostic(reason, stage)
         report["status"] = "partial" if counts["success"] else "failed"
 
     network_failures = 0
     with FTSession() as session:
         if not session.has_login_cookie():
             report.update(reason="auth_required", stopped=True)
-            failure("https://www.ft.com", "auth_required")
+            failure("https://www.ft.com", "auth_required", "credential")
             return
         found = {}
         for feed in RSS_FEEDS:
+            stage = "feed_fetch"
             try:
                 text = session.fetch(feed)
                 network_failures = 0
+                stage = "feed_parse"
                 for item in parse_feed(text):
                     found.setdefault(item["url"], item)
             except StopCollection as error:
-                failure(feed, error.reason)
+                failure(feed, error.reason, stage)
                 report.update(stopped=True, reason=error.reason)
                 return
             except requests.RequestException:
                 network_failures += 1
-                failure(feed, "feed_request_failed")
+                failure(feed, "feed_request_failed", stage)
                 if network_failures >= 3:
                     report.update(stopped=True, reason="consecutive_network_failures")
                     return
             except (ValueError, ET.ParseError):
-                failure(feed, "invalid_feed")
+                failure(feed, "invalid_feed", stage)
         rows = sorted(found.values(), key=lambda row: row.get("rss_published")
                       or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
         counts["discovered"] = len(rows)
@@ -76,10 +81,13 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                 counts["known"] += 1
                 continue
             try:
+                stage = "credential"
                 if not session.has_login_cookie():
                     raise StopCollection("auth_expired")
+                stage = "article_fetch"
                 html = session.fetch(url)
                 network_failures = 0
+                stage = "article_parse"
                 article = parse_article(html, url)
                 if not start <= article["published"] <= end:
                     counts["outside_window"] += 1
@@ -97,16 +105,18 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     counts["deferred"] = len(rows) - index - 1
                     return
             except StopCollection as error:
-                failure(url, error.reason)
+                failure(url, error.reason, stage)
                 report.update(stopped=True, reason=error.reason)
                 counts["deferred"] = len(rows) - index - 1
                 return
             except requests.RequestException:
                 network_failures += 1
-                failure(url, "article_request_failed")
+                failure(url, "article_request_failed", stage)
                 if network_failures >= 3:
                     report.update(stopped=True, reason="consecutive_network_failures")
                     counts["deferred"] = len(rows) - index - 1
                     return
+            except ArticleParseError as error:
+                failure(url, error.reason, stage)
             except ValueError:
-                failure(url, "invalid_or_incomplete_article")
+                failure(url, "invalid_or_incomplete_article", stage)

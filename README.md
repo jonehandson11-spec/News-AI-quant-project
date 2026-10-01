@@ -26,10 +26,14 @@ FT 从 13 个分类 RSS 发现文章，并核对网页原始发布时间和正�
 会话无法保证永久有效。最近一次本地采集结果见 [data/source_reports/ft.json](data/source_reports/ft.json)，其中 execution_location 为 local，batch_id 用于核对已合并的批次。云端每日任务对 FT 的 collected_locally 跳过不会覆盖本地健康状态。没有新文章不代表已验证登录仍有效。
 
 - auth_expired：会话过期或 HTTP 401。
-- auth_required／login_or_subscription_required：缺少登录或订阅验证未通过。在浏览器正常登录并确认文章可读后，更新本机私密 Cookie 文件，再运行本地程序验证；仅在浏览器登录不会自动改写该文件。
+- auth_required：缺少可用会话或遇到登录跳转。在浏览器正常登录并确认文章可读后，更新本机私密 Cookie 文件；仅在浏览器登录不会自动改写该文件。
+- subscription_required／subscription_barrier_detected：收到订阅入口或明确订阅屏障，应检查同一文章的浏览器访问与订阅权限，不能据此断定 Cookie 或订阅已过期。
+- paywall_page_text_detected／paywall_body_text_detected：解析层匹配到屏障文字，需先验证浏览器与本地会话，再检查解析规则。历史 login_or_subscription_required 未区分这几种情况。
 - access_denied、rate_limited、网络或解析故障分别记录，不推断为 Cookie 过期，不绕过网站访问限制。
 
 本机的 FT 监控在出现新的可处理故障时提醒；同一未变化故障不重复提醒，恢复后通知一次。历史正文不会因登录失效被删除。
+
+Credential-safe local check: `python scripts/ft_preflight.py --cookie-file "/private/ft-cookie.txt" --article-url "https://www.ft.com/content/ARTICLE-UUID"`. Replace both placeholders. Output contains only fixed status, reason, stage and action codes. See [FT diagnosis and recovery](docs/ft-recovery.md) for the traced failure path, code meanings and recovery steps.
 
 ## 下载和在 DBeaver 中打开
 
