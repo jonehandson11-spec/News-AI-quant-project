@@ -4,13 +4,13 @@
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-10-01T12:59:53.217068+00:00",
+  "package_created_at": "2026-10-01T15:53:27.854446+00:00",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-01T20:57:57.995252+08:00",
+    "end": "2026-10-01T23:52:30.461632+08:00",
     "inclusive": true
   },
-  "window_hours": 143.84222090333333,
+  "window_hours": 146.75123934222225,
   "time_zone": "UTC+08:00 (Beijing)",
   "total_articles": 1687,
   "fields": [
@@ -55,7 +55,7 @@
     {
       "path": "data/news.sqlite3",
       "bytes": 6340608,
-      "sha256": "b7f4429a07d2b7eea99498337584bfeb2d2beea1b3e6c9b2198064a43392528c"
+      "sha256": "0c3676f55a305ae0e966022b694d4c6294ac33ee14ad900857cfe1d98ea03be1"
     },
     {
       "path": "data/news.csv",
@@ -64,8 +64,8 @@
     },
     {
       "path": "data/progress.json",
-      "bytes": 1855,
-      "sha256": "3023bb817f4efb2d78f87e279ec8cff06964f3f2beaedaa558a5d3b285ab87d3"
+      "bytes": 2471,
+      "sha256": "3d0d3c3cdcc5d0c7f132146c7fc6f6b40307d4204931c5109c929e2c0ef3698d"
     },
     {
       "path": "schema.sql",
@@ -75,17 +75,17 @@
     {
       "path": "data/source_reports/bbc.json",
       "bytes": 1278,
-      "sha256": "6006bf1e79fc280fd8b0a8f9a091fb33a90ab8f518e5d1bf53cc570a82339eee"
+      "sha256": "249a939b008b26f75d50f717f2a54c417fac0676f6782d3306871921a8077644"
     },
     {
       "path": "data/source_reports/sina.json",
       "bytes": 2208,
-      "sha256": "8375c6b025b6d942e546e1a7c560700d2c944e8d0896aa4d3dd7bf0afefc282d"
+      "sha256": "b17909adb2afbf0276c944aa96244be85831ff69a536b652f424e9e2d4a70737"
     },
     {
       "path": "data/source_reports/ft.json",
-      "bytes": 1086,
-      "sha256": "e85b45f0c1f07f810db8c210ad3c2e1210d79421f020ce5698edc734d4385688"
+      "bytes": 1522,
+      "sha256": "73502ba05982669f958081330a123acc31a229b356ecb96c4e66f052b40baa71"
     }
   ],
   "collection_mode": "cumulative",
@@ -104,11 +104,11 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-01T20:57:57.995252+08:00",
-    "finished_at": "2026-10-01T20:58:13.872727+08:00",
-    "merged_at": "2026-10-01T20:59:53.217068+08:00",
-    "start": "2026-09-29T20:57:57.995252+08:00",
-    "end": "2026-10-01T20:57:57.995252+08:00",
+    "started_at": "2026-10-01T23:52:30.461632+08:00",
+    "finished_at": "2026-10-01T23:52:43.694824+08:00",
+    "merged_at": "2026-10-01T23:53:27.854446+08:00",
+    "start": "2026-09-26T23:52:30.461632+08:00",
+    "end": "2026-10-01T23:52:30.461632+08:00",
     "scope": "selected",
     "selected_sources": [
       "Financial Times"
@@ -138,11 +138,26 @@
         ],
         "stopped": true,
         "reason": "rate_limited",
-        "batch_id": "2ab413ed774fc44a26cb88a441e4e8a85610decdd069d1daa4859439371047ba"
+        "discovery": {
+          "mode": "rss_and_category_pages",
+          "coverage_limited": true,
+          "coverage_note": "FT RSS and selected category listings do not guarantee a complete archive.",
+          "pages_fetched": 0,
+          "page_limit": 40,
+          "category_page_limit": 5,
+          "categories_completed": 0,
+          "categories_total": 13,
+          "category_outcomes": []
+        },
+        "lookback_hours": 120,
+        "collection_mode": "backfill",
+        "batch_id": "b77693b6fa9a517f739ca870978aa9c54c884f5d1add4a919f962362e0e1e14e"
       }
     },
     "local_batch": {
-      "batch_id": "2ab413ed774fc44a26cb88a441e4e8a85610decdd069d1daa4859439371047ba",
+      "batch_id": "b77693b6fa9a517f739ca870978aa9c54c884f5d1add4a919f962362e0e1e14e",
+      "lookback_hours": 120,
+      "collection_mode": "backfill",
       "collected": 0,
       "duplicates": 0,
       "deferred_cap": 0,
@@ -155,7 +170,9 @@
     "inserted": 0,
     "duplicates": 0,
     "deferred_cap": 0,
-    "batch_id": "2ab413ed774fc44a26cb88a441e4e8a85610decdd069d1daa4859439371047ba",
+    "batch_id": "b77693b6fa9a517f739ca870978aa9c54c884f5d1add4a919f962362e0e1e14e",
+    "lookback_hours": 120,
+    "collection_mode": "backfill",
     "execution_location": "local",
     "health_preserved": false
   },
