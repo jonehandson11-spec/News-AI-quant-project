@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 1336,
+  "saved_full_text_articles": 1585,
   "feed_pages": 6,
   "candidates_in_window": 158,
   "final_failed_articles": 0,
@@ -12,26 +12,34 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-09-30T20:11:25+08:00",
+    "end": "2026-10-01T20:12:08+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "partial",
     "counts": {
-      "pages": 20,
-      "discovered": 1000,
-      "skipped_known": 560,
-      "skipped_window": 1,
+      "pages": 16,
+      "discovered": 800,
+      "skipped_known": 547,
+      "skipped_window": 0,
       "invalid": 4,
-      "fetched": 439,
-      "yielded": 435,
-      "requests": 461,
+      "fetched": 253,
+      "yielded": 249,
+      "requests": 271,
       "network_errors": 0,
       "robots_denied": 0,
       "errors": 4,
-      "inserted": 435
+      "inserted": 249
     },
     "errors": [
+      {
+        "url": "https://finance.sina.com.cn/world/2026-10-01/doc-initsief6391614.shtml",
+        "reason": "article rejected: article full text missing or shorter than 40 characters"
+      },
+      {
+        "url": "https://finance.sina.com.cn/stock/usstock/c/2026-10-01/doc-initsiep5446344.shtml",
+        "reason": "article rejected: article full text missing or shorter than 40 characters"
+      },
       {
         "url": "https://finance.sina.com.cn/money/future/fmnews/2026-09-30/doc-initqvcf2128340.shtml",
         "reason": "article rejected: article full text missing or shorter than 40 characters"
@@ -39,22 +47,14 @@
       {
         "url": "https://finance.sina.com.cn/jjxw/2026-09-30/doc-initqefr2563214.shtml",
         "reason": "article rejected: article full text missing or shorter than 40 characters"
-      },
-      {
-        "url": "https://finance.sina.com.cn/stock/usstock/c/2026-09-29/doc-initmkkp8225698.shtml",
-        "reason": "article rejected: article full text missing or shorter than 40 characters"
-      },
-      {
-        "url": "https://finance.sina.com.cn/jryx/bank/2026-09-28/doc-initkxut8395263.shtml",
-        "reason": "article rejected: article full text missing or shorter than 40 characters"
       }
     ],
     "reason": "two consecutive pages older than window"
   },
   "health": {
     "status": "partial",
-    "last_attempt_at": "2026-09-30T20:11:25+08:00",
-    "last_success_at": "2026-09-30T20:11:25+08:00",
+    "last_attempt_at": "2026-10-01T20:12:08+08:00",
+    "last_success_at": "2026-10-01T20:12:08+08:00",
     "needs_attention": true,
     "last_reason": "two consecutive pages older than window",
     "execution_location": "github_actions"
