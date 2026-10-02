@@ -366,6 +366,20 @@ def _recover_plan(settings, attempt, plan_file):
     return ft_sync._write_plan(plan_file, plan)
 
 
+def can_continue_backfill(report, inserted):
+    """Keep a productive backfill going after isolated article failures.
+
+    Preserve the partial health report. Access restrictions, feed failures and
+    stopped runs still require attention instead of another collection batch.
+    """
+    isolated = {"invalid_or_incomplete_article", "article_request_failed"}
+    errors = report.get("errors", [])
+    return (inserted > 0 and report.get("status") == "partial"
+            and report.get("stopped") is False
+            and report.get("reason") in isolated and bool(errors)
+            and all(isinstance(error, dict) and error.get("reason") in isolated for error in errors))
+
+
 def _finish_import(settings, state, plan, observed):
     receipt = ft_sync.acknowledge(settings.root, Path(plan["plan_file"]), observed["main_commit_sha"])
     state.update(batch_id=plan["batch_id"], plan_file=plan["plan_file"], push_state="imported",
@@ -373,10 +387,12 @@ def _finish_import(settings, state, plan, observed):
     _save_state(settings, state)
     summary = plan.get("result_summary", {})
     failed = summary.get("status") in ("failed", "partial")
+    report = read_json(Path(plan["batch_file"])).get("report", {}) if failed else {}
     return {"status": "imported_needs_attention" if failed else "imported", "batch_id": plan["batch_id"],
             "reason": summary.get("reason") if failed else None,
             "commit_sha": receipt["commit_sha"], "inserted": observed["inserted"],
             "total_articles": receipt["total_articles"], "ft_articles": receipt["ft_articles"],
+            "continue_backfill": can_continue_backfill(report, observed["inserted"]),
             "cooldown_until": state.get("cooldown_until")}
 
 
@@ -452,14 +468,15 @@ def run(settings):
                     return {"status": "skipped", "reason": plan["result_summary"]["reason"],
                             "total_articles": plan["result_summary"].get("after")}
             result = service_plan(settings, state, plan)
-            if (settings.resume_only or settings.lookback_hours != 120 or result["status"] != "imported"
+            productive = result["status"] == "imported" or result.get("continue_backfill") is True
+            if (settings.resume_only or settings.lookback_hours != 120 or not productive
                     or result.get("inserted", 0) == 0 or result.get("total_articles", 0) >= 3000):
                 return result
 
 
 def _record_result(settings, result):
     # No article text, key/cookie contents, SSH diagnostics, or raw response bodies.
-    allowed = {"status", "reason", "batch_id", "commit_sha", "inserted", "total_articles", "ft_articles", "cooldown_until"}
+    allowed = {"status", "reason", "batch_id", "commit_sha", "inserted", "total_articles", "ft_articles", "cooldown_until", "continue_backfill"}
     safe = {key: value for key, value in result.items() if key in allowed}
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     write_json(settings.state_dir / "autorun-result.json", safe)
