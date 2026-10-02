@@ -32,6 +32,7 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
     counts = {key: 0 for key in ("discovered", "known", "skipped", "outside_window",
                                  "success", "failed", "deferred")}
     report.update(source=SOURCE, status="complete", counts=counts, errors=[],
+                  skipped_reasons={},
                   stopped=False, publication_basis="article original publication time",
                   credential_storage="environment; memory only")
     if limit <= 0:
@@ -168,6 +169,10 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     raise ValueError("future_publication_time")
                 counts["success"] += 1
                 report["status"] = "partial" if counts["failed"] else "complete"
+                # The batch writer may close the generator immediately on yield.
+                # Record unvisited candidates before handing it the last row.
+                if counts["success"] >= limit:
+                    counts["deferred"] = len(rows) - index - 1
                 yield {"article_id": hashlib.sha256(url.encode("utf-8")).hexdigest()[:32],
                        "source": SOURCE, "title": article["title"], "content": article["content"],
                        "publish_time": article["published"].isoformat(),
@@ -176,6 +181,15 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     counts["deferred"] = len(rows) - index - 1
                     return
             except StopCollection as error:
+                if error.reason == "unsafe_destination":
+                    # A feed can link to a UUID that redirects outside the
+                    # permitted FT article host. The session already refused
+                    # that destination without sending credentials to it. Skip
+                    # this candidate, not every other independent article.
+                    counts["skipped"] += 1
+                    skips = report["skipped_reasons"]
+                    skips[error.reason] = skips.get(error.reason, 0) + 1
+                    continue
                 failure(url, error.reason)
                 stop(error)
                 counts["deferred"] = len(rows) - index - 1

@@ -134,7 +134,7 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
         package_created_at=now.isoformat(),
         title="BBC + Sina Finance + Financial Times cumulative news database",
         filters=updates["filters"],
-        coverage_limit="Cumulative BBC World RSS, Sina Finance roll-feed, and Financial Times RSS articles; each daily run discovers recent articles, not a complete archive",
+        coverage_limit="Cumulative BBC multi-section RSS, Sina Finance roll-feed, and Financial Times RSS/category articles; bounded discovery, not a complete archive",
     )
     artifact_paths = ["data/news.sqlite3", "data/news.csv", "data/progress.json", "schema.sql"]
     artifact_paths.extend(detail["report"] for detail in manifest["sources"].values())

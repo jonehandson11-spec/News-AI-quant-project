@@ -87,6 +87,11 @@ def _report(value):
               "counts": {key: number for key, number in counts.items()
                          if key in COUNT_KEYS and type(number) is int and number >= 0},
               "errors": [], "stopped": value.get("stopped") is True}
+    skips = value.get("skipped_reasons")
+    if isinstance(skips, dict):
+        result["skipped_reasons"] = {
+            key: count for key, count in skips.items()
+            if key == "unsafe_destination" and type(count) is int and count > 0}
     if isinstance(value.get("reason"), str) and value["reason"] in REASONS:
         result["reason"] = value["reason"]
     if result.get("reason") == "rate_limited":

@@ -21,6 +21,15 @@ MERGED = datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
 
 
 class LocalFTTests(unittest.TestCase):
+    def test_skipped_link_diagnostics_are_safe_and_do_not_mark_batch_failed(self):
+        from scripts.ft_local import _report
+        result = _report({'status': 'complete', 'counts': {'skipped': 2},
+                          'skipped_reasons': {'unsafe_destination': 2,
+                                              'cookie=must-not-publish': 1}})
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(result['skipped_reasons'], {'unsafe_destination': 2})
+        self.assertNotIn('must-not-publish', json.dumps(result))
+
     def setUp(self):
         fixture = fixtures.ValidateCumulativeTests()
         fixture.setUp()
