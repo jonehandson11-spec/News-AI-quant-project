@@ -1,6 +1,6 @@
 {
   "source": "Financial Times",
-  "saved_full_text_articles": 41,
+  "saved_full_text_articles": 93,
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
@@ -12,25 +12,37 @@
     "execution_location": "local",
     "status": "partial",
     "counts": {
-      "discovered": 617,
-      "known": 0,
+      "discovered": 613,
+      "known": 2,
       "skipped": 0,
-      "outside_window": 0,
-      "success": 28,
-      "failed": 1,
-      "deferred": 588,
-      "collected": 28,
-      "inserted": 28,
+      "outside_window": 1,
+      "success": 52,
+      "failed": 4,
+      "deferred": 554,
+      "collected": 52,
+      "inserted": 52,
       "duplicates": 0,
       "deferred_cap": 0
     },
     "errors": [
       {
-        "reason": "unsafe_destination"
+        "reason": "invalid_or_incomplete_article"
+      },
+      {
+        "reason": "article_request_failed"
+      },
+      {
+        "reason": "article_request_failed"
+      },
+      {
+        "reason": "rate_limited"
       }
     ],
     "stopped": true,
-    "reason": "unsafe_destination",
+    "skipped_reasons": {},
+    "reason": "rate_limited",
+    "retry_after_seconds": 300,
+    "endpoint_kind": "article",
     "discovery": {
       "mode": "rss_and_category_pages",
       "coverage_limited": true,
@@ -110,14 +122,14 @@
     },
     "lookback_hours": 120,
     "collection_mode": "backfill",
-    "batch_id": "127b9ae0464af1b62aa9916b0f86916ad48671f68e563f9ee2c8c0da1ed70af4"
+    "batch_id": "dd1ecad0c078e5d6daa62548887798211bd083c2301a61765528cfe6d9d0ae4b"
   },
   "health": {
     "status": "partial",
-    "last_attempt_at": "2026-10-02T00:53:55.928436+08:00",
-    "last_success_at": "2026-10-02T00:53:55.928436+08:00",
+    "last_attempt_at": "2026-10-02T17:35:01.031822+08:00",
+    "last_success_at": "2026-10-02T17:35:01.031822+08:00",
     "needs_attention": true,
-    "last_reason": "unsafe_destination",
+    "last_reason": "rate_limited",
     "execution_location": "local"
   }
 }
