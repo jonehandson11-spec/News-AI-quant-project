@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 89,
+  "saved_full_text_articles": 179,
   "rss_items": 27,
   "outcomes": {
     "success": 23,
@@ -14,33 +14,80 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-02T00:53:55.928436+08:00",
+    "end": "2026-10-02T17:45:43+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "complete",
     "counts": {
-      "discovered": 37,
-      "known": 11,
-      "skipped": 7,
-      "outside_window": 0,
-      "success": 19,
+      "discovered": 264,
+      "known": 100,
+      "skipped": 49,
+      "outside_window": 115,
+      "success": 0,
       "failed": 0,
       "deferred": 0,
-      "inserted": 19
+      "inserted": 0
     },
     "errors": [],
     "source": "BBC News",
-    "scope": "BBC World RSS",
+    "scope": "BBC News official section RSS feeds",
+    "feeds": [
+      {
+        "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "status": "complete",
+        "discovered": 29
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/rss.xml",
+        "status": "complete",
+        "discovered": 30
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
+        "status": "complete",
+        "discovered": 25
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "status": "complete",
+        "discovered": 49
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+        "status": "complete",
+        "discovered": 59
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+        "status": "complete",
+        "discovered": 21
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "status": "complete",
+        "discovered": 38
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+        "status": "complete",
+        "discovered": 18
+      },
+      {
+        "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
+        "status": "complete",
+        "discovered": 51
+      }
+    ],
     "stopped": false,
     "publication_basis": "public article JSON-LD datePublished"
   },
   "health": {
     "status": "complete",
-    "last_attempt_at": "2026-10-01T20:12:08+08:00",
-    "last_success_at": "2026-10-01T20:12:08+08:00",
+    "last_attempt_at": "2026-10-02T17:45:43+08:00",
+    "last_success_at": "2026-10-02T17:35:55+08:00",
     "needs_attention": false,
     "last_reason": null,
-    "execution_location": "github_actions"
+    "execution_location": "local"
   }
 }

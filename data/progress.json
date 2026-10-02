@@ -1,7 +1,7 @@
 {
   "target_articles": 3000,
-  "total_articles": 1715,
-  "remaining_articles": 1285,
+  "total_articles": 1805,
+  "remaining_articles": 1195,
   "completed": false,
   "schedule": {
     "timezone": "Asia/Shanghai",
@@ -9,143 +9,101 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-02T00:53:55.928436+08:00",
-    "finished_at": "2026-10-02T01:11:08.018816+08:00",
-    "merged_at": "2026-10-02T01:11:25.052150+08:00",
-    "start": "2026-09-27T00:53:55.928436+08:00",
-    "end": "2026-10-02T00:53:55.928436+08:00",
-    "scope": "selected",
-    "selected_sources": [
-      "Financial Times"
-    ],
+    "started_at": "2026-10-02T17:45:43+08:00",
+    "start": "2026-09-30T17:45:43+08:00",
+    "end": "2026-10-02T17:45:43+08:00",
     "sources": {
       "Financial Times": {
-        "source": "Financial Times",
-        "execution_location": "local",
-        "status": "partial",
+        "status": "not_needed",
         "counts": {
-          "discovered": 617,
-          "known": 0,
-          "skipped": 0,
-          "outside_window": 0,
-          "success": 28,
-          "failed": 1,
-          "deferred": 588,
-          "collected": 28,
-          "inserted": 28,
-          "duplicates": 0,
-          "deferred_cap": 0
+          "inserted": 0
         },
-        "errors": [
+        "reason": "Source not selected for this run"
+      },
+      "BBC News": {
+        "status": "complete",
+        "counts": {
+          "discovered": 264,
+          "known": 100,
+          "skipped": 49,
+          "outside_window": 115,
+          "success": 0,
+          "failed": 0,
+          "deferred": 0,
+          "inserted": 0
+        },
+        "errors": [],
+        "source": "BBC News",
+        "scope": "BBC News official section RSS feeds",
+        "feeds": [
           {
-            "reason": "unsafe_destination"
+            "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+            "status": "complete",
+            "discovered": 29
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/rss.xml",
+            "status": "complete",
+            "discovered": 30
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
+            "status": "complete",
+            "discovered": 25
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+            "status": "complete",
+            "discovered": 49
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+            "status": "complete",
+            "discovered": 59
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+            "status": "complete",
+            "discovered": 21
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+            "status": "complete",
+            "discovered": 38
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+            "status": "complete",
+            "discovered": 18
+          },
+          {
+            "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
+            "status": "complete",
+            "discovered": 51
           }
         ],
-        "stopped": true,
-        "reason": "unsafe_destination",
-        "discovery": {
-          "mode": "rss_and_category_pages",
-          "coverage_limited": true,
-          "coverage_note": "FT RSS and selected category listings do not guarantee a complete archive.",
-          "pages_fetched": 40,
-          "page_limit": 40,
-          "category_page_limit": 5,
-          "categories_completed": 0,
-          "categories_total": 13,
-          "category_outcomes": [
-            {
-              "url": "https://www.ft.com/world",
-              "pages": 4,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/global-economy",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/europe",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/us",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/asia-pacific",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/markets",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/central-banks",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/equities",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/commodities",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/currencies",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/technology",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/companies",
-              "pages": 3,
-              "reason": "total_page_limit"
-            },
-            {
-              "url": "https://www.ft.com/energy",
-              "pages": 3,
-              "reason": "total_page_limit"
-            }
-          ]
+        "stopped": false,
+        "publication_basis": "public article JSON-LD datePublished"
+      },
+      "新浪财经": {
+        "status": "not_needed",
+        "counts": {
+          "inserted": 0
         },
-        "lookback_hours": 120,
-        "collection_mode": "backfill",
-        "batch_id": "127b9ae0464af1b62aa9916b0f86916ad48671f68e563f9ee2c8c0da1ed70af4"
+        "reason": "Source not selected for this run"
       }
     },
-    "local_batch": {
-      "batch_id": "127b9ae0464af1b62aa9916b0f86916ad48671f68e563f9ee2c8c0da1ed70af4",
-      "lookback_hours": 120,
-      "collection_mode": "backfill",
-      "collected": 28,
-      "duplicates": 0,
-      "deferred_cap": 0,
-      "inserted": 28
-    },
-    "target_reached": false,
-    "status": "partial",
-    "before": 1687,
-    "after": 1715,
-    "inserted": 28,
-    "duplicates": 0,
-    "deferred_cap": 0,
-    "batch_id": "127b9ae0464af1b62aa9916b0f86916ad48671f68e563f9ee2c8c0da1ed70af4",
-    "lookback_hours": 120,
-    "collection_mode": "backfill",
+    "scope": "selected",
+    "selected_sources": [
+      "BBC News"
+    ],
     "execution_location": "local",
-    "health_preserved": false
+    "before": 1805,
+    "after": 1805,
+    "inserted": 0,
+    "status": "success",
+    "target_reached": false,
+    "finished_at": "2026-10-02T17:49:51+08:00"
   },
   "next_scheduled_at": "2026-10-02T20:00:00+08:00"
 }
