@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 import urllib.error
 
 from crawler import bbc
@@ -35,7 +35,8 @@ def metadata(date="2026-09-26T17:00:00+08:00"):
 
 class BBCDailyTests(unittest.TestCase):
     def run_collection(self, urls=URLS[:3], *, limit=30, known=None,
-                       dates=None, errors=None):
+                       dates=None, errors=None, feeds=None, close_after_limit=False):
+        feeds = feeds if feeds is not None else {bbc.RSS_URL: feed(urls)}
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             page_root = root / "article_pages"
@@ -52,12 +53,27 @@ class BBCDailyTests(unittest.TestCase):
                 return BODY, "downloaded", "2026-09-27 19:00:00"
 
             report = {}
-            with patch.object(bbc, "download_feed", return_value=feed(urls)) as download, \
-                    patch.object(bbc, "ArticleClient") as client:
+            def download_feed(url):
+                result = feeds[url]
+                if isinstance(result, Exception):
+                    raise result
+                return result
+
+            with patch.object(bbc, "RSS_URLS", tuple(feeds)), \
+                    patch.object(bbc, "download_feed", side_effect=download_feed) as download, \
+                    patch.object(bbc, "ArticleClient") as client, \
+                    patch.object(bbc.time, "sleep") as sleep:
                 client.return_value.fetch.side_effect = fetch
-                result = list(bbc.collect(start=START, end=END, known_urls=known or set(),
-                                          limit=limit, workdir=root, report=report))
+                generator = bbc.collect(start=START, end=END, known_urls=known or set(),
+                                        limit=limit, workdir=root, report=report)
+                if close_after_limit:
+                    result = [next(generator) for _ in range(limit)]
+                    generator.close()
+                else:
+                    result = list(generator)
                 downloads = download.call_count
+                self.assertEqual(download.call_args_list, [call(url) for url in feeds][:downloads])
+                self.assertEqual(sleep.call_args_list, [call(2)] * max(0, downloads - 1))
             return result, report, calls, downloads
 
     def test_zero_limit_does_not_request_feed_or_articles(self):
@@ -84,6 +100,15 @@ class BBCDailyTests(unittest.TestCase):
         self.assertEqual(report["counts"]["outside_window"], 1)
         self.assertEqual(report["counts"]["failed"], 1)
         self.assertEqual(report["status"], "partial")
+
+    def test_limit_reports_deferred_before_caller_closes_generator(self):
+        rows, report, calls, _ = self.run_collection(
+            limit=1, known={URLS[0]}, close_after_limit=True)
+        self.assertEqual([row["url"] for row in rows], [URLS[1]])
+        self.assertEqual(calls, [URLS[1]])
+        self.assertEqual(report["counts"]["success"], 1)
+        self.assertEqual(report["counts"]["deferred"], 1)
+        self.assertEqual(report["status"], "complete")
 
     def test_naive_original_date_is_not_accepted(self):
         rows, report, _, _ = self.run_collection(URLS[:1], dates={URLS[0]: "2026-09-26T12:00:00"})
@@ -133,17 +158,95 @@ class BBCDailyTests(unittest.TestCase):
         self.assertNotIn("secret", json.dumps(report))
         self.assertNotIn("Users", json.dumps(report))
 
+    def test_sounds_and_iplayer_prefixes_skip_requests_and_keep_articles(self):
+        sounds = "https://www.bbc.co.uk/sounds/play/p1234567"
+        iplayer = "https://www.bbc.co.uk/iplayer/episode/m1234567"
+        articles = [*URLS[:2], "https://www.bbc.com/news/articles/sounds",
+                    "https://www.bbc.com/news/articles/iplayer"]
+        rows, report, calls, _ = self.run_collection(
+            [sounds, articles[0], iplayer, *articles[1:]])
+        self.assertEqual(calls, articles)
+        self.assertEqual([row["url"] for row in rows], articles)
+        self.assertEqual(report["counts"]["skipped"], 2)
+        self.assertEqual(report["counts"]["failed"], 0)
+        self.assertEqual(report["status"], "complete")
+
     def test_malformed_feed_sets_source_failure(self):
         report = {}
-        with patch.object(bbc, "download_feed", return_value=b"<rss>"), \
+        with patch.object(bbc, "RSS_URLS", (bbc.RSS_URL,)), \
+                patch.object(bbc, "download_feed", return_value=b"<rss>"), \
                 patch.object(bbc, "ArticleClient") as client:
             self.assertEqual(list(bbc.collect(start=START, end=END, known_urls=set(),
                 limit=1, workdir=Path("unused"), report=report)), [])
             client.assert_not_called()
         self.assertEqual(report["status"], "failed")
 
+    def test_sections_are_deduplicated_before_known_and_success_limits(self):
+        rows, report, calls, downloads = self.run_collection(limit=2, known={URLS[0]}, feeds={
+            bbc.RSS_URLS[0]: feed(URLS[:2]),
+            bbc.RSS_URLS[1]: feed([URLS[1] + "?at_medium=RSS", URLS[2]]),
+            bbc.RSS_URLS[2]: feed(URLS[2:4]),
+        })
+        self.assertEqual(downloads, 3)
+        self.assertEqual(calls, URLS[1:3])
+        self.assertEqual([row["url"] for row in rows], URLS[1:3])
+        self.assertEqual(report["counts"]["discovered"], 4)
+        self.assertEqual(report["counts"]["known"], 1)
+        self.assertEqual(report["counts"]["deferred"], 1)
+        self.assertEqual([item["discovered"] for item in report["feeds"]], [2, 2, 2])
+
+    def test_failed_section_keeps_other_sections_and_reports_partial(self):
+        rows, report, calls, downloads = self.run_collection(feeds={
+            bbc.RSS_URLS[0]: feed(URLS[:1]),
+            bbc.RSS_URLS[1]: b"<rss>",
+            bbc.RSS_URLS[2]: feed(URLS[1:2]),
+        })
+        self.assertEqual((len(rows), downloads), (2, 3))
+        self.assertEqual(calls, URLS[:2])
+        self.assertEqual(report["counts"]["failed"], 1)
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["feeds"][1]["status"], "failed")
+        self.assertEqual(report["errors"][0]["url"], bbc.RSS_URLS[1])
+
+    def test_feed_access_denial_stops_all_further_requests(self):
+        rows, report, calls, downloads = self.run_collection(feeds={
+            bbc.RSS_URLS[0]: feed(URLS[:1]),
+            bbc.RSS_URLS[1]: AccessDenied("RSS HTTP 429"),
+            bbc.RSS_URLS[2]: feed(URLS[1:2]),
+        })
+        self.assertEqual((rows, calls, downloads), ([], [], 2))
+        self.assertTrue(report["stopped"])
+        self.assertEqual(report["counts"]["deferred"], 1)
+
+    def test_three_feed_network_failures_stop_before_articles(self):
+        responses = {bbc.RSS_URLS[0]: feed(URLS[:1])}
+        responses.update({url: urllib.error.URLError("offline") for url in bbc.RSS_URLS[1:5]})
+        rows, report, calls, downloads = self.run_collection(feeds=responses)
+        self.assertEqual((rows, calls, downloads), ([], [], 4))
+        self.assertTrue(report["stopped"])
+        self.assertEqual(report["counts"]["failed"], 3)
+        self.assertEqual(report["counts"]["deferred"], 1)
+
+    def test_successful_feed_resets_network_failure_streak(self):
+        responses = {url: urllib.error.URLError("offline") for url in bbc.RSS_URLS[:5]}
+        responses[bbc.RSS_URLS[2]] = feed(URLS[:1])
+        rows, report, calls, downloads = self.run_collection(feeds=responses)
+        self.assertEqual((len(rows), downloads), (1, 5))
+        self.assertEqual(calls, URLS[:1])
+        self.assertFalse(report["stopped"])
+        self.assertEqual(report["status"], "partial")
+
 
 class ExistingBBCSafetyTests(unittest.TestCase):
+    def test_feed_denial_and_rate_limiting_are_not_retried(self):
+        for code in (401, 403, 429):
+            with self.subTest(code=code):
+                error = urllib.error.HTTPError(bbc.RSS_URL, code, "Denied", {}, None)
+                with patch.object(bbc.urllib.request, "urlopen", side_effect=error) as request:
+                    with self.assertRaises(AccessDenied):
+                        bbc.download_feed()
+                    self.assertEqual(request.call_count, 1)
+
     def test_parser_reads_visible_body_and_rejects_summary_only(self):
         html = f'<article><div data-component="text-block"><p>{BODY}</p><p>{BODY}</p></div></article>'
         self.assertEqual(parse_article(html), BODY.strip() + "\n\n" + BODY.strip())

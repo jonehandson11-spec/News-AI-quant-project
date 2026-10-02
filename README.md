@@ -92,9 +92,11 @@ GitHub 保存的是**版本化文件快照**，不是可让多台电脑直接连
 
 ## 覆盖范围
 
-- **BBC News：初始 23 篇。** 发现范围为 BBC World RSS 当时提供的 27 个条目，其中 4 个视频条目跳过。每日继续使用该 RSS 发现新闻，并读取文章公开 JSON-LD 中的 `datePublished`，不把 RSS 的更新时间当作原始发布时间。这不是 BBC 全站近两天的完整归档。
+- **BBC News：初始 23 篇。** 初始发现范围为 BBC World RSS 当时提供的 27 个条目，其中 4 个视频条目跳过。每日采集现覆盖头条、World、UK、Business、Politics、Technology、Science/Environment、Entertainment/Arts、Health 共 9 个官方 RSS，跨栏目去重。读取文章公开 JSON-LD 中的 `datePublished`，不把 RSS 更新时间当作原始发布时间。这不是 BBC 全站近两天的完整归档。
 - **新浪财经：初始 158 篇。** 初始数据来自财经滚动列表（`pageid=153`、`lid=2516`）的 6 页结果。每日分页读取近期列表，并逐篇检查文章页面的原始发布时间；最多读取 100 页以限制请求。这不代表新浪所有频道的全部新闻。
 - **Financial Times：** 从 World、Global Economy、Europe、US、Asia Pacific、Markets、Central Banks、Equities、Commodities、Currencies、Technology、Companies、Energy 分类 RSS 发现文章；只保存账户获准读取的可见正文，不把 RSS 摘要、付费墙或订阅广告当作新闻。
+- FT 五天补录还会分页发现分类文章。单篇跳转到允许范围之外时拒绝跳转、记入跳过计数并继续下一篇；登录/订阅验证失败、403、429 仍停止采集。候选链接数量不等于最终可入库的正文数量。
+- 五天自动补录成功入库后，个别文章解析失败或孤立网络错误会保留在报告中，但不会阻止继续下一批；来源被停止、访问限制、零新增或达到总上限时仍结束本轮补录。
 - 窗口外、视频、直播、无可识别正文或可信发布时间、访问失败的条目不纳入快照。三个来源合并后，URL 唯一，标题与正文非空。
 
 新闻正文和原始内容的权利归各自权利人。本仓库未对这些第三方内容授予开源许可；原文链接保留在每条记录中。

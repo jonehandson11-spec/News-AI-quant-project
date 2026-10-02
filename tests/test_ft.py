@@ -235,6 +235,48 @@ class TestFTCollector(unittest.TestCase):
         self.assertEqual(report['status'], 'partial')
         self.assertEqual(report['reason'], 'login_or_subscription_required')
 
+    def test_unsafe_article_is_skipped_and_later_articles_collected(self):
+        session = FakeSession({'feed': feed(URLS[:3]), URLS[0]: article(),
+                               URLS[1]: StopCollection('unsafe_destination'), URLS[2]: article()})
+        rows, report = self.collect(session)
+        self.assertEqual([row['url'] for row in rows], [URLS[0], URLS[2]])
+        self.assertEqual(session.calls, ['feed'] + URLS[:3])
+        self.assertEqual(report['status'], 'complete')
+        self.assertFalse(report['stopped'])
+        self.assertEqual(report['counts']['skipped'], 1)
+        self.assertEqual(report['counts']['failed'], 0)
+        self.assertEqual(report['skipped_reasons'], {'unsafe_destination': 1})
+
+    def test_authorization_rate_limits_and_robots_still_stop_all_articles(self):
+        for reason in ('auth_expired', 'auth_required', 'access_denied', 'rate_limited',
+                       'login_or_subscription_required', 'robots_disallowed'):
+            with self.subTest(reason=reason):
+                session = FakeSession({'feed': feed(URLS[:3]), URLS[0]: article(),
+                                       URLS[1]: StopCollection(reason), URLS[2]: article()})
+                rows, report = self.collect(session)
+                self.assertEqual(len(rows), 1)
+                self.assertEqual(session.calls, ['feed'] + URLS[:2])
+                self.assertTrue(report['stopped'])
+                self.assertEqual(report['reason'], reason)
+
+    def test_unsafe_feed_still_stops_discovery(self):
+        session = FakeSession({'feed': StopCollection('unsafe_destination')})
+        rows, report = self.collect(session, feeds=('feed', 'next-feed'))
+        self.assertEqual(rows, [])
+        self.assertEqual(session.calls, ['feed'])
+        self.assertEqual(report['reason'], 'unsafe_destination')
+        self.assertTrue(report['stopped'])
+
+    def test_limit_metadata_survives_batch_writer_closing_generator(self):
+        session = FakeSession({'feed': feed(URLS[:3]), URLS[0]: article()})
+        report = {}
+        with patch.object(ft, 'FTSession', return_value=session), patch.object(ft, 'RSS_FEEDS', ('feed',)):
+            generator = ft.collect(start=NOW - timedelta(hours=48), end=NOW,
+                                   known_urls=set(), limit=1, workdir=Path('.'), report=report)
+            next(generator)
+            generator.close()
+        self.assertEqual(report['counts']['deferred'], 2)
+
     def test_thirteen_feeds_maximum(self):
         self.assertEqual(len(ft.RSS_FEEDS), 13)
 
