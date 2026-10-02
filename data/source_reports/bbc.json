@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 179,
+  "saved_full_text_articles": 188,
   "rss_items": 27,
   "outcomes": {
     "success": 23,
@@ -14,20 +14,20 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-02T17:45:43+08:00",
+    "end": "2026-10-02T20:10:07+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "complete",
     "counts": {
-      "discovered": 264,
-      "known": 100,
+      "discovered": 265,
+      "known": 93,
       "skipped": 49,
-      "outside_window": 115,
-      "success": 0,
+      "outside_window": 114,
+      "success": 9,
       "failed": 0,
       "deferred": 0,
-      "inserted": 0
+      "inserted": 9
     },
     "errors": [],
     "source": "BBC News",
@@ -41,12 +41,12 @@
       {
         "url": "https://feeds.bbci.co.uk/news/rss.xml",
         "status": "complete",
-        "discovered": 30
+        "discovered": 29
       },
       {
         "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
         "status": "complete",
-        "discovered": 25
+        "discovered": 28
       },
       {
         "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
@@ -56,7 +56,7 @@
       {
         "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
         "status": "complete",
-        "discovered": 59
+        "discovered": 58
       },
       {
         "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
@@ -71,7 +71,7 @@
       {
         "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
         "status": "complete",
-        "discovered": 18
+        "discovered": 19
       },
       {
         "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
@@ -84,10 +84,10 @@
   },
   "health": {
     "status": "complete",
-    "last_attempt_at": "2026-10-02T17:45:43+08:00",
-    "last_success_at": "2026-10-02T17:35:55+08:00",
+    "last_attempt_at": "2026-10-02T20:10:07+08:00",
+    "last_success_at": "2026-10-02T20:10:07+08:00",
     "needs_attention": false,
     "last_reason": null,
-    "execution_location": "local"
+    "execution_location": "github_actions"
   }
 }
