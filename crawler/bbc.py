@@ -179,7 +179,9 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
         if url in known_urls:
             counts["known"] += 1
             continue
-        if any(part in urlsplit(url).path.split("/") for part in ("live", "videos", "video", "av")):
+        path = urlsplit(url).path
+        if path.startswith(("/sounds/", "/iplayer/")) or any(
+                part in path.split("/") for part in ("live", "videos", "video", "av")):
             counts["skipped"] += 1
             continue
         try:

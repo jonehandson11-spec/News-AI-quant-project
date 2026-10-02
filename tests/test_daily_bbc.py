@@ -158,6 +158,19 @@ class BBCDailyTests(unittest.TestCase):
         self.assertNotIn("secret", json.dumps(report))
         self.assertNotIn("Users", json.dumps(report))
 
+    def test_sounds_and_iplayer_prefixes_skip_requests_and_keep_articles(self):
+        sounds = "https://www.bbc.co.uk/sounds/play/p1234567"
+        iplayer = "https://www.bbc.co.uk/iplayer/episode/m1234567"
+        articles = [*URLS[:2], "https://www.bbc.com/news/articles/sounds",
+                    "https://www.bbc.com/news/articles/iplayer"]
+        rows, report, calls, _ = self.run_collection(
+            [sounds, articles[0], iplayer, *articles[1:]])
+        self.assertEqual(calls, articles)
+        self.assertEqual([row["url"] for row in rows], articles)
+        self.assertEqual(report["counts"]["skipped"], 2)
+        self.assertEqual(report["counts"]["failed"], 0)
+        self.assertEqual(report["status"], "complete")
+
     def test_malformed_feed_sets_source_failure(self):
         report = {}
         with patch.object(bbc, "RSS_URLS", (bbc.RSS_URL,)), \
