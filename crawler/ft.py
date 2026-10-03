@@ -1,7 +1,9 @@
 """Credentialed FT collection: no credential files, RSS summaries or paywalls stored."""
 from collections import deque
+from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 import hashlib
+import time
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -30,7 +32,8 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
     authenticated HTML and cookies are deliberately never written to disk.
     """
     counts = {key: 0 for key in ("discovered", "known", "skipped", "outside_window",
-                                 "success", "failed", "deferred")}
+                                 "success", "failed", "deferred",
+                                 "session_rechecks", "session_recoveries")}
     report.update(source=SOURCE, status="complete", counts=counts, errors=[],
                   skipped_reasons={},
                   stopped=False, publication_basis="article original publication time",
@@ -67,7 +70,8 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                 report["endpoint_kind"] = error.endpoint_kind
 
     network_failures = 0
-    with FTSession() as session:
+    with ExitStack() as sessions:
+        session = sessions.enter_context(FTSession())
         if not session.has_login_cookie():
             report.update(reason="auth_required", stopped=True)
             failure("https://www.ft.com", "auth_required")
@@ -155,12 +159,38 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
             if url in known_urls:
                 counts["known"] += 1
                 continue
+            rechecking = False
             try:
                 if not session.has_login_cookie():
                     raise StopCollection("auth_expired")
                 html = session.fetch(url)
                 network_failures = 0
-                article = parse_article(html, url)
+                try:
+                    article = parse_article(html, url)
+                except StopCollection as error:
+                    # One normal credentialed recheck can recover an intermittent
+                    # HTML login response. HTTP/robots stops never enter here.
+                    if (error.reason != "login_or_subscription_required"
+                            or counts["session_rechecks"]
+                            or not session.has_login_cookie()):
+                        raise
+                    counts["session_rechecks"] += 1
+                    rechecking = True
+                    inherited_delay = getattr(session, "delay", 10.0)
+                    time.sleep(max(30.0, inherited_delay))
+                    renewed = sessions.enter_context(FTSession())
+                    renewed.delay = max(getattr(renewed, "delay", 10.0), inherited_delay)
+                    if not renewed.has_login_cookie():
+                        raise StopCollection("auth_required") from None
+                    try:
+                        article = parse_article(renewed.fetch(url), url)
+                    except requests.RequestException:
+                        raise StopCollection("article_request_failed") from None
+                    except ValueError:
+                        raise StopCollection("invalid_or_incomplete_article") from None
+                    session = renewed
+                    counts["session_recoveries"] += 1
+                    rechecking = False
                 if not start <= article["published"] <= end:
                     counts["outside_window"] += 1
                     continue
@@ -181,7 +211,7 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     counts["deferred"] = len(rows) - index - 1
                     return
             except StopCollection as error:
-                if error.reason == "unsafe_destination":
+                if error.reason == "unsafe_destination" and not rechecking:
                     # A feed can link to a UUID that redirects outside the
                     # permitted FT article host. The session already refused
                     # that destination without sending credentials to it. Skip

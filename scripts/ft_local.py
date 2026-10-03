@@ -33,7 +33,8 @@ REASONS = {
     "credential_unavailable", "invalid_candidate", "cleanup_failed", "target_reached",
 }
 COUNT_KEYS = {"discovered", "known", "skipped", "outside_window", "success", "failed",
-              "deferred", "rejected", "collected", "duplicates", "inserted", "deferred_cap"}
+              "deferred", "rejected", "collected", "duplicates", "inserted", "deferred_cap",
+              "session_rechecks", "session_recoveries"}
 DISCOVERY_COUNTS = {"pages_fetched", "page_limit", "category_page_limit", "categories_completed", "categories_total"}
 DISCOVERY_REASONS = {"window_boundary", "no_next_page", "page_limit", "total_page_limit",
                      "request_failed", "invalid_listing", "no_progress", "collection_stopped"}
