@@ -9,6 +9,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import sys
 import tempfile
@@ -103,7 +104,14 @@ def _report(value):
     errors = value.get("errors", [])
     for error in errors[:20] if isinstance(errors, list) else []:
         reason = error.get("reason") if isinstance(error, dict) else None
-        result["errors"].append({"reason": reason if isinstance(reason, str) and reason in REASONS else "collector_failed"})
+        safe_error = {"reason": reason if isinstance(reason, str) and reason in REASONS else "collector_failed"}
+        url = error.get("url") if isinstance(error, dict) else None
+        # Public article identifiers let the owner check the exact failing page.
+        # Never retain queries, fragments, userinfo, login URLs or other hosts.
+        if isinstance(url, str) and re.fullmatch(
+                r"https://www\.ft\.com/content/[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", url):
+            safe_error["url"] = url
+        result["errors"].append(safe_error)
     if status in {"failed", "partial"} and "reason" not in result:
         result["reason"] = result["errors"][0]["reason"] if result["errors"] else "collector_failed"
     discovery = value.get("discovery")
@@ -322,6 +330,8 @@ def merge_batch(root, batch_file, *, now=None):
               "duplicates": duplicates, "deferred_cap": deferred,
               "batch_id": _batch_id(batch),
               "lookback_hours": lookback_hours, "collection_mode": collection_mode,
+              "collection_status": report["status"], "collection_reason": report.get("reason"),
+              "collection_stopped": report["stopped"],
               "execution_location": "local", "health_preserved": stale}
     if not (stale and inserted == 0):
         run = {"started_at": batch["started_at"], "finished_at": batch["finished_at"],

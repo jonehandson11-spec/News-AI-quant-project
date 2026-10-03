@@ -21,6 +21,20 @@ MERGED = datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
 
 
 class LocalFTTests(unittest.TestCase):
+    def test_error_urls_retain_only_public_ft_article_identifiers(self):
+        from scripts.ft_local import _report
+        url = 'https://www.ft.com/content/12345678-abcd-4567-89ab-0123456789ab'
+        unsafe = [url + '?cookie=private', url + '#private',
+                  url.replace('www.ft.com', 'example.org'),
+                  url.replace('https://', 'https://private@'),
+                  'https://www.ft.com/login', r'C:\private\cookie.txt']
+        report = _report({'status': 'failed', 'errors': [
+            {'reason': 'login_or_subscription_required', 'url': value}
+            for value in [url, *unsafe]]})
+        self.assertEqual(report['errors'][0]['url'], url)
+        self.assertTrue(all('url' not in error for error in report['errors'][1:]))
+        self.assertNotIn('private', json.dumps(report))
+
     def test_skipped_link_diagnostics_are_safe_and_do_not_mark_batch_failed(self):
         from scripts.ft_local import _report
         result = _report({'status': 'complete', 'counts': {'skipped': 2},
@@ -96,6 +110,34 @@ class LocalFTTests(unittest.TestCase):
         self.assertTrue(result['health_preserved'])
         self.assertEqual(self.contents(), previous)
 
+    def test_partial_batch_retry_preserves_diagnostics_and_all_files(self):
+        self.batch(report={'status': 'partial', 'reason': 'login_or_subscription_required',
+                           'stopped': True})
+        first = merge_batch(self.root, self.batch_file, now=MERGED)
+        previous = self.contents()
+        result = merge_batch(self.root, self.batch_file, now=MERGED + timedelta(minutes=1))
+        self.assertEqual(first['status'], 'partial')
+        self.assertEqual(result['status'], 'stale_batch')
+        self.assertEqual((result['inserted'], result['duplicates']), (0, 1))
+        self.assertEqual(result['after'], first['after'])
+        self.assertEqual(result['batch_id'], first['batch_id'])
+        self.assertEqual(result['collection_status'], 'partial')
+        self.assertEqual(result['collection_reason'], 'login_or_subscription_required')
+        self.assertTrue(result['collection_stopped'])
+        self.assertTrue(result['health_preserved'])
+        self.assertEqual(self.contents(), previous)
+
+    def test_merge_result_only_includes_safe_collection_diagnostics(self):
+        private = 'FAKE-PRIVATE-TEXT'
+        self.batch(report={'status': 'partial', 'reason': private, 'stopped': private,
+                           'cookie': private, 'errors': [{'reason': private}]})
+        result = merge_batch(self.root, self.batch_file, now=MERGED)
+        self.assertEqual(result['status'], 'partial')
+        self.assertEqual(result['collection_status'], 'partial')
+        self.assertEqual(result['collection_reason'], 'collector_failed')
+        self.assertFalse(result['collection_stopped'])
+        self.assertNotIn(private, json.dumps(result))
+
     def test_new_cloud_rows_are_preserved_when_batch_is_merged_later(self):
         self.batch([article(1, SOURCE), article(2, SOURCE)])
         cloud = article(1, SOURCE)
@@ -147,10 +189,15 @@ class LocalFTTests(unittest.TestCase):
 
     def test_failure_batch_updates_health_without_changing_articles(self):
         original = self.rows()
-        self.batch([], report={'status': 'failed', 'reason': 'auth_expired', 'counts': {}, 'errors': []})
+        self.batch([], report={'status': 'failed', 'reason': 'auth_expired', 'stopped': True,
+                               'counts': {}, 'errors': []})
         result = merge_batch(self.root, self.batch_file, now=MERGED)
         health = read_json(self.root / 'data/source_reports/ft.json')['health']
         self.assertEqual(result['inserted'], 0)
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['collection_status'], 'failed')
+        self.assertEqual(result['collection_reason'], 'auth_expired')
+        self.assertTrue(result['collection_stopped'])
         self.assertEqual(self.rows(), original)
         self.assertTrue(health['needs_attention'])
         self.assertEqual(health['last_reason'], 'auth_expired')
