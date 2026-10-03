@@ -1,10 +1,10 @@
 {
   "source": "Financial Times",
-  "saved_full_text_articles": 93,
+  "saved_full_text_articles": 149,
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-02T20:10:07+08:00",
+    "end": "2026-10-03T20:00:03.706776+08:00",
     "inclusive": true
   },
   "latest_run": {
@@ -12,124 +12,49 @@
     "execution_location": "local",
     "status": "partial",
     "counts": {
-      "discovered": 613,
-      "known": 2,
-      "skipped": 0,
-      "outside_window": 1,
-      "success": 52,
-      "failed": 4,
-      "deferred": 554,
-      "collected": 52,
-      "inserted": 52,
+      "discovered": 206,
+      "known": 5,
+      "skipped": 2,
+      "outside_window": 0,
+      "success": 56,
+      "failed": 1,
+      "deferred": 142,
+      "collected": 56,
+      "inserted": 56,
       "duplicates": 0,
       "deferred_cap": 0
     },
     "errors": [
       {
-        "reason": "invalid_or_incomplete_article"
-      },
-      {
-        "reason": "article_request_failed"
-      },
-      {
-        "reason": "article_request_failed"
-      },
-      {
-        "reason": "rate_limited"
+        "reason": "login_or_subscription_required"
       }
     ],
     "stopped": true,
-    "skipped_reasons": {},
-    "reason": "rate_limited",
-    "retry_after_seconds": 300,
-    "endpoint_kind": "article",
+    "skipped_reasons": {
+      "unsafe_destination": 2
+    },
+    "reason": "login_or_subscription_required",
     "discovery": {
-      "mode": "rss_and_category_pages",
+      "mode": "rss",
       "coverage_limited": true,
       "coverage_note": "FT RSS and selected category listings do not guarantee a complete archive.",
-      "pages_fetched": 40,
+      "pages_fetched": 0,
       "page_limit": 40,
       "category_page_limit": 5,
       "categories_completed": 0,
-      "categories_total": 13,
-      "category_outcomes": [
-        {
-          "url": "https://www.ft.com/world",
-          "pages": 4,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/global-economy",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/europe",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/us",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/asia-pacific",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/markets",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/central-banks",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/equities",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/commodities",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/currencies",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/technology",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/companies",
-          "pages": 3,
-          "reason": "total_page_limit"
-        },
-        {
-          "url": "https://www.ft.com/energy",
-          "pages": 3,
-          "reason": "total_page_limit"
-        }
-      ]
+      "categories_total": 0,
+      "category_outcomes": []
     },
-    "lookback_hours": 120,
-    "collection_mode": "backfill",
-    "batch_id": "dd1ecad0c078e5d6daa62548887798211bd083c2301a61765528cfe6d9d0ae4b"
+    "lookback_hours": 48,
+    "collection_mode": "daily",
+    "batch_id": "ff2b0a50401b140378815c9c73e522a31f80a2b175c35c8a7b426a664013fbde"
   },
   "health": {
     "status": "partial",
-    "last_attempt_at": "2026-10-02T17:35:01.031822+08:00",
-    "last_success_at": "2026-10-02T17:35:01.031822+08:00",
+    "last_attempt_at": "2026-10-03T20:00:03.706776+08:00",
+    "last_success_at": "2026-10-03T20:00:03.706776+08:00",
     "needs_attention": true,
-    "last_reason": "rate_limited",
+    "last_reason": "login_or_subscription_required",
     "execution_location": "local"
   }
 }

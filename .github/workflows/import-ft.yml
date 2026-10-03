@@ -59,20 +59,28 @@ jobs:
           python3 - <<'PY'
           import json, os, re
           from pathlib import Path
+          from scripts.ft_local import REASONS
           result_path = Path(os.environ['RUNNER_TEMP']) / 'ft-merge-result.json'
           result = json.loads(result_path.read_text()) if result_path.exists() else {}
           allowed = {'success', 'partial', 'failed', 'stale_batch', 'target_reached'}
           status = result.get('status')
           status = status if isinstance(status, str) and status in allowed else 'not_completed'
+          collection_status = result.get('collection_status')
+          collection_status = collection_status if isinstance(collection_status, str) and collection_status in {'complete', 'partial', 'failed', 'not_needed'} else 'not_reported'
+          reason = result.get('collection_reason')
+          reason = reason if isinstance(reason, str) and reason in REASONS else 'not_reported'
+          stopped = result.get('collection_stopped') is True
           def count(key):
               value = result.get(key, 0)
               return value if type(value) is int and value >= 0 else 0
           batch_commit = os.environ.get('BATCH_COMMIT', '')
           batch_id = result.get('batch_id', '')
           published = os.environ.get('PUBLISH_COMPLETED') == 'true'
+          imported = published and status != 'not_completed'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               print('FT was collected locally. This workflow only validates and merges its batch; it does not use FT credentials or request FT pages.', file=summary)
-              print(f'\nMerge: **{status}**; publication completed: **{published}**.', file=summary)
+              print(f"\nImport: **{'success' if imported else 'not_completed'}**; publication completed: **{published}**.", file=summary)
+              print(f'\nSubmitted batch collection: **{collection_status}**; reason: `{reason}`; stopped: **{stopped}**.', file=summary)
               if type(result.get('after')) is int:
                   print(f"New articles: {count('inserted')}; duplicates: {count('duplicates')}; deferred at target: {count('deferred_cap')}; resulting total: {count('after')}.", file=summary)
               if re.fullmatch(r'[0-9a-f]{40}', batch_commit):
@@ -80,14 +88,14 @@ jobs:
               if isinstance(batch_id, str) and re.fullmatch(r'[0-9a-f]{64}', batch_id):
                   print(f'\nBatch: `{batch_id}`.', file=summary)
               if result.get('health_preserved') is True:
-                  print('\nA newer source health record was retained.', file=summary)
-              if status in {'partial', 'failed'}:
-                  if published:
-                      print('\nThe local FT collector needs attention. Successfully merged articles and safe health diagnostics were saved before this failure was reported.', file=summary)
+                  print('\nAn equally recent or newer source health record was retained. Collection diagnostics above describe the submitted batch.', file=summary)
+              if collection_status in {'partial', 'failed'}:
+                  if imported:
+                      print('\nImport publication completed. The submitted batch reports a local FT collection warning; inspect its safe diagnostics and the source health record.', file=summary)
                   else:
                       print('\nThe local FT collector needs attention, and publication did not complete. Inspect the failed step and recovery artifact.', file=summary)
-          if status in {'partial', 'failed'}:
-              raise SystemExit('Local FT collection reported a failure; inspect the safe source health record.')
+          if collection_status in {'partial', 'failed'}:
+              print(f'::warning title=Local FT collection::Submitted batch collection: {collection_status}; reason: {reason}; stopped: {stopped}. Inspect the safe source health record.')
           PY
       - name: Preserve shared data for recovery
         if: failure()

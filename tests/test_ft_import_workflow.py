@@ -44,6 +44,7 @@ class FTImportWorkflowTests(unittest.TestCase):
         self.assertIn("ref: main", self.steps["Check out the latest shared database"])
         self.assertNotIn("FT_COOKIE", self.workflow)
         self.assertNotIn("secrets.", self.workflow)
+        self.assertNotIn("continue-on-error", self.workflow)
         names = list(self.steps)
         self.assertLess(names.index("Validate the existing shared database"),
                         names.index("Merge validated local articles into the latest database"))
@@ -85,42 +86,106 @@ class FTImportWorkflowTests(unittest.TestCase):
                 "BATCH_COMMIT": "a" * 40, "PUBLISH_COMPLETED": str(published).lower(),
             }
             exit_code = None
-            with patch.dict(os.environ, environment, clear=True), redirect_stdout(io.StringIO()):
+            output = io.StringIO()
+            with patch.dict(os.environ, environment, clear=True), redirect_stdout(output):
                 try:
                     exec(compile(code, "FT import summary", "exec"), {})
                 except SystemExit as error:
                     exit_code = error.code
-            return summary.read_text(encoding="utf-8"), exit_code
+            return summary.read_text(encoding="utf-8"), exit_code, output.getvalue()
 
-    def test_partial_local_failure_is_reported_after_publication_without_private_text(self):
+    def test_partial_collection_warns_after_successful_import_without_private_text(self):
         private = "FAKE_SECRET_AND_LOCAL_PATH_C:\\private\\cookie.txt"
-        summary, failure = self.run_summary({
+        summary, failure, output = self.run_summary({
             "status": "partial", "after": 513, "inserted": 4, "duplicates": 2,
             "deferred_cap": 0, "batch_id": "b" * 64,
+            "collection_status": "partial", "collection_reason": "invalid_or_incomplete_article",
+            "collection_stopped": False,
             "errors": [private], "article_text": private, "batch_file": private,
         }, published=True)
-        self.assertIsNotNone(failure)
+        self.assertIsNone(failure)
         self.assertIn("New articles: 4; duplicates: 2", summary)
         self.assertIn("resulting total: 513", summary)
+        self.assertIn("Import: **success**", summary)
         self.assertIn("publication completed: **True**", summary)
-        self.assertIn("were saved before this failure", summary)
+        self.assertIn("Submitted batch collection: **partial**", summary)
+        self.assertIn("reason: `invalid_or_incomplete_article`; stopped: **False**", summary)
+        self.assertIn("::warning title=Local FT collection::", output)
         self.assertIn("b" * 64, summary)
-        self.assertNotIn(private, summary)
+        self.assertNotIn(private, summary + output)
 
     def test_failed_publication_is_not_reported_as_saved(self):
-        summary, failure = self.run_summary({
+        summary, failure, output = self.run_summary({
             "status": "failed", "after": 509, "inserted": 0,
+            "collection_status": "failed", "collection_reason": "auth_expired",
+            "collection_stopped": True,
         }, published=False)
-        self.assertIsNotNone(failure)
+        # The original merge/validation/push step keeps the job failed.
+        self.assertIsNone(failure)
+        self.assertIn("Import: **not_completed**", summary)
         self.assertIn("publication did not complete", summary)
-        self.assertNotIn("were saved", summary)
+        self.assertNotIn("Import: **success**", summary)
+        self.assertNotIn("Import publication completed", summary)
+        self.assertIn("::warning", output)
 
     def test_missing_result_does_not_claim_empty_database_or_success(self):
-        summary, failure = self.run_summary(None, published=False)
+        summary, failure, output = self.run_summary(None, published=False)
         self.assertIsNone(failure)
         self.assertIn("**not_completed**", summary)
         self.assertIn("publication completed: **False**", summary)
         self.assertNotIn("resulting total:", summary)
+        self.assertNotIn("Import: **success**", summary)
+        self.assertEqual(output, "")
+
+    def test_real_collection_stops_remain_visible_after_import(self):
+        for reason in ("auth_expired", "access_denied", "rate_limited", "login_or_subscription_required"):
+            for status in ("partial", "failed"):
+                with self.subTest(reason=reason, status=status):
+                    summary, failure, output = self.run_summary({
+                        "status": status, "collection_status": status,
+                        "collection_reason": reason, "collection_stopped": True,
+                    }, published=True)
+                    self.assertIsNone(failure)
+                    self.assertIn("Import: **success**", summary)
+                    self.assertIn(f"Submitted batch collection: **{status}**", summary)
+                    self.assertIn(f"reason: `{reason}`; stopped: **True**", summary)
+                    self.assertIn(f"reason: {reason}; stopped: True", output)
+
+    def test_summary_does_not_echo_untrusted_collection_fields(self):
+        private = "FAKE_PRIVATE_TEXT\n::error::untrusted"
+        for fields in (
+            {"collection_status": "partial", "collection_reason": private},
+            {"collection_status": private, "collection_reason": [private]},
+        ):
+            with self.subTest(fields=fields):
+                summary, failure, output = self.run_summary({
+                    "status": "partial", "collection_stopped": private, **fields,
+                }, published=True)
+                self.assertIsNone(failure)
+                self.assertNotIn(private, summary + output)
+                self.assertIn("reason: `not_reported`; stopped: **False**", summary)
+
+    def test_completed_collection_has_no_warning(self):
+        summary, failure, output = self.run_summary({
+            "status": "success", "collection_status": "complete",
+            "collection_reason": None, "collection_stopped": False,
+        }, published=True)
+        self.assertIsNone(failure)
+        self.assertIn("Import: **success**", summary)
+        self.assertIn("Submitted batch collection: **complete**", summary)
+        self.assertEqual(output, "")
+
+    def test_stale_retry_warns_about_batch_without_claiming_to_replace_health(self):
+        summary, failure, output = self.run_summary({
+            "status": "stale_batch", "after": 513, "inserted": 0, "duplicates": 4,
+            "collection_status": "partial", "collection_reason": "auth_expired",
+            "collection_stopped": True, "health_preserved": True,
+        }, published=True)
+        self.assertIsNone(failure)
+        self.assertIn("Import: **success**", summary)
+        self.assertIn("New articles: 0; duplicates: 4", summary)
+        self.assertIn("An equally recent or newer source health record was retained", summary)
+        self.assertIn("::warning", output)
 
 
 if __name__ == "__main__":
