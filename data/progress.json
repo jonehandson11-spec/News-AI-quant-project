@@ -1,7 +1,7 @@
 {
   "target_articles": 3000,
-  "total_articles": 1805,
-  "remaining_articles": 1195,
+  "total_articles": 2133,
+  "remaining_articles": 867,
   "completed": false,
   "schedule": {
     "timezone": "Asia/Shanghai",
@@ -9,28 +9,28 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-02T17:45:43+08:00",
-    "start": "2026-09-30T17:45:43+08:00",
-    "end": "2026-10-02T17:45:43+08:00",
+    "started_at": "2026-10-02T20:10:07+08:00",
+    "start": "2026-09-30T20:10:07+08:00",
+    "end": "2026-10-02T20:10:07+08:00",
     "sources": {
       "Financial Times": {
         "status": "not_needed",
         "counts": {
           "inserted": 0
         },
-        "reason": "Source not selected for this run"
+        "reason": "collected_locally"
       },
       "BBC News": {
         "status": "complete",
         "counts": {
-          "discovered": 264,
-          "known": 100,
+          "discovered": 265,
+          "known": 93,
           "skipped": 49,
-          "outside_window": 115,
-          "success": 0,
+          "outside_window": 114,
+          "success": 9,
           "failed": 0,
           "deferred": 0,
-          "inserted": 0
+          "inserted": 9
         },
         "errors": [],
         "source": "BBC News",
@@ -44,12 +44,12 @@
           {
             "url": "https://feeds.bbci.co.uk/news/rss.xml",
             "status": "complete",
-            "discovered": 30
+            "discovered": 29
           },
           {
             "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
             "status": "complete",
-            "discovered": 25
+            "discovered": 28
           },
           {
             "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
@@ -59,7 +59,7 @@
           {
             "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
             "status": "complete",
-            "discovered": 59
+            "discovered": 58
           },
           {
             "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
@@ -74,7 +74,7 @@
           {
             "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
             "status": "complete",
-            "discovered": 18
+            "discovered": 19
           },
           {
             "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
@@ -86,24 +86,46 @@
         "publication_basis": "public article JSON-LD datePublished"
       },
       "新浪财经": {
-        "status": "not_needed",
+        "status": "partial",
         "counts": {
-          "inserted": 0
+          "pages": 13,
+          "discovered": 650,
+          "skipped_known": 380,
+          "skipped_window": 1,
+          "invalid": 2,
+          "fetched": 269,
+          "yielded": 267,
+          "requests": 284,
+          "network_errors": 0,
+          "robots_denied": 0,
+          "errors": 2,
+          "inserted": 267
         },
-        "reason": "Source not selected for this run"
+        "errors": [
+          {
+            "url": "https://finance.sina.com.cn/world/2026-10-01/doc-initsief6391614.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          },
+          {
+            "url": "https://finance.sina.com.cn/stock/usstock/c/2026-10-01/doc-initsiep5446344.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          }
+        ],
+        "reason": "two consecutive pages older than window"
       }
     },
-    "scope": "selected",
+    "scope": "all",
     "selected_sources": [
-      "BBC News"
+      "BBC News",
+      "新浪财经"
     ],
-    "execution_location": "local",
-    "before": 1805,
-    "after": 1805,
-    "inserted": 0,
-    "status": "success",
+    "execution_location": "github_actions",
+    "before": 1857,
+    "after": 2133,
+    "inserted": 276,
+    "status": "partial",
     "target_reached": false,
-    "finished_at": "2026-10-02T17:49:51+08:00"
+    "finished_at": "2026-10-02T20:19:14+08:00"
   },
-  "next_scheduled_at": "2026-10-02T20:00:00+08:00"
+  "next_scheduled_at": "2026-10-03T20:00:00+08:00"
 }

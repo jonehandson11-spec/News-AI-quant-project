@@ -4,15 +4,15 @@
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-10-02T09:51:11+00:00",
+  "package_created_at": "2026-10-02T12:10:07+00:00",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-02T17:45:43+08:00",
+    "end": "2026-10-02T20:10:07+08:00",
     "inclusive": true
   },
-  "window_hours": 164.63805555555555,
+  "window_hours": 167.04472222222222,
   "time_zone": "UTC+08:00 (Beijing)",
-  "total_articles": 1805,
+  "total_articles": 2133,
   "fields": [
     "article_id",
     "source",
@@ -26,26 +26,26 @@
   "csv_encoding": "UTF-8 with BOM",
   "sources": {
     "BBC News": {
-      "article_count": 179,
+      "article_count": 188,
       "earliest_publish_time": "2026-09-26T02:02:55.955000+08:00",
-      "latest_publish_time": "2026-10-02T17:27:11.341000+08:00",
+      "latest_publish_time": "2026-10-02T19:52:32.770000+08:00",
       "scope": "Articles discoverable in the supplied BBC World RSS feed; not a complete archive",
       "publication_basis": "public article JSON-LD datePublished",
       "report": "data/source_reports/bbc.json"
     },
     "新浪财经": {
-      "article_count": 1585,
+      "article_count": 1852,
       "earliest_publish_time": "2026-09-25T21:11:36+08:00",
-      "latest_publish_time": "2026-10-01T20:04:26+08:00",
+      "latest_publish_time": "2026-10-02T20:05:13+08:00",
       "scope": "Public finance roll feed only; inaccessible/non-text articles excluded. Not all Sina channels.",
       "publication_basis": "Original publication time from public article page metadata",
       "report": "data/source_reports/sina.json"
     },
     "Financial Times": {
       "report": "data/source_reports/ft.json",
-      "article_count": 41,
+      "article_count": 93,
       "earliest_publish_time": "2026-09-27T16:42:33.164000+08:00",
-      "latest_publish_time": "2026-10-02T00:46:30.072000+08:00"
+      "latest_publish_time": "2026-10-02T17:01:36.419000+08:00"
     }
   },
   "coverage_limit": "Cumulative BBC multi-section RSS, Sina Finance roll-feed, and Financial Times RSS/category articles; bounded discovery, not a complete archive",
@@ -54,18 +54,18 @@
   "artifacts": [
     {
       "path": "data/news.sqlite3",
-      "bytes": 7094272,
-      "sha256": "e9b742b6f67e1a9ea6523e2396ecd3748f13e909749846f040377a36b32a8c88"
+      "bytes": 8278016,
+      "sha256": "69af3997902dfcdc3e7641e59205bdb6cfe9e871a40ddece1ec8d8441b0fa35f"
     },
     {
       "path": "data/news.csv",
-      "bytes": 5475914,
-      "sha256": "b00dd5f59ce39048a88d7aae8ad0a23822ba1d5f14055ab7e85dc50aee4be318"
+      "bytes": 6392374,
+      "sha256": "9a90101d4646ce22b04f75a5acd0de9efdd5408a15d959523484d0d15261ff6a"
     },
     {
       "path": "data/progress.json",
-      "bytes": 3015,
-      "sha256": "2bb157761842a074e3ccb2731f5a3e55dae441de91e3290024e5bdc9dd071ed2"
+      "bytes": 3806,
+      "sha256": "9adce8965d9d3968bf5bb16acbe561ef40accb5bd34e4b4ee438ace715c92e58"
     },
     {
       "path": "schema.sql",
@@ -74,18 +74,18 @@
     },
     {
       "path": "data/source_reports/bbc.json",
-      "bytes": 2553,
-      "sha256": "2ad2434ecbfd48462b7a9570fb7adf5f7d13e2c32316d403f102d997cb250b63"
+      "bytes": 2561,
+      "sha256": "93c89df98ef883034a356c63736596472b382e7321affb4fe6e4d690c33192e1"
     },
     {
       "path": "data/source_reports/sina.json",
-      "bytes": 2201,
-      "sha256": "8d154c2082ca41b8416d028b59ca951d1e24b9bfdc42eef674160cf227dcba26"
+      "bytes": 1788,
+      "sha256": "243737bf1eb60d8a0e1441fc6ae8bd00556c3fa0cf32fc6eb5c87ada87e52298"
     },
     {
       "path": "data/source_reports/ft.json",
-      "bytes": 3248,
-      "sha256": "92b45ea7389cf2d833cf55e735a595ffb5d8746da25b9bd519b68a207012fe16"
+      "bytes": 3508,
+      "sha256": "7cb86d44a8151af5af82ccbe9efa7cadb47aaef80f0b5a183f35874ed78a9936"
     }
   ],
   "collection_mode": "cumulative",
@@ -97,35 +97,35 @@
   "daily_lookback_hours": 48,
   "target_articles": 3000,
   "target_reached": false,
-  "remaining_articles": 1195,
+  "remaining_articles": 867,
   "schedule": {
     "timezone": "Asia/Shanghai",
     "local_time": "20:00",
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-02T17:45:43+08:00",
-    "start": "2026-09-30T17:45:43+08:00",
-    "end": "2026-10-02T17:45:43+08:00",
+    "started_at": "2026-10-02T20:10:07+08:00",
+    "start": "2026-09-30T20:10:07+08:00",
+    "end": "2026-10-02T20:10:07+08:00",
     "sources": {
       "Financial Times": {
         "status": "not_needed",
         "counts": {
           "inserted": 0
         },
-        "reason": "Source not selected for this run"
+        "reason": "collected_locally"
       },
       "BBC News": {
         "status": "complete",
         "counts": {
-          "discovered": 264,
-          "known": 100,
+          "discovered": 265,
+          "known": 93,
           "skipped": 49,
-          "outside_window": 115,
-          "success": 0,
+          "outside_window": 114,
+          "success": 9,
           "failed": 0,
           "deferred": 0,
-          "inserted": 0
+          "inserted": 9
         },
         "errors": [],
         "source": "BBC News",
@@ -139,12 +139,12 @@
           {
             "url": "https://feeds.bbci.co.uk/news/rss.xml",
             "status": "complete",
-            "discovered": 30
+            "discovered": 29
           },
           {
             "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
             "status": "complete",
-            "discovered": 25
+            "discovered": 28
           },
           {
             "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
@@ -154,7 +154,7 @@
           {
             "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
             "status": "complete",
-            "discovered": 59
+            "discovered": 58
           },
           {
             "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
@@ -169,7 +169,7 @@
           {
             "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
             "status": "complete",
-            "discovered": 18
+            "discovered": 19
           },
           {
             "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
@@ -181,24 +181,46 @@
         "publication_basis": "public article JSON-LD datePublished"
       },
       "新浪财经": {
-        "status": "not_needed",
+        "status": "partial",
         "counts": {
-          "inserted": 0
+          "pages": 13,
+          "discovered": 650,
+          "skipped_known": 380,
+          "skipped_window": 1,
+          "invalid": 2,
+          "fetched": 269,
+          "yielded": 267,
+          "requests": 284,
+          "network_errors": 0,
+          "robots_denied": 0,
+          "errors": 2,
+          "inserted": 267
         },
-        "reason": "Source not selected for this run"
+        "errors": [
+          {
+            "url": "https://finance.sina.com.cn/world/2026-10-01/doc-initsief6391614.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          },
+          {
+            "url": "https://finance.sina.com.cn/stock/usstock/c/2026-10-01/doc-initsiep5446344.shtml",
+            "reason": "article rejected: article full text missing or shorter than 40 characters"
+          }
+        ],
+        "reason": "two consecutive pages older than window"
       }
     },
-    "scope": "selected",
+    "scope": "all",
     "selected_sources": [
-      "BBC News"
+      "BBC News",
+      "新浪财经"
     ],
-    "execution_location": "local",
-    "before": 1805,
-    "after": 1805,
-    "inserted": 0,
-    "status": "success",
+    "execution_location": "github_actions",
+    "before": 1857,
+    "after": 2133,
+    "inserted": 276,
+    "status": "partial",
     "target_reached": false,
-    "finished_at": "2026-10-02T17:49:51+08:00"
+    "finished_at": "2026-10-02T20:19:14+08:00"
   },
-  "last_full_run_at": "2026-10-01T20:12:08+08:00"
+  "last_full_run_at": "2026-10-02T20:10:07+08:00"
 }
