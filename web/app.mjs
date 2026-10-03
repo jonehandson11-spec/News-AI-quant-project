@@ -9,6 +9,7 @@ const statusText = {
 };
 const showTime = (value) => value ? value.slice(0, 19).replace("T", " ") : "—";
 const showPrice = (value) => value === null || value === undefined ? "—" : Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 4 });
+const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;
 const showReturn = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 const timePresetButtons = [...document.querySelectorAll(".time-presets button")];
 
@@ -76,6 +77,7 @@ function renderResult(result) {
       : showTime(item.observed_at);
     addText(tr, "td", observed);
     addText(tr, "td", showPrice(item.price));
+    addText(tr, "td", showDifference(item.price_change), item.price_change === null ? "" : item.price_change >= 0 ? "positive" : "negative");
     const pct = item.excess_return_pct !== undefined && item.excess_return_pct !== null
       ? `${showReturn(item.return_pct)} / 相对 ${showReturn(item.excess_return_pct)}` : showReturn(item.return_pct);
     addText(tr, "td", pct, item.return_pct === null ? "" : item.return_pct >= 0 ? "positive" : "negative");
@@ -99,11 +101,11 @@ function download(name, content, mime) {
 function downloadCsv() {
   const result = state.result;
   if (!result) return;
-  const headers = ["ticker", "published_at", "baseline_at", "baseline_price", "window", "target_at", "observed_at", "price", "return_pct", "status", "delay_seconds", "source", "basis", "benchmark_return_pct", "excess_return_pct"];
+  const headers = ["ticker", "published_at", "baseline_at", "baseline_price", "window", "target_at", "observed_at", "price", "price_change", "return_pct", "status", "delay_seconds", "source", "basis", "benchmark_return_pct", "excess_return_pct"];
   const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
   const rows = Object.entries(result.windows).map(([label, item]) => [
     result.ticker, result.published_at, result.baseline.observed_at, result.baseline.price,
-    label, item.target_at, item.observed_at, item.price, item.return_pct, item.status,
+    label, item.target_at, item.observed_at, item.price, item.price_change, item.return_pct, item.status,
     item.delay_seconds, item.source, item.basis, item.benchmark_return_pct, item.excess_return_pct,
   ].map(quote).join(","));
   download(`${result.ticker}-news-price.csv`, `\uFEFF${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`, "text/csv;charset=utf-8");
@@ -191,7 +193,7 @@ byId("clearSavedPrices").addEventListener("click", async () => {
 byId("queryForm").addEventListener("submit", (event) => {
   event.preventDefault();
   try {
-    if (!state.bars.length) throw new Error("尚无行情数据。请上传真实价格 CSV，或等待团队发布共享行情。");
+    if (!state.bars.length) throw new Error("无法计算差价：新闻库只有新闻，没有价格。请先选择一次价格 CSV，或等待团队接入共享行情。");
     const result = queryPrices(byId("asset").value, hongKongInputToIso(byId("publishedAt").value), state.bars,
       { benchmark: byId("benchmark").checked });
     renderResult(result);

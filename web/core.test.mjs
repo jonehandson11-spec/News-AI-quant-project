@@ -37,7 +37,9 @@ test("query uses completed minute bars and reports actual observations", () => {
   assert.equal(result.baseline.price, 100);
   assert.equal(result.baseline.gap_seconds, 30);
   assert.equal(result.windows.before_1m.price, 90);
+  assert.equal(result.windows.before_1m.price_change, 10);
   assert.equal(result.windows.after_1h.price, 103);
+  assert.equal(result.windows.after_1h.price_change, 3);
   assert.equal(result.windows.after_1h.status, "on_time");
   assert.equal(result.windows.after_12h.status, "deferred");
   assert.equal(result.windows.after_1w.price, 121);
@@ -56,6 +58,7 @@ test("calendar month end clamps and missing earlier daily bars remain missing", 
     { asOf: "2026-04-01T10:00:00+08:00" });
   assert.equal(result.windows.before_1m.target_at.slice(0, 10), "2026-02-28");
   assert.equal(result.windows.before_1m.status, "missing");
+  assert.equal(result.windows.before_1m.price_change, null);
 });
 
 test("bad price CSV is rejected before a query", () => {

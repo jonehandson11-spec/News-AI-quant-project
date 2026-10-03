@@ -53,7 +53,7 @@
           <div class="upload-box">
             <label for="priceFile">上传价格 CSV</label>
             <input id="priceFile" name="priceFile" type="file" accept=".csv,text/csv">
-            <p>选择一次后保存在此浏览器；下次访问会自动读取。文件不会上传到服务器，其他成员看不到。</p>
+            <p>CSV 只是当前提供价格数据的一种方式。选择一次后保存在此浏览器；下次访问会自动读取。文件不会上传到服务器，其他成员看不到。</p>
             <button id="clearSavedPrices" class="clear-saved" type="button" hidden>清除此浏览器保存的 CSV</button>
           </div>
           <details class="schema-help"><summary>查看 CSV 格式</summary><code>ticker,interval,timestamp,close<br>1211.HK,day,2026-08-28,90.0<br>1211.HK,minute,2026-09-28T09:59:00+08:00,100.0</code><p>日线用于前期窗口，分钟线用于发布时基准价和后期窗口。请使用真实、获准使用的行情数据。</p></details>
@@ -74,8 +74,8 @@
     <section id="results" class="panel results-panel" hidden aria-labelledby="resultsHeading">
       <div class="results-head"><div><p class="eyebrow">RESULTS</p><h2 id="resultsHeading">价格窗口</h2><p id="resultSubtitle"></p></div><div class="download-actions"><button id="downloadJson" type="button">下载 JSON</button><button id="downloadCsv" type="button">下载 CSV</button></div></div>
       <div class="baseline-card"><span>发布前最后一根已完成分钟线</span><strong id="baselinePrice">—</strong><small id="baselineDetail"></small></div>
-      <div class="table-scroll"><table><thead><tr><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
-      <p class="result-note">涨跌幅为未复权价格收益率；休市顺延的取价不能解释为精确时长的价格变化。新闻与价格同时变化不代表因果关系。</p>
+      <div class="table-scroll"><table><thead><tr><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>差价</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
+      <p class="result-note">新闻前差价＝发布前基准价－历史价格；新闻后差价＝后续价格－发布前基准价。差价单位与价格相同。涨跌幅为未复权价格收益率；休市顺延的取价不能解释为精确时长的价格变化。新闻与价格同时变化不代表因果关系。</p>
     </section>
   </main>
   <footer><span>新闻 × 港股价格查询 · 数据来源与时间始终随结果保留</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">查看源代码与使用说明 ↗</a></footer>
