@@ -4,13 +4,13 @@
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-10-04T12:03:36.655922+00:00",
+  "package_created_at": "2026-10-04T12:22:04.174492+00:00",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-04T20:00:05.008189+08:00",
+    "end": "2026-10-04T20:21:22.825493+08:00",
     "inclusive": true
   },
-  "window_hours": 214.87750227472222,
+  "window_hours": 215.23245152583334,
   "time_zone": "UTC+08:00 (Beijing)",
   "total_articles": 2358,
   "fields": [
@@ -55,7 +55,7 @@
     {
       "path": "data/news.sqlite3",
       "bytes": 9392128,
-      "sha256": "b3a809e525f95befe1962579db2fb762543b93311ae69d12a1853b791bb80c39"
+      "sha256": "44d43b5f461c268615625d997b4df2ff3705ec0a071156c6bb29b0f568a8ab2c"
     },
     {
       "path": "data/news.csv",
@@ -64,8 +64,8 @@
     },
     {
       "path": "data/progress.json",
-      "bytes": 2789,
-      "sha256": "80fa7b7ffc35c5b6d29dae9d9ac810aadb1c06440ad4e21856575b6cb015c914"
+      "bytes": 3001,
+      "sha256": "bda369d66e6451c1304e913005e1ada778b6f5aa1864e280c9b86f8e60a2941b"
     },
     {
       "path": "schema.sql",
@@ -75,17 +75,17 @@
     {
       "path": "data/source_reports/bbc.json",
       "bytes": 2570,
-      "sha256": "d0eaf76a6bf36ae43b6637ccaf69e74f0070321b5c2144c6bfdd1404f116aeeb"
+      "sha256": "869c31a779960730440558bb0d683a6bd173ca2a43e06a3337e18d60e1f3d2fc"
     },
     {
       "path": "data/source_reports/sina.json",
       "bytes": 1589,
-      "sha256": "214bbc6fcb190995aed09afd5cb6737c46aa39b634ea8e5f8c0cb11b897e5ade"
+      "sha256": "99d7c2b8135a088b4f5946e4c778d099a4a5a52f8d0d6c6b20edc7ab19a85f9e"
     },
     {
       "path": "data/source_reports/ft.json",
-      "bytes": 1726,
-      "sha256": "dbc83b536bd91f934721eeb42d90fbb9d819e307c7dad7f1596440b5bb28c23b"
+      "bytes": 1918,
+      "sha256": "01b99b3204076fc9c7d13179af298209c5d002a1239fd684d22a2ee5b4b7a0a2"
     }
   ],
   "collection_mode": "cumulative",
@@ -104,11 +104,11 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-04T20:00:05.008189+08:00",
-    "finished_at": "2026-10-04T20:03:12.030719+08:00",
-    "merged_at": "2026-10-04T20:03:36.655922+08:00",
-    "start": "2026-10-02T20:00:05.008189+08:00",
-    "end": "2026-10-04T20:00:05.008189+08:00",
+    "started_at": "2026-10-04T20:21:22.825493+08:00",
+    "finished_at": "2026-10-04T20:21:46.014729+08:00",
+    "merged_at": "2026-10-04T20:22:04.174492+08:00",
+    "start": "2026-10-02T20:21:22.825493+08:00",
+    "end": "2026-10-04T20:21:22.825493+08:00",
     "scope": "selected",
     "selected_sources": [
       "Financial Times"
@@ -119,15 +119,16 @@
         "execution_location": "local",
         "status": "failed",
         "counts": {
-          "discovered": 212,
+          "discovered": 0,
           "known": 0,
           "skipped": 0,
           "outside_window": 0,
           "success": 0,
-          "failed": 1,
-          "deferred": 211,
-          "session_rechecks": 1,
-          "session_recoveries": 0,
+          "failed": 2,
+          "deferred": 0,
+          "access_probe_checks": 2,
+          "access_probe_successes": 0,
+          "article_access_unavailable": 0,
           "collected": 0,
           "inserted": 0,
           "duplicates": 0,
@@ -136,7 +137,11 @@
         "errors": [
           {
             "reason": "login_or_subscription_required",
-            "url": "https://www.ft.com/content/b7bd5c45-1c32-4984-af37-21746a02c4ef"
+            "url": "https://www.ft.com/content/e884e8f3-ad16-48a9-af41-29d3122f7d76"
+          },
+          {
+            "reason": "login_or_subscription_required",
+            "url": "https://www.ft.com/content/8b81e04b-917f-4dda-ac05-83067f7687b1"
           }
         ],
         "stopped": true,
@@ -155,11 +160,11 @@
         },
         "lookback_hours": 48,
         "collection_mode": "daily",
-        "batch_id": "1b74ac5fc25717465a082b4119821738bdd31d12cf7801aa4c4413e366d47aad"
+        "batch_id": "8847b3eb03709ad23cdf61851b550017ba568e9cd1ea60f97a15b21f3b45a91b"
       }
     },
     "local_batch": {
-      "batch_id": "1b74ac5fc25717465a082b4119821738bdd31d12cf7801aa4c4413e366d47aad",
+      "batch_id": "8847b3eb03709ad23cdf61851b550017ba568e9cd1ea60f97a15b21f3b45a91b",
       "lookback_hours": 48,
       "collection_mode": "daily",
       "collected": 0,
@@ -174,7 +179,7 @@
     "inserted": 0,
     "duplicates": 0,
     "deferred_cap": 0,
-    "batch_id": "1b74ac5fc25717465a082b4119821738bdd31d12cf7801aa4c4413e366d47aad",
+    "batch_id": "8847b3eb03709ad23cdf61851b550017ba568e9cd1ea60f97a15b21f3b45a91b",
     "lookback_hours": 48,
     "collection_mode": "daily",
     "collection_status": "failed",
