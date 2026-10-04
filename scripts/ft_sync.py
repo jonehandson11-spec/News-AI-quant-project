@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.dataset import BEIJING, iso, read_json, write_json
 from scripts.validate_database import validate
+from scripts import ft_run_guard
 
 SNAPSHOT_FILES = (
     "data/manifest.json", "data/news.sqlite3", "data/news.csv", "data/progress.json",
@@ -163,6 +164,17 @@ def _snapshot(root: Path, directory: Path) -> dict:
     return {"main_sha": parent, "base_tree_sha": tree, "staging_root": str(staging)}
 
 
+def _metadata(root: Path):
+    """Skipped hourly checks need small status files, not another DB/CSV copy."""
+    parent, tree = _fetch(root)
+    try:
+        documents = [json.loads(_git(root, "show", parent + ":" + path).stdout)
+                     for path in ("data/manifest.json", "crawl_config.json", "data/source_reports/ft.json")]
+    except (ValueError, TypeError):
+        raise SyncError("invalid_source_metadata") from None
+    return {"main_sha": parent, "base_tree_sha": tree}, *documents
+
+
 def _upload_base(root: Path) -> dict:
     main, tree = _fetch(root)
     remote_ref = "refs/heads/" + INBOX_BRANCH
@@ -244,11 +256,7 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
     backfill = lookback_hours == 120
     with _lock(state):
         directory = Path(tempfile.mkdtemp(prefix="run-", dir=state)).resolve()
-        initial = _snapshot(root, directory)
-        staging = Path(initial["staging_root"])
-        manifest = read_json(staging / "data/manifest.json")
-        config = read_json(staging / "crawl_config.json")
-        report = read_json(staging / "data/source_reports/ft.json")
+        initial, manifest, config, report = _metadata(root)
         health = report.get("health", {})
         receipt_path, attempt_path = state / "latest_receipt.json", state / "last_attempt.json"
         receipt = read_json(receipt_path) if receipt_path.exists() else {}
@@ -271,12 +279,36 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
             if not unresolved.is_file() and (unresolved.parent / "ft_batch.json").is_file():
                 raise SyncError("pending_batch_without_plan")
         reason = None
+        blocked = None
+        fingerprint = None
+        credential_retry = False
         if manifest["total_articles"] >= config["target_articles"]:
             reason = "target_reached"
-        elif not (force or backfill) and ((health.get("execution_location") == "local" and _attempt_covers(health, slot))
+        else:
+            if not cookie.is_file():
+                raise SyncError("cookie_file_missing")
+            try:
+                fingerprint = ft_run_guard.credential_fingerprint(cookie)
+                if attempted.get("credential_fingerprint") and attempted.get("plan_file"):
+                    previous_path = Path(attempted["plan_file"])
+                    if previous_path.is_file():
+                        _, previous = _load_plan(root, previous_path)
+                        if previous.get("batch_file"):
+                            ft_run_guard.observe(state, root, attempted["credential_fingerprint"],
+                                                 read_json(Path(previous["batch_file"])))
+                guard = ft_run_guard.load(state, root)
+                autorun = read_json(state / "autorun.json") if (state / "autorun.json").is_file() else {}
+                blocked = ft_run_guard.decision(guard, fingerprint, now,
+                                               inherited_cooldown=autorun.get("cooldown_until"))
+                credential_retry = ft_run_guard.changed_credentials(guard, fingerprint, attempted)
+            except (OSError, ValueError, TypeError, KeyError):
+                raise SyncError("access_state_unavailable") from None
+            if blocked:
+                reason = blocked["reason"]
+        if reason is None and not (force or backfill or credential_retry) and ((health.get("execution_location") == "local" and _attempt_covers(health, slot))
                             or _attempt_covers(receipt, slot)):
             reason = "already_attempted_due_slot"
-        elif not (force or backfill) and _attempt_covers(attempted, slot):
+        elif reason is None and not (force or backfill or credential_retry) and _attempt_covers(attempted, slot):
             reason = "local_attempt_already_started"
         common = {"format_version": 1, "repository_root": str(root), "state_dir": str(state),
                   "kind": "ft_inbox_batch", "prepared_at": iso(now), "due_slot": iso(slot),
@@ -285,15 +317,20 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
         if reason:
             return _write_plan(plan_path, {**common, **initial, "status": "skipped", "batch_file": None,
                                "batch_sha256": None, "result_summary": {"status": "skipped", "reason": reason,
-                               "before": manifest["total_articles"], "after": manifest["total_articles"], "inserted": 0},
+                               "before": manifest["total_articles"], "after": manifest["total_articles"], "inserted": 0,
+                               **(blocked or {})},
                                "publish_files": []})
         if not cookie.is_file():
             raise SyncError("cookie_file_missing")
+        initial = _snapshot(root, directory)
+        staging = Path(initial["staging_root"])
         batch = directory / "ft_batch.json"
         write_json(attempt_path, {"repository_root": str(root), "last_attempt_at": iso(now),
-                                 "due_slot": iso(slot), "plan_file": str(plan_path)})
+                                 "due_slot": iso(slot), "plan_file": str(plan_path),
+                                 "credential_fingerprint": fingerprint})
         collected = _collect_batch(staging, cookie, batch, max_new=max_new, now=now,
                                    lookback_hours=lookback_hours)
+        ft_run_guard.observe(state, root, fingerprint, read_json(batch))
         # Validate an optional preview against fresh data. Its database is never published.
         latest = _snapshot(root, directory)
         merged = _merge_batch(Path(latest["staging_root"]), batch, now=max(now, datetime.now(timezone.utc)))
