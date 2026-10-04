@@ -128,6 +128,33 @@ class PrepareRecoveryTests(unittest.TestCase):
             result = ft_sync.prepare(self.f.repo, self.f.state, self.f.cookie, now=NOW, force=True)
         self.assertEqual(result['result_summary']['reason'], 'rate_limited')
 
+    def test_orphaned_batch_prevents_force_from_collecting_again(self):
+        plan = self.auth_failure()
+        Path(plan['plan_file']).unlink()
+        with patch.object(ft_sync, '_collect_batch', side_effect=AssertionError('must recover the saved batch')):
+            with self.assertRaisesRegex(ft_sync.SyncError, 'pending_batch_without_plan'):
+                ft_sync.prepare(self.f.repo, self.f.state, self.f.cookie, now=NOW, force=True)
+
+    def test_legacy_rate_limit_without_fingerprint_still_blocks_force(self):
+        plan = self.auth_failure()
+        batch_file = Path(plan['batch_file'])
+        batch = read_json(batch_file)
+        batch['report'].update(reason='rate_limited', retry_after_seconds=7200)
+        from scripts.ft_local import _batch_id
+        batch['batch_id'] = _batch_id(batch)
+        write_json(batch_file, batch)
+        saved = read_json(Path(plan['plan_file']))
+        item = ft_sync._batch_file(batch_file)
+        saved.update(batch_id=batch['batch_id'], batch_sha256=item['sha256'], publish_files=[item])
+        write_json(Path(plan['plan_file']), saved)
+        attempt = read_json(self.f.state / 'last_attempt.json')
+        attempt.pop('credential_fingerprint')
+        write_json(self.f.state / 'last_attempt.json', attempt)
+        (self.f.state / guard.STATE_FILE).unlink()
+        with patch.object(ft_sync, '_collect_batch', side_effect=AssertionError('legacy 429 must prevent FT')):
+            result = ft_sync.prepare(self.f.repo, self.f.state, self.f.cookie, now=NOW, force=True)
+        self.assertEqual(result['result_summary']['reason'], 'rate_limited')
+
 
 class GuardResultTests(unittest.TestCase):
     def test_runner_preserves_attention_instead_of_treating_blocked_as_success(self):

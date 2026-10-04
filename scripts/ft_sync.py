@@ -274,7 +274,7 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
                     return {**pending, "status": "awaiting_acknowledgement", "import_commit_sha": initial["main_sha"]}
                 pending.update(_upload_base(root))
                 return _write_plan(pending_path, pending)
-        if backfill and attempted.get("plan_file"):
+        if attempted.get("plan_file"):
             unresolved = Path(attempted["plan_file"])
             if not unresolved.is_file() and (unresolved.parent / "ft_batch.json").is_file():
                 raise SyncError("pending_batch_without_plan")
@@ -289,13 +289,17 @@ def prepare(root: Path, state_dir: Path, cookie_file: Path, *, max_new: int = 10
                 raise SyncError("cookie_file_missing")
             try:
                 fingerprint = ft_run_guard.credential_fingerprint(cookie)
-                if attempted.get("credential_fingerprint") and attempted.get("plan_file"):
+                if attempted.get("plan_file"):
                     previous_path = Path(attempted["plan_file"])
                     if previous_path.is_file():
                         _, previous = _load_plan(root, previous_path)
                         if previous.get("batch_file"):
-                            ft_run_guard.observe(state, root, attempted["credential_fingerprint"],
-                                                 read_json(Path(previous["batch_file"])))
+                            previous_batch = read_json(Path(previous["batch_file"]))
+                            previous_fingerprint = attempted.get("credential_fingerprint")
+                            # A legacy 429 deadline is valid even when that older
+                            # program did not record a credential fingerprint.
+                            if previous_fingerprint or previous_batch.get("report", {}).get("reason") == "rate_limited":
+                                ft_run_guard.observe(state, root, previous_fingerprint, previous_batch)
                 guard = ft_run_guard.load(state, root)
                 autorun = read_json(state / "autorun.json") if (state / "autorun.json").is_file() else {}
                 blocked = ft_run_guard.decision(guard, fingerprint, now,
