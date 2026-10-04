@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 251,
+  "saved_full_text_articles": 305,
   "rss_items": 27,
   "outcomes": {
     "success": 23,
@@ -14,20 +14,20 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-04T20:21:22.825493+08:00",
+    "end": "2026-10-05T02:11:36+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "complete",
     "counts": {
-      "discovered": 288,
-      "known": 65,
-      "skipped": 48,
-      "outside_window": 112,
-      "success": 63,
+      "discovered": 279,
+      "known": 75,
+      "skipped": 47,
+      "outside_window": 103,
+      "success": 54,
       "failed": 0,
       "deferred": 0,
-      "inserted": 63
+      "inserted": 54
     },
     "errors": [],
     "source": "BBC News",
@@ -36,17 +36,17 @@
       {
         "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
         "status": "complete",
-        "discovered": 42
+        "discovered": 21
       },
       {
         "url": "https://feeds.bbci.co.uk/news/rss.xml",
         "status": "complete",
-        "discovered": 25
+        "discovered": 24
       },
       {
         "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
         "status": "complete",
-        "discovered": 28
+        "discovered": 31
       },
       {
         "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
@@ -66,12 +66,12 @@
       {
         "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
         "status": "complete",
-        "discovered": 39
+        "discovered": 38
       },
       {
         "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
         "status": "complete",
-        "discovered": 18
+        "discovered": 24
       },
       {
         "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
@@ -84,8 +84,8 @@
   },
   "health": {
     "status": "complete",
-    "last_attempt_at": "2026-10-03T22:54:41+08:00",
-    "last_success_at": "2026-10-03T22:54:41+08:00",
+    "last_attempt_at": "2026-10-05T02:11:36+08:00",
+    "last_success_at": "2026-10-05T02:11:36+08:00",
     "needs_attention": false,
     "last_reason": null,
     "execution_location": "github_actions"
