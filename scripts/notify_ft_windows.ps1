@@ -3,7 +3,8 @@ Add-Type -AssemblyName PresentationFramework
 $title = 'FT 需要处理'
 $detail = switch ($Reason) {
     'rate_limited' { 'FT 返回 429 限流。程序已暂停请求并保存进度，将按冷却时间和下一计划周期处理；无需据此更新登录凭据。' }
-    { $_ -in @('auth_expired','auth_required','login_or_subscription_required') } { 'FT 登录或订阅验证未通过。请先在浏览器确认正文可读，再更新本机 D:\news_crawlers\private\ft_cookie.txt。不要把 Cookie 发到聊天或公开仓库。' }
+    { $_ -in @('auth_expired','auth_required','login_or_subscription_required') } { 'FT 登录或订阅验证未通过。请先在浏览器确认正文可读，再更新本机 D:\news_crawlers\private\ft_cookie.txt。更新后程序会在下一次每小时检查时重新验证并补跑，无需等到明天。不要把 Cookie 发到聊天或公开仓库。' }
+    'article_access_unavailable' { '部分 FT 文章返回订阅提示，已保存可读文章并记录受限链接。连续受限达到上限时停止；这不等于所有文章都无法读取，也不能据此认定 Cookie 过期。' }
     'access_denied' { 'FT 返回 403 拒绝访问。不能据此认定 Cookie 过期；请查看本地状态记录。' }
     'recovered' { $title = 'FT 已恢复'; 'FT 批次已成功合并，三个来源仍在原 GitHub 仓库 data/news.sqlite3 的 news 表。' }
     'target_reached' { $title = '新闻库已达标'; '三来源合计已达到 3000 条，程序按设定停止采集。' }

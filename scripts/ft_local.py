@@ -29,12 +29,13 @@ REASONS = {
     "redirect_limit", "robots_unavailable", "robots_disallowed",
     "consecutive_network_failures", "feed_request_failed", "invalid_feed",
     "category_request_failed", "invalid_category_listing",
-    "article_request_failed", "invalid_or_incomplete_article", "collector_failed",
+    "article_request_failed", "invalid_or_incomplete_article", "article_access_unavailable", "collector_failed",
     "credential_unavailable", "invalid_candidate", "cleanup_failed", "target_reached",
 }
 COUNT_KEYS = {"discovered", "known", "skipped", "outside_window", "success", "failed",
               "deferred", "rejected", "collected", "duplicates", "inserted", "deferred_cap",
-              "session_rechecks", "session_recoveries"}
+              "session_rechecks", "session_recoveries", "access_probe_checks",
+              "access_probe_successes", "article_access_unavailable"}
 DISCOVERY_COUNTS = {"pages_fetched", "page_limit", "category_page_limit", "categories_completed", "categories_total"}
 DISCOVERY_REASONS = {"window_boundary", "no_next_page", "page_limit", "total_page_limit",
                      "request_failed", "invalid_listing", "no_progress", "collection_stopped"}
@@ -193,22 +194,44 @@ def collect_batch(root, cookie_file, batch_file, *, max_new=100, lookback_hours=
     else:
         with closing(sqlite3.connect((root / "data/news.sqlite3").as_uri() + "?mode=ro", uri=True)) as db:
             known = {row[0] for row in db.execute("SELECT url FROM news")}
+            collector_options = {}
+            if collector is None:
+                from crawler.ft_impl.parsing import canonical_url
+                from crawler.ft_impl.session import StopCollection
+                probes = []
+                for row in db.execute(
+                        "SELECT url FROM news WHERE source = ? ORDER BY crawl_time DESC, publish_time DESC, url LIMIT 2",
+                        (SOURCE,)):
+                    try:
+                        probes.append(canonical_url(row[0]))
+                    except (ValueError, StopCollection):
+                        continue
+                collector_options["access_probe_urls"] = tuple(probes)
         budget = min(max_new, target - before, config.get("source_max_new", {}).get(SOURCE, 100))
         original_cookie = os.environ.get("FT_COOKIE")
         generator = None
         try:
             try:
-                credential = cookie_file.read_text(encoding="utf-8")
+                credential = cookie_file.read_text(encoding="utf-8-sig")
             except Exception:
                 raise LocalFTError("credential_unavailable") from None
             os.environ["FT_COOKIE"] = credential
             if collector is None:
                 from crawler.ft import collect as collector
+                from crawler.ft_impl.session import effective_cookies
+                from crawler.ft_impl.session_cache import SessionCache
+                fingerprint = hashlib.sha256(json.dumps(
+                    effective_cookies(credential), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                try:
+                    collector_options["session_cache"] = SessionCache(
+                        cookie_file.with_name("ft_session.dpapi"), fingerprint)
+                except Exception:
+                    pass
             # A future dependency must not accidentally print response or cookie
             # details; only the safe summary at the CLI boundary is emitted.
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()), tempfile.TemporaryDirectory(prefix="ft-local-") as cache:
                 generator = iter(collector(start=start, end=started, known_urls=set(known),
-                                           limit=budget, workdir=Path(cache), report=report))
+                                           limit=budget, workdir=Path(cache), report=report, **collector_options))
                 for candidate in generator:
                     try:
                         # Collector extras are discarded before validation/storage.

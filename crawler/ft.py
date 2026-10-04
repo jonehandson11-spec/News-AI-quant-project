@@ -1,15 +1,13 @@
-"""Credentialed FT collection: no credential files, RSS summaries or paywalls stored."""
+"""Credentialed FT collection with bounded access checks and no raw HTML storage."""
 from collections import deque
-from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 import hashlib
-import time
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import requests
 
-from .ft_impl.parsing import parse_article, parse_category_page, parse_feed
+from .ft_impl.parsing import canonical_url, parse_article, parse_category_page, parse_feed
 from .ft_impl.session import FTSession, StopCollection
 
 SOURCE = "Financial Times"
@@ -23,21 +21,25 @@ DISCOVERY_PAGE_LIMIT = 40
 
 
 def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
-            workdir: Path, report: dict):
+            workdir: Path, report: dict, access_probe_urls=(), session_cache=None):
     """Yield at most limit authenticated, full-text articles in an aware window.
 
     The local runner injects FT_COOKIE from a private file outside the repository.
     The CookieJar is renewed in memory during redirects; expired credentials
     require the owner to sign in normally and update that file. workdir is unused;
-    authenticated HTML and cookies are deliberately never written to disk.
+    authenticated HTML is never written to disk. Normal session cookies may be
+    saved only through the optional private encrypted session cache.
+    Up to two previously collected articles may check access before discovery;
+    their text is discarded and never included in the collection window.
     """
     counts = {key: 0 for key in ("discovered", "known", "skipped", "outside_window",
                                  "success", "failed", "deferred",
-                                 "session_rechecks", "session_recoveries")}
+                                 "access_probe_checks", "access_probe_successes",
+                                 "article_access_unavailable")}
     report.update(source=SOURCE, status="complete", counts=counts, errors=[],
                   skipped_reasons={},
                   stopped=False, publication_basis="article original publication time",
-                  credential_storage="environment; memory only")
+                  credential_storage="environment; memory; optional encrypted local session cache")
     if limit <= 0:
         return
     if (start.tzinfo is None or start.utcoffset() is None or end.tzinfo is None
@@ -69,16 +71,82 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
             if error.endpoint_kind is not None:
                 report["endpoint_kind"] = error.endpoint_kind
 
+    def cache_session(method, session):
+        if session_cache is not None:
+            try:
+                getattr(session_cache, method)(session)
+            except Exception:
+                # An unavailable local cache must not hide an access result or
+                # disclose a cache/credential path through exception output.
+                pass
+
     network_failures = 0
-    with ExitStack() as sessions:
-        session = sessions.enter_context(FTSession())
+    probes = []
+    for url in access_probe_urls or ():
+        if not isinstance(url, str):
+            continue
+        try:
+            url = canonical_url(url)
+        except (ValueError, StopCollection):
+            continue
+        if url not in probes:
+            probes.append(url)
+        if len(probes) == 2:
+            break
+    access_confirmed = False
+    consecutive_barriers = 0
+    with FTSession() as session:
+        cache_session("restore", session)
         if not session.has_login_cookie():
             report.update(reason="auth_required", stopped=True)
             failure("https://www.ft.com", "auth_required")
             return
+        probe_errors = []
+        for url in probes:
+            try:
+                if not session.has_login_cookie():
+                    raise StopCollection("auth_expired")
+                counts["access_probe_checks"] += 1
+                html = session.fetch(url)
+            except StopCollection as error:
+                failure(url, error.reason)
+                stop(error)
+                return
+            except requests.RequestException:
+                probe_errors.append((url, "article_request_failed"))
+                continue
+            except ValueError:
+                probe_errors.append((url, "invalid_or_incomplete_article"))
+                continue
+            try:
+                parse_article(html, url)
+            except StopCollection as error:
+                if error.reason != "login_or_subscription_required":
+                    failure(url, error.reason)
+                    stop(error)
+                    return
+                probe_errors.append((url, error.reason))
+            except ValueError:
+                probe_errors.append((url, "invalid_or_incomplete_article"))
+            else:
+                cache_session("save", session)
+                counts["access_probe_successes"] += 1
+                access_confirmed = True
+                break
+        if probes and not access_confirmed:
+            for url, reason in probe_errors:
+                failure(url, reason)
+            # Mixed failures do not prove an authentication/subscription issue.
+            reason = next((reason for _, reason in probe_errors
+                           if reason != "login_or_subscription_required"),
+                          "login_or_subscription_required")
+            stop(StopCollection(reason))
+            return
         found = {}
         for feed in RSS_FEEDS:
             try:
+                if not session.has_login_cookie():
+                    raise StopCollection("auth_expired")
                 text = session.fetch(feed)
                 network_failures = 0
                 for item in parse_feed(text):
@@ -156,10 +224,9 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
         counts["discovered"] = len(rows)
         for index, row in enumerate(rows):
             url = row["url"]
-            if url in known_urls:
+            if url in known_urls or url in probes:
                 counts["known"] += 1
                 continue
-            rechecking = False
             try:
                 if not session.has_login_cookie():
                     raise StopCollection("auth_expired")
@@ -168,29 +235,24 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                 try:
                     article = parse_article(html, url)
                 except StopCollection as error:
-                    # One normal credentialed recheck can recover an intermittent
-                    # HTML login response. HTTP/robots stops never enter here.
+                    # A readable independent article is evidence of local access,
+                    # not permission to fetch this restricted article again.
+                    # HTTP/redirect/robots stops never enter this branch.
                     if (error.reason != "login_or_subscription_required"
-                            or counts["session_rechecks"]
-                            or not session.has_login_cookie()):
+                            or not access_confirmed or not session.has_login_cookie()):
                         raise
-                    counts["session_rechecks"] += 1
-                    rechecking = True
-                    inherited_delay = getattr(session, "delay", 10.0)
-                    time.sleep(max(30.0, inherited_delay))
-                    renewed = sessions.enter_context(FTSession())
-                    renewed.delay = max(getattr(renewed, "delay", 10.0), inherited_delay)
-                    if not renewed.has_login_cookie():
-                        raise StopCollection("auth_required") from None
-                    try:
-                        article = parse_article(renewed.fetch(url), url)
-                    except requests.RequestException:
-                        raise StopCollection("article_request_failed") from None
-                    except ValueError:
-                        raise StopCollection("invalid_or_incomplete_article") from None
-                    session = renewed
-                    counts["session_recoveries"] += 1
-                    rechecking = False
+                    counts["article_access_unavailable"] += 1
+                    consecutive_barriers += 1
+                    failure(url, "article_access_unavailable")
+                    report["reason"] = "article_access_unavailable"
+                    if consecutive_barriers >= 2 or counts["article_access_unavailable"] >= 3:
+                        stop(StopCollection("article_access_unavailable"))
+                        counts["deferred"] = len(rows) - index - 1
+                        return
+                    continue
+                access_confirmed = True
+                consecutive_barriers = 0
+                cache_session("save", session)
                 if not start <= article["published"] <= end:
                     counts["outside_window"] += 1
                     continue
@@ -211,7 +273,7 @@ def collect(*, start: datetime, end: datetime, known_urls: set[str], limit: int,
                     counts["deferred"] = len(rows) - index - 1
                     return
             except StopCollection as error:
-                if error.reason == "unsafe_destination" and not rechecking:
+                if error.reason == "unsafe_destination":
                     # A feed can link to a UUID that redirects outside the
                     # permitted FT article host. The session already refused
                     # that destination without sending credentials to it. Skip

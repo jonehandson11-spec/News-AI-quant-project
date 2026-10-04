@@ -4,13 +4,13 @@
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-10-03T14:54:41+00:00",
+  "package_created_at": "2026-10-04T12:03:36.655922+00:00",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-03T22:54:41+08:00",
+    "end": "2026-10-04T20:00:05.008189+08:00",
     "inclusive": true
   },
-  "window_hours": 193.7875,
+  "window_hours": 214.87750227472222,
   "time_zone": "UTC+08:00 (Beijing)",
   "total_articles": 2358,
   "fields": [
@@ -55,7 +55,7 @@
     {
       "path": "data/news.sqlite3",
       "bytes": 9392128,
-      "sha256": "1cc60863a13840e92c5ca26aa1bad5fde4a33e789aede3478781ce530f59e8e8"
+      "sha256": "b3a809e525f95befe1962579db2fb762543b93311ae69d12a1853b791bb80c39"
     },
     {
       "path": "data/news.csv",
@@ -64,8 +64,8 @@
     },
     {
       "path": "data/progress.json",
-      "bytes": 3586,
-      "sha256": "aba399ef49554e29c346161c72a16e547140d5af6c8b1da83f41379698f46acc"
+      "bytes": 2789,
+      "sha256": "80fa7b7ffc35c5b6d29dae9d9ac810aadb1c06440ad4e21856575b6cb015c914"
     },
     {
       "path": "schema.sql",
@@ -74,18 +74,18 @@
     },
     {
       "path": "data/source_reports/bbc.json",
-      "bytes": 2563,
-      "sha256": "0a216f02dc214a484ffe5a4f966b06b44ff7fb68e07ae42ff6871ba5961b98e9"
+      "bytes": 2570,
+      "sha256": "d0eaf76a6bf36ae43b6637ccaf69e74f0070321b5c2144c6bfdd1404f116aeeb"
     },
     {
       "path": "data/source_reports/sina.json",
-      "bytes": 1582,
-      "sha256": "99efab8efe8c98d5d276cf579d148026474d359efd58b195c050fc43630060d1"
+      "bytes": 1589,
+      "sha256": "214bbc6fcb190995aed09afd5cb6737c46aa39b634ea8e5f8c0cb11b897e5ade"
     },
     {
       "path": "data/source_reports/ft.json",
-      "bytes": 1757,
-      "sha256": "e51c5e905c8ab96c15b3e2507461b62ed0c01540da34d86c8636d88048cba1d2"
+      "bytes": 1726,
+      "sha256": "dbc83b536bd91f934721eeb42d90fbb9d819e307c7dad7f1596440b5bb28c23b"
     }
   ],
   "collection_mode": "cumulative",
@@ -104,119 +104,84 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-03T22:54:41+08:00",
-    "start": "2026-10-01T22:54:41+08:00",
-    "end": "2026-10-03T22:54:41+08:00",
+    "started_at": "2026-10-04T20:00:05.008189+08:00",
+    "finished_at": "2026-10-04T20:03:12.030719+08:00",
+    "merged_at": "2026-10-04T20:03:36.655922+08:00",
+    "start": "2026-10-02T20:00:05.008189+08:00",
+    "end": "2026-10-04T20:00:05.008189+08:00",
+    "scope": "selected",
+    "selected_sources": [
+      "Financial Times"
+    ],
     "sources": {
       "Financial Times": {
-        "status": "not_needed",
+        "source": "Financial Times",
+        "execution_location": "local",
+        "status": "failed",
         "counts": {
-          "inserted": 0
-        },
-        "reason": "collected_locally"
-      },
-      "BBC News": {
-        "status": "complete",
-        "counts": {
-          "discovered": 288,
-          "known": 65,
-          "skipped": 48,
-          "outside_window": 112,
-          "success": 63,
-          "failed": 0,
-          "deferred": 0,
-          "inserted": 63
-        },
-        "errors": [],
-        "source": "BBC News",
-        "scope": "BBC News official section RSS feeds",
-        "feeds": [
-          {
-            "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
-            "status": "complete",
-            "discovered": 42
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/rss.xml",
-            "status": "complete",
-            "discovered": 25
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
-            "status": "complete",
-            "discovered": 28
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
-            "status": "complete",
-            "discovered": 52
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
-            "status": "complete",
-            "discovered": 60
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
-            "status": "complete",
-            "discovered": 21
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
-            "status": "complete",
-            "discovered": 39
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
-            "status": "complete",
-            "discovered": 18
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
-            "status": "complete",
-            "discovered": 51
-          }
-        ],
-        "stopped": false,
-        "publication_basis": "public article JSON-LD datePublished"
-      },
-      "新浪财经": {
-        "status": "partial",
-        "counts": {
-          "pages": 9,
-          "discovered": 450,
-          "skipped_known": 344,
-          "skipped_window": 0,
-          "invalid": 1,
-          "fetched": 106,
-          "yielded": 105,
-          "requests": 117,
-          "network_errors": 0,
-          "robots_denied": 0,
-          "errors": 1,
-          "inserted": 105
+          "discovered": 212,
+          "known": 0,
+          "skipped": 0,
+          "outside_window": 0,
+          "success": 0,
+          "failed": 1,
+          "deferred": 211,
+          "session_rechecks": 1,
+          "session_recoveries": 0,
+          "collected": 0,
+          "inserted": 0,
+          "duplicates": 0,
+          "deferred_cap": 0
         },
         "errors": [
           {
-            "url": "https://finance.sina.com.cn/world/gjcj/2026-10-02/doc-initvyfc7156880.shtml",
-            "reason": "article rejected: article full text missing or shorter than 40 characters"
+            "reason": "login_or_subscription_required",
+            "url": "https://www.ft.com/content/b7bd5c45-1c32-4984-af37-21746a02c4ef"
           }
         ],
-        "reason": "two consecutive pages older than window"
+        "stopped": true,
+        "skipped_reasons": {},
+        "reason": "login_or_subscription_required",
+        "discovery": {
+          "mode": "rss",
+          "coverage_limited": true,
+          "coverage_note": "FT RSS and selected category listings do not guarantee a complete archive.",
+          "pages_fetched": 0,
+          "page_limit": 40,
+          "category_page_limit": 5,
+          "categories_completed": 0,
+          "categories_total": 0,
+          "category_outcomes": []
+        },
+        "lookback_hours": 48,
+        "collection_mode": "daily",
+        "batch_id": "1b74ac5fc25717465a082b4119821738bdd31d12cf7801aa4c4413e366d47aad"
       }
     },
-    "scope": "all",
-    "selected_sources": [
-      "BBC News",
-      "新浪财经"
-    ],
-    "execution_location": "github_actions",
-    "before": 2190,
-    "after": 2358,
-    "inserted": 168,
-    "status": "partial",
+    "local_batch": {
+      "batch_id": "1b74ac5fc25717465a082b4119821738bdd31d12cf7801aa4c4413e366d47aad",
+      "lookback_hours": 48,
+      "collection_mode": "daily",
+      "collected": 0,
+      "duplicates": 0,
+      "deferred_cap": 0,
+      "inserted": 0
+    },
     "target_reached": false,
-    "finished_at": "2026-10-03T23:02:47+08:00"
+    "status": "failed",
+    "before": 2358,
+    "after": 2358,
+    "inserted": 0,
+    "duplicates": 0,
+    "deferred_cap": 0,
+    "batch_id": "1b74ac5fc25717465a082b4119821738bdd31d12cf7801aa4c4413e366d47aad",
+    "lookback_hours": 48,
+    "collection_mode": "daily",
+    "collection_status": "failed",
+    "collection_reason": "login_or_subscription_required",
+    "collection_stopped": true,
+    "execution_location": "local",
+    "health_preserved": false
   },
   "last_full_run_at": "2026-10-03T22:54:41+08:00"
 }

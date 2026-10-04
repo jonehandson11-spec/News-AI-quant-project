@@ -2,6 +2,7 @@
 from contextlib import closing, redirect_stdout
 from datetime import datetime, timedelta, timezone
 import io
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -245,6 +246,40 @@ class LocalFTTests(unittest.TestCase):
         self.assertNotIn('FAKE-TEST-SECRET', output.getvalue())
         batch = read_json(self.batch_file)
         self.assertEqual((batch['lookback_hours'], batch['collection_mode']), (48, 'daily'))
+
+    def test_default_collector_gets_two_latest_ft_probes_and_private_session_cache(self):
+        candidates = [article(number, SOURCE) for number in (3, 1, 2)]
+        for number, row in enumerate(candidates):
+            row['crawl_time'] = f'2026-09-27T{15 + number}:00:00+08:00'
+        with closing(sqlite3.connect(self.root / 'data/news.sqlite3')) as db, db:
+            db.executemany('INSERT INTO news VALUES (?,?,?,?,?,?,?,?)',
+                           [tuple(row[key] for key in FIELDS) for row in candidates])
+        refresh(self.root, now=NOW)
+        self.cookie_file.write_text('FTSession_s=FAKE-TEST-SECRET; tracking=not-retained', encoding='utf-8-sig')
+        before = self.contents()
+        with patch('crawler.ft.collect', return_value=iter([])) as collector, \
+                patch('crawler.ft_impl.session_cache.SessionCache') as cache:
+            result = collect_batch(self.root, self.cookie_file, self.batch_file, now=NOW)
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(collector.call_args.kwargs['access_probe_urls'],
+                         (candidates[2]['url'], candidates[1]['url']))
+        self.assertIs(collector.call_args.kwargs['session_cache'], cache.return_value)
+        fingerprint = hashlib.sha256(b'{"FTSession_s":"FAKE-TEST-SECRET"}').hexdigest()
+        cache.assert_called_once_with(self.cookie_file.with_name('ft_session.dpapi'), fingerprint)
+        self.assertEqual(self.contents(), before)
+        safe_batch = self.batch_file.read_text(encoding='utf-8')
+        self.assertNotIn(fingerprint, safe_batch)
+        self.assertNotIn('FAKE-TEST-SECRET', safe_batch)
+        self.assertNotIn('ft_session.dpapi', safe_batch)
+
+    def test_injected_collector_keeps_original_signature_and_gets_bom_free_cookie(self):
+        self.cookie_file.write_text('FTSession_s=FAKE-TEST-SECRET', encoding='utf-8-sig')
+        def collector(*, start, end, known_urls, limit, workdir, report):
+            self.assertEqual(os.environ['FT_COOKIE'], 'FTSession_s=FAKE-TEST-SECRET')
+            yield article(1, SOURCE)
+        result = collect_batch(self.root, self.cookie_file, self.batch_file, now=NOW, collector=collector)
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(result['collected'], 1)
 
     def test_explicit_backfill_collects_and_merges_article_older_than_48_hours(self):
         started = NOW + timedelta(days=4)

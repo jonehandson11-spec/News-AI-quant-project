@@ -4,38 +4,36 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-03T22:54:41+08:00",
+    "end": "2026-10-04T20:00:05.008189+08:00",
     "inclusive": true
   },
   "latest_run": {
     "source": "Financial Times",
     "execution_location": "local",
-    "status": "partial",
+    "status": "failed",
     "counts": {
-      "discovered": 206,
-      "known": 60,
-      "skipped": 2,
+      "discovered": 212,
+      "known": 0,
+      "skipped": 0,
       "outside_window": 0,
-      "success": 1,
+      "success": 0,
       "failed": 1,
-      "deferred": 142,
+      "deferred": 211,
       "session_rechecks": 1,
       "session_recoveries": 0,
-      "collected": 1,
-      "inserted": 1,
+      "collected": 0,
+      "inserted": 0,
       "duplicates": 0,
       "deferred_cap": 0
     },
     "errors": [
       {
         "reason": "login_or_subscription_required",
-        "url": "https://www.ft.com/content/64d54c96-0124-45d0-842c-587ab0641ee2"
+        "url": "https://www.ft.com/content/b7bd5c45-1c32-4984-af37-21746a02c4ef"
       }
     ],
     "stopped": true,
-    "skipped_reasons": {
-      "unsafe_destination": 2
-    },
+    "skipped_reasons": {},
     "reason": "login_or_subscription_required",
     "discovery": {
       "mode": "rss",
@@ -50,11 +48,11 @@
     },
     "lookback_hours": 48,
     "collection_mode": "daily",
-    "batch_id": "ba88b0eab44fb178e525e808850ec79b0a46b3e724ccfb304de41ebee6196829"
+    "batch_id": "1b74ac5fc25717465a082b4119821738bdd31d12cf7801aa4c4413e366d47aad"
   },
   "health": {
-    "status": "partial",
-    "last_attempt_at": "2026-10-03T21:08:49.769363+08:00",
+    "status": "failed",
+    "last_attempt_at": "2026-10-04T20:00:05.008189+08:00",
     "last_success_at": "2026-10-03T21:08:49.769363+08:00",
     "needs_attention": true,
     "last_reason": "login_or_subscription_required",

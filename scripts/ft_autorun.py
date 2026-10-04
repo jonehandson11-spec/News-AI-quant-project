@@ -465,8 +465,15 @@ def run(settings):
                 plan = ft_sync.prepare(settings.root, settings.state_dir, settings.cookie_file,
                                        max_new=settings.max_new, lookback_hours=settings.lookback_hours)
                 if plan["status"] == "skipped":
-                    return {"status": "skipped", "reason": plan["result_summary"]["reason"],
-                            "total_articles": plan["result_summary"].get("after")}
+                    summary = plan["result_summary"]
+                    if summary["reason"] == "awaiting_credential_update":
+                        return {"status": "needs_attention", "reason": summary["auth_reason"],
+                                "action": "update_local_credentials", "total_articles": summary.get("after")}
+                    if summary["reason"] == "rate_limited":
+                        return {"status": "cooldown", "reason": "rate_limited",
+                                "cooldown_until": summary["retry_after"]}
+                    return {"status": "skipped", "reason": summary["reason"],
+                            "total_articles": summary.get("after")}
             result = service_plan(settings, state, plan)
             productive = result["status"] == "imported" or result.get("continue_backfill") is True
             if (settings.resume_only or settings.lookback_hours != 120 or not productive
@@ -476,7 +483,7 @@ def run(settings):
 
 def _record_result(settings, result):
     # No article text, key/cookie contents, SSH diagnostics, or raw response bodies.
-    allowed = {"status", "reason", "batch_id", "commit_sha", "inserted", "total_articles", "ft_articles", "cooldown_until", "continue_backfill"}
+    allowed = {"status", "reason", "action", "batch_id", "commit_sha", "inserted", "total_articles", "ft_articles", "cooldown_until", "continue_backfill"}
     safe = {key: value for key, value in result.items() if key in allowed}
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     write_json(settings.state_dir / "autorun-result.json", safe)
