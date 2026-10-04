@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 1852,
+  "saved_full_text_articles": 1957,
   "feed_pages": 6,
   "candidates_in_window": 158,
   "final_failed_articles": 0,
@@ -12,32 +12,28 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-03T20:00:03.706776+08:00",
+    "end": "2026-10-03T22:54:41+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "partial",
     "counts": {
-      "pages": 13,
-      "discovered": 650,
-      "skipped_known": 380,
-      "skipped_window": 1,
-      "invalid": 2,
-      "fetched": 269,
-      "yielded": 267,
-      "requests": 284,
+      "pages": 9,
+      "discovered": 450,
+      "skipped_known": 344,
+      "skipped_window": 0,
+      "invalid": 1,
+      "fetched": 106,
+      "yielded": 105,
+      "requests": 117,
       "network_errors": 0,
       "robots_denied": 0,
-      "errors": 2,
-      "inserted": 267
+      "errors": 1,
+      "inserted": 105
     },
     "errors": [
       {
-        "url": "https://finance.sina.com.cn/world/2026-10-01/doc-initsief6391614.shtml",
-        "reason": "article rejected: article full text missing or shorter than 40 characters"
-      },
-      {
-        "url": "https://finance.sina.com.cn/stock/usstock/c/2026-10-01/doc-initsiep5446344.shtml",
+        "url": "https://finance.sina.com.cn/world/gjcj/2026-10-02/doc-initvyfc7156880.shtml",
         "reason": "article rejected: article full text missing or shorter than 40 characters"
       }
     ],
@@ -45,8 +41,8 @@
   },
   "health": {
     "status": "partial",
-    "last_attempt_at": "2026-10-02T20:10:07+08:00",
-    "last_success_at": "2026-10-02T20:10:07+08:00",
+    "last_attempt_at": "2026-10-03T22:54:41+08:00",
+    "last_success_at": "2026-10-03T22:54:41+08:00",
     "needs_attention": true,
     "last_reason": "two consecutive pages older than window",
     "execution_location": "github_actions"

@@ -137,12 +137,13 @@ function eventQuery(ticker, eventMs, asOfMs, bars) {
   for (const [label, direction, offset] of WINDOWS) {
     const target = direction === "before" ? monthsBefore(eventMs, offset) : eventMs + offset;
     const empty = { target_at: isoHk(target), observed_at: null, price: null,
-      return_pct: null, status: "missing", delay_seconds: null, source: null, basis: null };
+      price_change: null, return_pct: null, status: "missing", delay_seconds: null, source: null, basis: null };
     if (direction === "before") {
       const bar = days.filter((item) => hkDateKey(item.timestamp) <= hkDateKey(target)).at(-1);
       if (!bar) { output[label] = empty; continue; }
       if (bar.basis !== baseline.basis) throw new Error(`${ticker} 混用了不同复权口径的价格。`);
       output[label] = { ...empty, observed_at: isoHk(bar.timestamp), price: bar.close,
+        price_change: baseline.price - bar.close,
         return_pct: (baseline.price - bar.close) / bar.close * 100,
         status: hkDateKey(bar.timestamp) === hkDateKey(target) ? "on_date" : "deferred_back",
         source: bar.source, basis: bar.basis };
@@ -153,6 +154,7 @@ function eventQuery(ticker, eventMs, asOfMs, bars) {
       if (bar.basis !== baseline.basis) throw new Error(`${ticker} 混用了不同复权口径的价格。`);
       const delay = Math.round((bar.timestamp - target) / 1000);
       output[label] = { ...empty, observed_at: isoHk(bar.timestamp), price: bar.close,
+        price_change: bar.close - baseline.price,
         return_pct: (bar.close - baseline.price) / baseline.price * 100,
         status: delay < 60 ? "on_time" : "deferred", delay_seconds: delay,
         source: bar.source, basis: bar.basis };
