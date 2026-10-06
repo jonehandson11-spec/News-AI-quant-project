@@ -1,5 +1,5 @@
 {
-  "saved_full_text_articles": 1999,
+  "saved_full_text_articles": 2447,
   "feed_pages": 6,
   "candidates_in_window": 158,
   "final_failed_articles": 0,
@@ -12,34 +12,33 @@
   "collection_mode": "cumulative",
   "publication_window": {
     "start": "2026-09-25T21:07:26+08:00",
-    "end": "2026-10-05T02:11:36+08:00",
+    "end": "2026-10-06T20:10:37+08:00",
     "inclusive": true
   },
   "latest_run": {
     "status": "complete",
     "counts": {
-      "pages": 4,
-      "discovered": 200,
-      "skipped_known": 157,
-      "skipped_window": 1,
+      "pages": 9,
+      "discovered": 448,
+      "skipped_known": 0,
+      "skipped_window": 0,
       "invalid": 0,
-      "fetched": 42,
-      "yielded": 42,
-      "requests": 48,
+      "fetched": 448,
+      "yielded": 448,
+      "requests": 459,
       "network_errors": 0,
       "robots_denied": 0,
       "errors": 0,
-      "inserted": 42
+      "inserted": 448
     },
-    "errors": [],
-    "reason": "two consecutive pages older than window"
+    "errors": []
   },
   "health": {
     "status": "complete",
-    "last_attempt_at": "2026-10-05T02:11:36+08:00",
-    "last_success_at": "2026-10-05T02:11:36+08:00",
+    "last_attempt_at": "2026-10-06T20:10:37+08:00",
+    "last_success_at": "2026-10-06T20:10:37+08:00",
     "needs_attention": false,
-    "last_reason": "two consecutive pages older than window",
+    "last_reason": null,
     "execution_location": "github_actions"
   }
 }
