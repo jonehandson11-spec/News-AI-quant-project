@@ -1,4 +1,4 @@
-"""Only visible article prose and unambiguous original publication dates."""
+"""ftnews_ltc text extraction with visible prose and original publication dates."""
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 import xml.etree.ElementTree as ET
 
 from bs4 import BeautifulSoup
+import trafilatura
 
 from .session import StopCollection, validate_url
 
@@ -146,15 +147,28 @@ def publication_time(soup, url):
     return distinct.pop()
 
 
+def _hidden(node):
+    style = node.get("style", "")
+    return (node.has_attr("hidden") or str(node.get("aria-hidden", "")).lower() == "true"
+            or bool(re.search(r"(?:^|;)\s*(?:display\s*:\s*none|(?:content-)?visibility\s*:\s*hidden)\s*(?:!important\s*)?(?:;|$)",
+                              style, re.I)))
+
+
 def parse_article(html, url):
+    """Use the supplied crawler's trafilatura settings, never hidden payloads.
+
+    Metadata stays separate from text extraction. Feed dates only rank URLs;
+    article publication metadata still determines the collection window.
+    """
     soup = BeautifulSoup(html, "html.parser")
-    body = soup.select_one('[itemprop="articleBody"], .article__content-body, '
-                           '.article__body, [data-trackable="article-body"]')
-    if body is None:
-        page_text = " ".join(soup.get_text(" ", strip=True).lower().split())
-        if any(p in page_text for p in PAYWALL_PHRASES):
-            raise StopCollection("login_or_subscription_required")
-        raise ValueError("visible_article_body_missing")
+    # Preserve explicit publication evidence before removing embedded scripts.
+    # Parse it only after the access check, so a login page is not a date error.
+    metadata_soup = BeautifulSoup(html, "html.parser")
+    # Remove hidden ancestors before inspecting their descendants. Reversed
+    # traversal keeps decompose() from invalidating a later node in this list.
+    for node in reversed(list(soup.find_all(True))):
+        if _hidden(node) or node.name in {"script", "style", "noscript", "template"}:
+            node.decompose()
     # Reject an explicitly rendered subscription barrier, including one beside
     # a long teaser. Ordinary navigation Subscribe links do not count.
     barrier = soup.select_one('.barrier, .barrier__heading, .subscription-barrier, '
@@ -162,19 +176,36 @@ def parse_article(html, url):
     if barrier and any(p in barrier.get_text(" ", strip=True).lower()
                        for p in ("subscribe", "sign in", "subscription")):
         raise StopCollection("login_or_subscription_required")
-    for node in body.select("script, style, noscript, nav, aside, form, button, "
-                            ".n-content-tag, .article__related-content, [aria-hidden='true']"):
+    title = soup.find("h1")
+    title = title.get_text(" ", strip=True) if title else ""
+    for node in reversed(soup.select("head, meta, link, nav, aside, form, button, header, footer, "
+                                      ".n-content-tag, .article__related-content")):
         node.decompose()
-    paragraphs = [p.get_text(" ", strip=True) for p in body.select("p")]
-    text = "\n\n".join(p for p in paragraphs if p).strip()
+    # Known body markers keep recommendations out; unfamiliar FT layouts use
+    # trafilatura's document detection instead of failing on a CSS selector.
+    body = soup.select_one('[itemprop="articleBody"], .article__content-body, '
+                           '.article__body, [data-trackable="article-body"]')
+    if body is None:
+        page_text = " ".join(soup.get_text(" ", strip=True).lower().split())
+        hits = sum(phrase in page_text for phrase in PAYWALL_PHRASES)
+        if hits >= 2 or "subscribe to unlock" in page_text or "sign in to continue" in page_text:
+            raise StopCollection("login_or_subscription_required")
+    if not title:
+        raise ValueError("article_title_missing")
+    published = publication_time(metadata_soup, url)
+    # Some extractor fallbacks inspect JSON stored in data attributes. Keep
+    # only structural hints and links; prose must be visible DOM text.
+    for node in soup.find_all(True):
+        node.attrs = {key: value for key, value in node.attrs.items()
+                      if key in {"class", "id", "href"}}
+    document = f"<html><body><article>{body}</article></body></html>" if body is not None else str(soup)
+    text = trafilatura.extract(document, url=url, include_comments=False,
+                               include_tables=False, favor_precision=True)
+    text = text.strip() if text else ""
     lowered = " ".join(text.lower().split())
     hits = sum(phrase in lowered for phrase in PAYWALL_PHRASES)
     if hits >= 2 or "subscribe to unlock" in lowered or "sign in to continue" in lowered:
         raise StopCollection("login_or_subscription_required")
-    if len(text) < 600 or len(paragraphs) < 2 or "\ufffd" in text:
+    if len(text) < 600 or "\ufffd" in text:
         raise ValueError("incomplete_article_body")
-    title = soup.find("h1")
-    title = title.get_text(" ", strip=True) if title else ""
-    if not title:
-        raise ValueError("article_title_missing")
-    return {"title": title, "content": text, "published": publication_time(soup, url)}
+    return {"title": title, "content": text, "published": published}

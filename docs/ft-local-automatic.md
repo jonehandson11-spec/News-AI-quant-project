@@ -2,6 +2,10 @@
 
 FT 由这台 Windows 电脑上的 Python 程序采集，独立 SSH 密钥把批次上传到原仓库 `jonehandson11-spec/News-AI-quant-project`。GitHub Actions 将批次去重后追加到 `main` 的 `data/news.sqlite3`，与 BBC、新浪共用 `news` 表和 3000 条总上限。无需 Codex 参与每次运行。
 
+2026-10-09 接入用户提供的 `ftnews_ltc.zip` 版本：正文提取改用原脚本的 `trafilatura.extract`，设置为 `favor_precision=True`、关闭评论和表格提取，保留至少 600 字符的要求。依赖固定为 `trafilatura==2.3.1`；部署代码后在原 Python 环境执行 `python -m pip install -r requirements.txt`。现有 13 个 RSS 栏目与附件相同；页面改版后不再因缺少旧正文 CSS 标记就直接丢弃，而由提取器识别可见正文。显式订阅拦截仍停止；隐藏节点、脚本及数据属性中的内容不作为正文，文章原始发布时间仍由页面元数据验证。
+
+该版本接入已有的一次采集、批次保存、上传及恢复流程；附件的独立每小时无限循环和独立 `ft_news.db` 不同时运行。继续使用下述北京时间 20:00 计划和合并库总上限。附件 Cookie、截图、数据库和清理脚本不提交到仓库；附件的清理脚本也不作用于共享数据库。更换正文提取器不能保证登录长期有效，也不能解除 FT 的 403 或 429。
+
 Windows 任务名为 `FT Local Collect and GitHub Sync`。每小时检查一次并在登录后补查，程序按北京时间最近的 20:00 周期每天最多采集一次，默认最近 48 小时。电脑需开机、登录并联网；关闭 Codex 不影响任务。关机、睡眠或注销期间无法采集，恢复后补最近一轮。任务不会强制唤醒电脑。
 
 本机位置：
