@@ -1,0 +1,52 @@
+name: Merge supplied FT archive
+
+on:
+  push:
+    branches: [codex/ft-archive-inbox]
+
+concurrency:
+  group: news-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the latest shared database
+        uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Read supplied archive rows from the exact submission
+        env:
+          BATCH_COMMIT: ${{ github.sha }}
+        run: |
+          [[ "$BATCH_COMMIT" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          git fetch --no-tags --depth=1 origin "$BATCH_COMMIT"
+          git show FETCH_HEAD:incoming/ft-archive.json > "$RUNNER_TEMP/ft-archive.json"
+      - name: Validate and append historical FT articles
+        run: |
+          python3 scripts/ft_archive.py merge --root . --batch-file "$RUNNER_TEMP/ft-archive.json"
+          python3 scripts/validate_database.py
+      - name: Save the merged shared data
+        run: |
+          if ! git diff --quiet -- data/ crawl_config.json; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -- data/ crawl_config.json
+            git commit -m 'data: append supplied historical FT archive'
+            git push origin HEAD:main
+          fi
+          echo 'Historical FT archive merged into the shared database. Existing articles and live FT health are preserved.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve recovery files
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ft-archive-recovery-${{ github.run_id }}
+          retention-days: 14
+          path: |
+            data/
+            crawl_config.json

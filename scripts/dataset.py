@@ -46,9 +46,12 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
     config = read_json(root / "crawl_config.json")
     target = config["target_articles"]
     seed = manifest.get("seed_window", manifest["publication_window"])
+    archives = manifest.get("archive_imports", [])
+    coverage_start = min([datetime.fromisoformat(seed["start"])] + [
+        datetime.fromisoformat(item["publication_window"]["start"]) for item in archives])
     previous_end = datetime.fromisoformat(manifest["publication_window"]["end"])
     new_end = max(previous_end, datetime.fromisoformat(run["end"])) if run else previous_end
-    window = {"start": seed["start"], "end": iso(new_end), "inclusive": True}
+    window = {"start": iso(coverage_start), "end": iso(new_end), "inclusive": True}
     database = root / "data/news.sqlite3"
     reports = {}
     with closing(sqlite3.connect(database)) as db:
@@ -109,6 +112,10 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
             "filters": "Cumulative unique URLs; original page publication time; new daily articles must fall within the configured lookback window",
             "updated_at": iso(now), "latest_run": latest_run, "last_full_run_at": last_full_run_at,
         }
+        if archives:
+            updates["archive_imports"] = archives
+            updates["filters"] = ("Cumulative unique URLs; daily collection uses original page publication time within the configured lookback; "
+                                  "explicitly imported FT archives retain supplied RSS timestamps with separate provenance receipts")
         db.executemany("INSERT OR REPLACE INTO collection_info(key,value) VALUES (?,?)", [
             (key, value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
             for key, value in updates.items()
@@ -125,7 +132,7 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
     manifest.update(
         format_version=2, collection_mode="cumulative", seed_window=seed,
         publication_window=window,
-        window_hours=(new_end - datetime.fromisoformat(seed["start"])).total_seconds() / 3600,
+        window_hours=(new_end - coverage_start).total_seconds() / 3600,
         daily_lookback_hours=config["daily_lookback_hours"], target_articles=target,
         target_reached=completed, remaining_articles=max(0, target - total),
         automatic_refresh=not completed, total_articles=total,
@@ -138,6 +145,7 @@ def refresh(root: Path, *, run: dict | None = None, now: datetime | None = None)
     )
     artifact_paths = ["data/news.sqlite3", "data/news.csv", "data/progress.json", "schema.sql"]
     artifact_paths.extend(detail["report"] for detail in manifest["sources"].values())
+    artifact_paths.extend(item["report"] for item in archives)
     manifest["artifacts"] = [
         {"path": relative, "bytes": (root / relative).stat().st_size,
          "sha256": hashlib.sha256((root / relative).read_bytes()).hexdigest()}

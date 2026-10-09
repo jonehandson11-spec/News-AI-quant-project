@@ -89,6 +89,45 @@ def run_lookback(latest: dict) -> int:
     return hours
 
 
+def archive_receipts(root: Path, manifest: dict) -> dict:
+    """Historical coverage needs hashed receipts, never altered seed dates."""
+    receipts = {}
+    imports = manifest.get("archive_imports", [])
+    require(isinstance(imports, list), "Invalid archive imports")
+    hashed = {item["path"] for item in manifest["artifacts"]}
+    for item in imports:
+        require(isinstance(item, dict), "Invalid archive receipt")
+        ident = item.get("import_id")
+        require(isinstance(ident, str) and re.fullmatch(r"[0-9a-f]{64}", ident) is not None
+                and ident not in receipts, "Invalid or repeated archive identifier")
+        path = f"data/import_reports/ft_archive_{ident}.json"
+        require(item.get("source") == "Financial Times" and item.get("source_file") == "ft_news.db"
+                and item.get("report") == path and path in hashed, "Invalid archive provenance")
+        require(re.fullmatch(r"[0-9a-f]{64}", item.get("source_sha256", "")) is not None,
+                "Invalid archive source digest")
+        report = json.loads(file_in_root(root, path).read_text(encoding="utf-8"))
+        check_metadata(report)
+        require(all(report.get(key) == value for key, value in item.items()), "Archive receipt differs from manifest")
+        numbers = [item.get(key) for key in ("source_records", "accepted_records", "inserted", "duplicates")]
+        require(all(type(value) is int and value >= 0 for value in numbers), "Invalid archive counts")
+        rejected = item.get("rejected_counts")
+        require(isinstance(rejected, dict) and all(type(n) is int and n >= 0 for n in rejected.values()),
+                "Invalid archive rejection counts")
+        source, accepted, inserted, duplicates = numbers
+        require(source == accepted + sum(rejected.values()) and accepted == inserted + duplicates,
+                "Archive counts do not reconcile")
+        window = item["publication_window"]
+        require(window.get("inclusive") is True and timestamp(window["start"]) <= timestamp(window["end"])
+                <= timestamp(item["imported_at"]), "Invalid archive publication window")
+        require(bool(item.get("publication_basis")), "Archive publication provenance is missing")
+        ids = report.get("inserted_article_ids")
+        require(isinstance(ids, list) and len(ids) == len(set(ids)) == inserted
+                and all(isinstance(i, str) and re.fullmatch(r"[0-9a-f]{32}", i) for i in ids),
+                "Invalid archive article identifiers")
+        receipts[ident] = report
+    return receipts
+
+
 def validate(root: Path) -> dict:
     manifest_path = root / "data" / "manifest.json"
     manifest_text = manifest_path.read_text(encoding="utf-8")
@@ -103,6 +142,7 @@ def validate(root: Path) -> dict:
         require(path.stat().st_size == artifact["bytes"], f"Size mismatch: {artifact['path']}")
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         require(digest == artifact["sha256"], f"SHA-256 mismatch: {artifact['path']}")
+    archives = archive_receipts(root, manifest)
 
     database = file_in_root(root, manifest["database"])
     csv_path = file_in_root(root, manifest["csv"])
@@ -119,7 +159,9 @@ def validate(root: Path) -> dict:
         seed_start, seed_end = timestamp(seed["start"]), timestamp(seed["end"])
         require(seed["inclusive"] is True and seed_end - seed_start == timedelta(hours=48),
                 "Invalid seed window")
-        require(start == seed_start and end >= seed_end, "Cumulative window excludes seed window")
+        expected_start = min([seed_start] + [timestamp(item["publication_window"]["start"])
+                                             for item in archives.values()])
+        require(start == expected_start and end >= seed_end, "Cumulative window excludes seed/archive window")
         target, total = manifest["target_articles"], manifest["total_articles"]
         require(type(target) is int and target > 0, "Invalid article target")
         require(type(total) is int and 0 <= total <= target, "Article count exceeds target or is invalid")
@@ -144,8 +186,19 @@ def validate(root: Path) -> dict:
             require(isinstance(latest["status"], str) and bool(latest["status"].strip()), "Missing latest run status")
             require(isinstance(latest["sources"], dict), "Invalid latest source reports")
             run_start, run_end = timestamp(latest["start"]), timestamp(latest["end"])
-            require(run_end - run_start == timedelta(hours=run_lookback(latest)) and run_end <= end,
-                    "Invalid latest run window")
+            if latest.get("collection_mode") == "archive_import":
+                receipt = archives.get(latest.get("archive_import_id"))
+                require(receipt is not None and latest.get("scope") == "selected"
+                        and latest.get("selected_sources") == ["Financial Times"]
+                        and latest.get("execution_location") == "archive_import"
+                        and latest.get("health_preserved") is True and latest["sources"] == {},
+                        "Invalid historical import run")
+                require(run_start == timestamp(receipt["publication_window"]["start"])
+                        and run_end == timestamp(receipt["publication_window"]["end"]) and run_end <= end
+                        and latest.get("inserted") == receipt["inserted"], "Archive run differs from receipt")
+            else:
+                require(run_end - run_start == timedelta(hours=run_lookback(latest)) and run_end <= end,
+                        "Invalid latest run window")
             before, after, inserted = latest["before"], latest["after"], latest["inserted"]
             require(all(type(value) is int for value in (before, after, inserted)) and
                     0 <= before <= after == total and inserted == after - before,
@@ -159,6 +212,14 @@ def validate(root: Path) -> dict:
         require(len(rows) == manifest["total_articles"], "Article count differs from manifest")
         require(len({row["url"] for row in rows}) == len(rows), "Duplicate URLs")
         require(len({row["article_id"] for row in rows}) == len(rows), "Duplicate article identifiers")
+        by_id = {row["article_id"]: row for row in rows}
+        archive_ids = {ident for receipt in archives.values() for ident in receipt["inserted_article_ids"]}
+        for receipt in archives.values():
+            for ident in receipt["inserted_article_ids"]:
+                row = by_id.get(ident)
+                require(row is not None and row["source"] == "Financial Times", "Imported archive article missing")
+                require(timestamp(receipt["publication_window"]["start"]) <= timestamp(row["publish_time"])
+                        <= timestamp(receipt["publication_window"]["end"]), "Archive article outside receipt window")
         actual_counts = dict(Counter(row["source"] for row in rows))
         expected_counts = {source: detail["article_count"] for source, detail in manifest["sources"].items()}
         require(set(actual_counts) <= expected_counts.keys(), "Unknown or unconfigured article source")
@@ -183,11 +244,17 @@ def validate(root: Path) -> dict:
             require(canonical == row["url"], f"Noncanonical URL: {row['url']}")
             require(row["article_id"] == hashlib.sha256(row["url"].encode("utf-8")).hexdigest()[:32], "Article identifier mismatch")
             published, crawled = timestamp(row["publish_time"]), timestamp(row["crawl_time"])
+            if manifest["format_version"] == 2 and published < seed_start:
+                require(row["source"] == "Financial Times" and row["article_id"] in archive_ids,
+                        "Pre-seed article lacks an explicit FT archive receipt")
             require(start <= published <= end, f"Publication outside window: {row['url']}")
             require(published.utcoffset() == timedelta(hours=8) and crawled.utcoffset() == timedelta(hours=8), "Unexpected time zone")
             require(crawled >= published, f"Crawl precedes publication: {row['url']}")
         info = dict(db.execute("SELECT key, value FROM collection_info"))
         check_metadata(info)
+        if archives:
+            require(json.loads(info.get("archive_imports", "null")) == manifest["archive_imports"],
+                    "Stored archive metadata differs from manifest")
         require(not any(LOCAL_PATH.search(value) for value in info.values()), "Local absolute path in collection_info")
         require(timestamp(info["requested_start"]) == start and timestamp(info["requested_end"]) == end, "Stored window differs from manifest")
         require(int(info["total_articles"]) == len(rows), "Stored article count differs")

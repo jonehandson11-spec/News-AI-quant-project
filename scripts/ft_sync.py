@@ -160,6 +160,21 @@ def _snapshot(root: Path, directory: Path) -> dict:
         output = staging / relative
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(content)
+    # Archive receipts extend the fixed snapshot without allowing arbitrary
+    # manifest paths to copy local files or export other repository content.
+    imports = read_json(staging / "data/manifest.json").get("archive_imports", [])
+    if not isinstance(imports, list):
+        raise SyncError("invalid_archive_receipt")
+    for entry in imports:
+        ident = entry.get("import_id") if isinstance(entry, dict) else None
+        if not isinstance(ident, str) or not re.fullmatch(r"[0-9a-f]{64}", ident):
+            raise SyncError("invalid_archive_receipt")
+        relative = f"data/import_reports/ft_archive_{ident}.json"
+        if entry.get("report") != relative:
+            raise SyncError("invalid_archive_receipt")
+        output = staging / relative
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(_git(root, "show", parent + ":" + relative).stdout)
     validate(staging)
     return {"main_sha": parent, "base_tree_sha": tree, "staging_root": str(staging)}
 

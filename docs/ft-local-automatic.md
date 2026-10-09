@@ -1,6 +1,6 @@
 # 本机 FT 自动采集和上传
 
-FT 由这台 Windows 电脑上的 Python 程序采集，独立 SSH 密钥把批次上传到原仓库 `jonehandson11-spec/News-AI-quant-project`。GitHub Actions 将批次去重后追加到 `main` 的 `data/news.sqlite3`，与 BBC、新浪共用 `news` 表和 3000 条总上限。无需 Codex 参与每次运行。
+FT 由这台 Windows 电脑上的 Python 程序采集，独立 SSH 密钥把批次上传到原仓库 `jonehandson11-spec/News-AI-quant-project`。GitHub Actions 将批次去重后追加到 `main` 的 `data/news.sqlite3`，与 BBC、新浪共用 `news` 表和 `crawl_config.json` 设定的总上限（初始 3000 条，明确批准的历史补录可提高上限）。无需 Codex 参与每次运行。
 
 2026-10-09 接入用户提供的 `ftnews_ltc.zip` 版本：正文提取改用原脚本的 `trafilatura.extract`，设置为 `favor_precision=True`、关闭评论和表格提取，保留至少 600 字符的要求。依赖固定为 `trafilatura==2.3.1`；部署代码后在原 Python 环境执行 `python -m pip install -r requirements.txt`。现有 13 个 RSS 栏目与附件相同；页面改版后不再因缺少旧正文 CSS 标记就直接丢弃，而由提取器识别可见正文。显式订阅拦截仍停止；隐藏节点、脚本及数据属性中的内容不作为正文，文章原始发布时间仍由页面元数据验证。
 
@@ -17,7 +17,7 @@ Windows 任务名为 `FT Local Collect and GitHub Sync`。每小时检查一次�
 - 运行状态：`D:\news_crawlers\ft-sync\autorun-result.json`
 - 安全摘要日志：`D:\news_crawlers\ft-sync\autorun-log.jsonl`
 
-在 PowerShell 中运行 `& 'D:\news_crawlers\github-verified\scripts\run_ft_windows.ps1'` 可立即检查当前周期。加 `-Backfill` 可手动补最近 120 小时，加 `-ResumeOnly` 只恢复待上传或待确认批次，加 `-Check` 仅检查配置。补录发现范围为配置的 RSS 与有限栏目页，不保证 FT 全站完整归档，也不保证凑满 3000 条。
+在 PowerShell 中运行 `& 'D:\news_crawlers\github-verified\scripts\run_ft_windows.ps1'` 可立即检查当前周期。加 `-Backfill` 可手动补最近 120 小时，加 `-ResumeOnly` 只恢复待上传或待确认批次，加 `-Check` 仅检查配置。补录发现范围为配置的 RSS 与有限栏目页，不保证 FT 全站完整归档，也不保证达到配置中的目标数量。
 
 默认请求间隔 10 秒，遇到 429 立即停止，并至少冷却一小时；如 FT 的 Retry-After 要求更久，则等待更久。冷却期间仍可上传已保存批次。程序不绕过登录、订阅、robots 或访问限制。浏览器能读某篇正文，并不能保证 RSS 与程序请求也获准。自动化不会消除 FT 的服务端限流。
 
@@ -34,3 +34,7 @@ Windows 上，确认完整正文可读后，程序会用当前 Windows 用户的
 GitHub 导入记录分别显示 **Import**（合并和保存是否成功）与 **Submitted batch collection**（这批文章的采集状态）。已成功保存的批次如果部分文章采集失败，会保留具体原因并显示 warning，不再把成功导入标为失败。真实合并、校验、推送失败仍会标红；采集端登录或订阅问题、403、429 的停止机制和本机通知继续生效。报告仅保留严格验证的公开 FT 原文链接，方便检查具体出错页面，不包含登录参数或私密文件信息。
 
 安装或重新注册本机任务：运行 `scripts\install_ft_windows.ps1`。程序使用原仓库唯一的 `codex/ft-inbox` 收件分支，不创建额外仓库。
+
+用户提供的旧 `ft_news.db` 可以单独历史补录：`scripts/ft_archive.py prepare` 只读提取文章，按附件原程序的北京时间解释无时区时间，排除过短正文、订阅宣传文本及重复记录。准备出的 `incoming/ft-archive.json` 由 `codex/ft-archive-inbox` 分支触发 `Merge supplied FT archive`，与每日采集使用同一并发锁，在云端最新数据库上追加；不从本机覆盖共享数据库。
+
+历史补录保留所有旧文章，将上限提高至合并后的实际总量（若已有更高上限则保留），同时更新 SQLite、CSV、统计及哈希。补录来源、拒收数量、原始数据库摘要和文章编号记录在 `data/import_reports/`。原始 48 小时种子窗口保持不变，累计覆盖区间按补录记录扩展；附件中的发布时间来自 RSS，未重新请求文章页面核验。历史补录不更新 FT 的实时采集健康状态，也不表示登录或 403 问题已恢复。重复提交同一批次不会重复入库。
