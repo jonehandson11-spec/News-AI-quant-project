@@ -1,6 +1,6 @@
 {
-  "target_articles": 3000,
-  "total_articles": 3000,
+  "target_articles": 3138,
+  "total_articles": 3138,
   "remaining_articles": 0,
   "completed": true,
   "schedule": {
@@ -9,113 +9,26 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-06T20:10:37+08:00",
-    "start": "2026-10-04T20:10:37+08:00",
-    "end": "2026-10-06T20:10:37+08:00",
-    "sources": {
-      "Financial Times": {
-        "status": "not_needed",
-        "counts": {
-          "inserted": 0
-        },
-        "reason": "collected_locally"
-      },
-      "BBC News": {
-        "status": "complete",
-        "counts": {
-          "discovered": 287,
-          "known": 57,
-          "skipped": 48,
-          "outside_window": 84,
-          "success": 98,
-          "failed": 0,
-          "deferred": 0,
-          "inserted": 98
-        },
-        "errors": [],
-        "source": "BBC News",
-        "scope": "BBC News official section RSS feeds",
-        "feeds": [
-          {
-            "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
-            "status": "complete",
-            "discovered": 26
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/rss.xml",
-            "status": "complete",
-            "discovered": 32
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
-            "status": "complete",
-            "discovered": 40
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
-            "status": "complete",
-            "discovered": 51
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
-            "status": "complete",
-            "discovered": 59
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
-            "status": "complete",
-            "discovered": 21
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
-            "status": "complete",
-            "discovered": 37
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
-            "status": "complete",
-            "discovered": 25
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
-            "status": "complete",
-            "discovered": 52
-          }
-        ],
-        "stopped": false,
-        "publication_basis": "public article JSON-LD datePublished"
-      },
-      "新浪财经": {
-        "status": "complete",
-        "counts": {
-          "pages": 9,
-          "discovered": 448,
-          "skipped_known": 0,
-          "skipped_window": 0,
-          "invalid": 0,
-          "fetched": 448,
-          "yielded": 448,
-          "requests": 459,
-          "network_errors": 0,
-          "robots_denied": 0,
-          "errors": 0,
-          "inserted": 448
-        },
-        "errors": []
-      }
-    },
-    "scope": "all",
+    "collection_mode": "archive_import",
+    "scope": "selected",
     "selected_sources": [
-      "BBC News",
-      "新浪财经"
+      "Financial Times"
     ],
-    "execution_location": "github_actions",
-    "before": 2454,
-    "after": 3000,
-    "inserted": 546,
+    "execution_location": "archive_import",
+    "sources": {},
+    "health_preserved": true,
+    "archive_import_id": "1896a9bcd29f09b0ae097619926c8f50f5886e071c4002b46fc3134ecdb9a841",
+    "started_at": "2026-10-09T16:58:17.065194+08:00",
+    "finished_at": "2026-10-09T16:58:17.065194+08:00",
+    "merged_at": "2026-10-09T16:58:17.065194+08:00",
+    "start": "2026-09-10T12:00:00+08:00",
+    "end": "2026-09-21T05:47:35+08:00",
+    "before": 3000,
+    "after": 3138,
+    "inserted": 138,
+    "duplicates": 0,
     "status": "success",
-    "target_reached": true,
-    "finished_at": "2026-10-06T20:24:43+08:00"
+    "target_reached": true
   },
   "next_scheduled_at": null
 }

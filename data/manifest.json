@@ -4,15 +4,15 @@
   "database": "data/news.sqlite3",
   "csv": "data/news.csv",
   "snapshot_created_at": "2026-09-27T21:15:52+08:00",
-  "package_created_at": "2026-10-06T12:10:37+00:00",
+  "package_created_at": "2026-10-09T08:58:17.065194+00:00",
   "publication_window": {
-    "start": "2026-09-25T21:07:26+08:00",
+    "start": "2026-09-10T12:00:00+08:00",
     "end": "2026-10-06T20:10:37+08:00",
     "inclusive": true
   },
-  "window_hours": 263.05305555555555,
+  "window_hours": 632.1769444444444,
   "time_zone": "UTC+08:00 (Beijing)",
-  "total_articles": 3000,
+  "total_articles": 3138,
   "fields": [
     "article_id",
     "source",
@@ -43,29 +43,29 @@
     },
     "Financial Times": {
       "report": "data/source_reports/ft.json",
-      "article_count": 150,
-      "earliest_publish_time": "2026-09-27T16:42:33.164000+08:00",
+      "article_count": 288,
+      "earliest_publish_time": "2026-09-10T12:00:00+08:00",
       "latest_publish_time": "2026-10-03T19:00:00.612000+08:00"
     }
   },
   "coverage_limit": "Cumulative BBC multi-section RSS, Sina Finance roll-feed, and Financial Times RSS/category articles; bounded discovery, not a complete archive",
-  "filters": "Cumulative unique URLs; original page publication time; new daily articles must fall within the configured lookback window",
+  "filters": "Cumulative unique URLs; daily collection uses original page publication time within the configured lookback; explicitly imported FT archives retain supplied RSS timestamps with separate provenance receipts",
   "automatic_refresh": false,
   "artifacts": [
     {
       "path": "data/news.sqlite3",
-      "bytes": 11808768,
-      "sha256": "aab72a777ca63fb19ec511608c1350664be935d4236baba14f6e9bf50465ec58"
+      "bytes": 12652544,
+      "sha256": "996b5ce2e2a8770198b343bef57ef3c52c5d0d50dcadb191de5d02d288f68d24"
     },
     {
       "path": "data/news.csv",
-      "bytes": 9144039,
-      "sha256": "7a0a391fa998572005a0947ad3d3623b51c043ea14b2f1b0d45981c3a97a0340"
+      "bytes": 9843317,
+      "sha256": "63255087619f3480e2b26f33c03ed8407f9e31c3cab0653d3ef47124edc55641"
     },
     {
       "path": "data/progress.json",
-      "bytes": 3267,
-      "sha256": "85c404bc6e247abb7f5def3f363408b6cbfe1643bb5edc4377b61e38df11a5d2"
+      "bytes": 952,
+      "sha256": "03e3206049b23537614fefa9a8a4f89406261a277bea9d9b7a475525f7f5b2f7"
     },
     {
       "path": "schema.sql",
@@ -75,17 +75,22 @@
     {
       "path": "data/source_reports/bbc.json",
       "bytes": 2562,
-      "sha256": "025cb895c7e5303e76c85b718df0a90a848f3fbfeb5285b50e3459185782a09e"
+      "sha256": "d9d21f7b1577848eac8349dbc18f6d3bd97eaae177dd13f8f666ab848ee05a1f"
     },
     {
       "path": "data/source_reports/sina.json",
       "bytes": 1280,
-      "sha256": "4fb2dee70f20ad88c392b1a7f3a9f28aae3684b0654af95dc38a37c48d3bcda4"
+      "sha256": "5f5d231b202891cd4cd45eff8be00354beabd7155750f857fc4254c22e3d8237"
     },
     {
       "path": "data/source_reports/ft.json",
       "bytes": 1911,
-      "sha256": "e5ea909761ce89968c52c810fb1d5ce907934ce769eefc41bf6a45a2a395e171"
+      "sha256": "12a2b3c810305b2030b2b182f2b5c6b2bd56cbed8740cab9a898ba4233b59c2c"
+    },
+    {
+      "path": "data/import_reports/ft_archive_1896a9bcd29f09b0ae097619926c8f50f5886e071c4002b46fc3134ecdb9a841.json",
+      "bytes": 6351,
+      "sha256": "52b9de4a9634444d7539c17c141a6dbdcc5a856ac4e79335043d7b829e484f22"
     }
   ],
   "collection_mode": "cumulative",
@@ -95,7 +100,7 @@
     "inclusive": true
   },
   "daily_lookback_hours": 48,
-  "target_articles": 3000,
+  "target_articles": 3138,
   "target_reached": true,
   "remaining_articles": 0,
   "schedule": {
@@ -104,113 +109,49 @@
     "cron_utc": "0 12 * * *"
   },
   "latest_run": {
-    "started_at": "2026-10-06T20:10:37+08:00",
-    "start": "2026-10-04T20:10:37+08:00",
-    "end": "2026-10-06T20:10:37+08:00",
-    "sources": {
-      "Financial Times": {
-        "status": "not_needed",
-        "counts": {
-          "inserted": 0
-        },
-        "reason": "collected_locally"
-      },
-      "BBC News": {
-        "status": "complete",
-        "counts": {
-          "discovered": 287,
-          "known": 57,
-          "skipped": 48,
-          "outside_window": 84,
-          "success": 98,
-          "failed": 0,
-          "deferred": 0,
-          "inserted": 98
-        },
-        "errors": [],
-        "source": "BBC News",
-        "scope": "BBC News official section RSS feeds",
-        "feeds": [
-          {
-            "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
-            "status": "complete",
-            "discovered": 26
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/rss.xml",
-            "status": "complete",
-            "discovered": 32
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/uk/rss.xml",
-            "status": "complete",
-            "discovered": 40
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
-            "status": "complete",
-            "discovered": 51
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/politics/rss.xml",
-            "status": "complete",
-            "discovered": 59
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
-            "status": "complete",
-            "discovered": 21
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
-            "status": "complete",
-            "discovered": 37
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
-            "status": "complete",
-            "discovered": 25
-          },
-          {
-            "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
-            "status": "complete",
-            "discovered": 52
-          }
-        ],
-        "stopped": false,
-        "publication_basis": "public article JSON-LD datePublished"
-      },
-      "新浪财经": {
-        "status": "complete",
-        "counts": {
-          "pages": 9,
-          "discovered": 448,
-          "skipped_known": 0,
-          "skipped_window": 0,
-          "invalid": 0,
-          "fetched": 448,
-          "yielded": 448,
-          "requests": 459,
-          "network_errors": 0,
-          "robots_denied": 0,
-          "errors": 0,
-          "inserted": 448
-        },
-        "errors": []
-      }
-    },
-    "scope": "all",
+    "collection_mode": "archive_import",
+    "scope": "selected",
     "selected_sources": [
-      "BBC News",
-      "新浪财经"
+      "Financial Times"
     ],
-    "execution_location": "github_actions",
-    "before": 2454,
-    "after": 3000,
-    "inserted": 546,
+    "execution_location": "archive_import",
+    "sources": {},
+    "health_preserved": true,
+    "archive_import_id": "1896a9bcd29f09b0ae097619926c8f50f5886e071c4002b46fc3134ecdb9a841",
+    "started_at": "2026-10-09T16:58:17.065194+08:00",
+    "finished_at": "2026-10-09T16:58:17.065194+08:00",
+    "merged_at": "2026-10-09T16:58:17.065194+08:00",
+    "start": "2026-09-10T12:00:00+08:00",
+    "end": "2026-09-21T05:47:35+08:00",
+    "before": 3000,
+    "after": 3138,
+    "inserted": 138,
+    "duplicates": 0,
     "status": "success",
-    "target_reached": true,
-    "finished_at": "2026-10-06T20:24:43+08:00"
+    "target_reached": true
   },
-  "last_full_run_at": "2026-10-06T20:10:37+08:00"
+  "last_full_run_at": "2026-10-06T20:10:37+08:00",
+  "archive_imports": [
+    {
+      "import_id": "1896a9bcd29f09b0ae097619926c8f50f5886e071c4002b46fc3134ecdb9a841",
+      "source": "Financial Times",
+      "source_file": "ft_news.db",
+      "source_sha256": "97a9f890bcf9ecb255267a8e030a4ad9ba7d696585655a871c92b77c2254dd9c",
+      "source_records": 142,
+      "accepted_records": 138,
+      "inserted": 138,
+      "duplicates": 0,
+      "rejected_counts": {
+        "promotional_content": 4
+      },
+      "publication_window": {
+        "start": "2026-09-10T12:00:00+08:00",
+        "end": "2026-09-21T05:47:35+08:00",
+        "inclusive": true
+      },
+      "imported_at": "2026-10-09T16:58:17.065194+08:00",
+      "report": "data/import_reports/ft_archive_1896a9bcd29f09b0ae097619926c8f50f5886e071c4002b46fc3134ecdb9a841.json",
+      "publication_basis": "Supplied archive RSS timestamps in Asia/Shanghai; not reverified against article pages"
+    }
+  ]
 }
