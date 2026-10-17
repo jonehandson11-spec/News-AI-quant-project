@@ -16,9 +16,10 @@ const fixture = header + [
   "1211.HK,minute,2026-10-05T10:01:00+08:00,121",
 ].join("\n");
 
-test("asset names and arbitrary Hong Kong tickers resolve", () => {
+test("only the first seven assets resolve", () => {
   assert.equal(resolveAsset("比亚迪"), "1211.HK");
-  assert.equal(resolveAsset("HK.02318"), "2318.HK");
+  assert.equal(resolveAsset("南方恒生科技 ETF"), "3033.HK");
+  assert.throws(() => resolveAsset("HK.02318"), /首版仅支持/);
   assert.throws(() => resolveAsset("电动车"), /未知港股/);
   assert.equal(hongKongInputToIso("2026-09-28T10:00"), "2026-09-28T10:00:00+08:00");
 });

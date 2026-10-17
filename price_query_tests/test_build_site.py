@@ -22,6 +22,8 @@ class SiteBuildTests(unittest.TestCase):
             self.assertEqual(manifest["news_articles_total"], 1)
             self.assertEqual(index["matches"][0]["ticker"], "1211.HK")
             self.assertTrue((output / "local-prices.mjs").exists())
+            self.assertIn("priceFile", (output / "index.html").read_text(encoding="utf-8"))
+            self.assertNotIn("./api/query", (output / "app.mjs").read_text(encoding="utf-8"))
             self.assertNotIn("private body text", (output / "news-index.json").read_text(encoding="utf-8"))
             self.assertFalse((output / "price-history.csv").exists())
 

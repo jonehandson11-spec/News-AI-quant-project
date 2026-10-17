@@ -9,6 +9,7 @@ export const ASSETS = [
   { ticker: "0981.HK", names: ["中芯国际", "SMIC"] },
   { ticker: "0005.HK", names: ["汇丰", "汇丰控股", "HSBC"] },
   { ticker: "2800.HK", names: ["盈富基金"] },
+  { ticker: "3033.HK", names: ["南方恒生科技 ETF", "南方恒生科技ETF", "恒生科技ETF"] },
 ];
 
 export function resolveAsset(name) {
@@ -21,9 +22,10 @@ export function resolveAsset(name) {
   const match = /^(?:([0-9]{1,5})\.hk|hk\.([0-9]{1,5}))$/.exec(key);
   if (match) {
     const number = Number(match[1] || match[2]);
-    if (number > 0) return `${String(number).padStart(4, "0")}.HK`;
+    const ticker = `${String(number).padStart(4, "0")}.HK`;
+    if (ASSETS.some((asset) => asset.ticker === ticker)) return ticker;
   }
-  throw new Error(`未知港股：${name}。请输入已登记名称或港股代码（例如 2318.HK）。`);
+  throw new Error(`未知港股：${name}。首版仅支持表内七个标的。`);
 }
 
 function csvRows(text) {

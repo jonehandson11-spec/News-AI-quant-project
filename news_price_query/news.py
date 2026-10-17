@@ -43,32 +43,37 @@ def _published(value: str, *, bbc: bool) -> datetime:
     return parsed.astimezone(HK)
 
 
-def read_news(path: str | Path) -> list[NewsItem]:
-    """Read the team's current eight-column CSV or the BBC six-column export."""
+def parse_news(handle) -> list[NewsItem]:
+    """Parse the team's eight-column CSV or the BBC six-column export."""
     items: list[NewsItem] = []
-    with Path(path).open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        fields = set(reader.fieldnames or ())
-        team = TEAM_FIELDS.issubset(fields)
-        bbc = BBC_FIELDS.issubset(fields)
-        if not team and not bbc:
-            raise ValueError("Unknown news CSV schema; expected team eight-column or BBC six-column export")
-        for row_number, row in enumerate(reader, 2):
-            try:
-                url = row["url"].strip()
-                article_id = row["article_id"].strip() if team else sha256(url.encode("utf-8")).hexdigest()[:32]
-                items.append(NewsItem(
-                    article_id=article_id,
-                    source=(row["source"] if team else row["source_website"]).strip(),
-                    title=row["title"].strip(),
-                    content=row["content"] or "",
-                    published_at=_published(row["publish_time"], bbc=bbc and not team),
-                    url=url,
-                    language=(row["language"] if team else "en").strip(),
-                ))
-            except (KeyError, AttributeError, ValueError) as exc:
-                raise ValueError(f"Invalid news row {row_number}: {exc}") from exc
+    reader = csv.DictReader(handle)
+    fields = set(reader.fieldnames or ())
+    team = TEAM_FIELDS.issubset(fields)
+    bbc = BBC_FIELDS.issubset(fields)
+    if not team and not bbc:
+        raise ValueError("Unknown news CSV schema; expected team eight-column or BBC six-column export")
+    for row_number, row in enumerate(reader, 2):
+        try:
+            url = row["url"].strip()
+            article_id = row["article_id"].strip() if team else sha256(url.encode("utf-8")).hexdigest()[:32]
+            items.append(NewsItem(
+                article_id=article_id,
+                source=(row["source"] if team else row["source_website"]).strip(),
+                title=row["title"].strip(),
+                content=row["content"] or "",
+                published_at=_published(row["publish_time"], bbc=bbc and not team),
+                url=url,
+                language=(row["language"] if team else "en").strip(),
+            ))
+        except (KeyError, AttributeError, ValueError) as exc:
+            raise ValueError(f"Invalid news row {row_number}: {exc}") from exc
     return items
+
+
+def read_news(path: str | Path) -> list[NewsItem]:
+    """Read news from a local CSV file."""
+    with Path(path).open("r", encoding="utf-8-sig", newline="") as handle:
+        return parse_news(handle)
 
 
 def _contains(text: str, alias: str) -> bool:
