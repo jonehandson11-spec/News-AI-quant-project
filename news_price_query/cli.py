@@ -13,6 +13,7 @@ from .assets import resolve_asset
 from .news import find_direct_match, read_news
 from .prices import CsvPriceProvider, FutuPriceProvider
 from .query import query_event
+from .windows import TradingWindowConfig, window_label_zh
 
 
 HK = ZoneInfo("Asia/Hong_Kong")
@@ -33,6 +34,20 @@ def _provider(args):
             raise ValueError("--prices is required with --provider csv")
         return CsvPriceProvider(args.prices)
     return FutuPriceProvider(host=args.futu_host, port=args.futu_port)
+
+
+def _days(value: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(part) for part in value.split(",") if part.strip())
+    except ValueError as exc:
+        raise ValueError(f"Window days must be comma-separated integers: {value}") from exc
+
+
+def _query_options(args) -> dict:
+    if args.mode != "daily":
+        return {}
+    config = TradingWindowConfig(before_days=_days(args.before_days), after_days=_days(args.after_days))
+    return {"mode": "daily", "config": config}
 
 
 def _output_path(value: str) -> Path:
@@ -56,7 +71,8 @@ def _result_dict(result, *, news=None, match=None, benchmark=None) -> dict:
         },
         "windows": {
             item.label: {
-                "target_at": item.target_at.isoformat(),
+                "label_zh": window_label_zh(item.label),
+                "target_at": item.target_at.isoformat() if item.target_at else None,
                 "observed_at": item.observed_at.isoformat() if item.observed_at else None,
                 "price": item.price,
                 "return_pct": item.return_pct,
@@ -68,6 +84,10 @@ def _result_dict(result, *, news=None, match=None, benchmark=None) -> dict:
             for item in result.windows
         },
     }
+    if result.mode == "daily":
+        payload["mode"] = "daily"
+        payload["session"] = result.session
+        payload["t0"] = result.t0.isoformat()
     if news:
         payload.update({
             "article_id": news.article_id, "title": news.title,
@@ -115,6 +135,13 @@ def _add_common(parser):
     parser.add_argument("--futu-host", default="127.0.0.1")
     parser.add_argument("--futu-port", type=int, default=11111)
     parser.add_argument("--benchmark", help="Optional benchmark ETF, such as 2800.HK")
+    parser.add_argument("--mode", choices=("minute", "daily"), default="minute",
+                        help="minute: original clock-time windows (needs minute bars); "
+                             "daily: HKEX trading-day windows from daily closes")
+    parser.add_argument("--before-days", default="5,21,63,126",
+                        help="Daily mode: trading days before the baseline day")
+    parser.add_argument("--after-days", default="1,3,5",
+                        help="Daily mode: t+K trading days after t0")
 
 
 def _parser():
@@ -225,9 +252,10 @@ def main(argv=None) -> int:
         if benchmark_asset is not None and benchmark_asset.role != "benchmark":
             raise ValueError("--benchmark must be a registered benchmark ETF")
         provider = _provider(args)
+        options = _query_options(args)
         if args.command == "query":
-            result = query_event(provider, asset, event_time, as_of=as_of)
-            comparison = query_event(provider, benchmark_asset, event_time, as_of=as_of) if benchmark_asset else None
+            result = query_event(provider, asset, event_time, as_of=as_of, **options)
+            comparison = query_event(provider, benchmark_asset, event_time, as_of=as_of, **options) if benchmark_asset else None
             print(json.dumps(_result_dict(result, benchmark=comparison), ensure_ascii=False, indent=2))
             return 0
         articles = read_news(args.news)
@@ -236,8 +264,8 @@ def main(argv=None) -> int:
         failures = 0
         for item, match in matched:
             try:
-                result = query_event(provider, asset, item.published_at, as_of=as_of)
-                comparison = query_event(provider, benchmark_asset, item.published_at, as_of=as_of) if benchmark_asset else None
+                result = query_event(provider, asset, item.published_at, as_of=as_of, **options)
+                comparison = query_event(provider, benchmark_asset, item.published_at, as_of=as_of, **options) if benchmark_asset else None
                 output.append(_result_dict(result, news=item, match=match, benchmark=comparison))
             except ValueError as exc:
                 failures += 1

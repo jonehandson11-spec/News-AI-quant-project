@@ -1,0 +1,5 @@
+date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_url,note
+2023-09-01,0,0,,,,,weather: Typhoon Signal No. 8 (Saola),https://www.hkex.com.hk/News/Market-Communications/2023/2309012news?sc_lang=en,All securities and derivatives sessions cancelled; missing from XHKG
+2023-09-08,0,0,,,,,weather: Black Rainstorm Warning and Extreme Conditions,https://www.hkex.com.hk/News/Market-Communications/2023/2309083news?sc_lang=en,All securities and derivatives sessions cancelled; missing from XHKG
+2023-10-09,1,0,14:00,,,16:00,weather: morning session cancelled (Typhoon Signal No. 8 and Black Rainstorm),https://www.hkex.com.hk/News/Market-Communications/2023/2310092news?sc_lang=en,Trading resumed 14:00 with no pre-opening session; XHKG shows a normal day
+2026-10-19,0,0,,,,,holiday: The day following Chung Yeung Festival,https://www.gov.hk/en/about/abouthk/holiday/2026.htm,Confirmed against the gazetted 2026 general holiday list; XHKG agrees
