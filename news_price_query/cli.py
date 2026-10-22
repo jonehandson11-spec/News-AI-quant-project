@@ -29,6 +29,10 @@ def _time(value: str, zone: str | None) -> datetime:
 
 
 def _provider(args):
+    if args.provider == "local":
+        from .price_store import LocalDbPriceProvider
+
+        return LocalDbPriceProvider(args.db)
     if args.provider == "csv":
         if not args.prices:
             raise ValueError("--prices is required with --provider csv")
@@ -128,7 +132,9 @@ def _result_dict(result, *, news=None, match=None, benchmark=None) -> dict:
 
 def _add_common(parser):
     parser.add_argument("--asset", required=True, help="Asset name or HK ticker")
-    parser.add_argument("--provider", choices=("csv", "futu"), default="csv")
+    parser.add_argument("--provider", choices=("csv", "futu", "local"), default="csv",
+                        help="local = SQLite price store filled by scripts/update_prices.py (daily only)")
+    parser.add_argument("--db", help="Local price store path (default ~/.news_price_query/prices.sqlite3)")
     parser.add_argument("--prices", help="CSV with ticker,interval,timestamp,close")
     parser.add_argument("--as-of", help="Reproducible cutoff, ISO 8601 with offset")
     parser.add_argument("--timezone", help="Required for a manual time with no offset")
@@ -249,10 +255,19 @@ def main(argv=None) -> int:
         as_of = _time(args.as_of, args.timezone) if args.as_of else datetime.now(HK)
         event_time = _time(args.time, args.timezone) if args.command == "query" else None
         benchmark_asset = resolve_asset(args.benchmark) if args.benchmark else None
+        if args.provider == "local" and args.mode != "daily":
+            raise ValueError("--provider local only has daily bars; add --mode daily")
         if benchmark_asset is not None and benchmark_asset.role != "benchmark":
             raise ValueError("--benchmark must be a registered benchmark ETF")
         provider = _provider(args)
         options = _query_options(args)
+        if args.command == "query" and args.mode == "daily" and args.provider == "local":
+            from .daily_report import DEFAULT_BENCHMARKS, daily_report
+
+            report = daily_report(provider, asset, event_time, as_of=as_of, config=options["config"],
+                                  benchmarks=(*DEFAULT_BENCHMARKS, *([benchmark_asset.ticker] if benchmark_asset else [])))
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0
         if args.command == "query":
             result = query_event(provider, asset, event_time, as_of=as_of, **options)
             comparison = query_event(provider, benchmark_asset, event_time, as_of=as_of, **options) if benchmark_asset else None

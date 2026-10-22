@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="按新闻发布时间查询港股前后九个价格窗口，并保留实际取价时间和数据来源。">
+  <meta name="description" content="按新闻发布时间查询港股前后各交易日窗口的价格，并保留实际取价时间和数据来源。">
   <title>新闻 × 港股价格查询</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
@@ -18,7 +18,7 @@
     <section class="intro">
       <p class="eyebrow">NEWS / PRICE / TIME</p>
       <h1>新闻发布前后，<br><em>价格实际到了哪里？</em></h1>
-      <p class="lede">输入港股与新闻发布时间，查询前 1 个月、1 季度、半年，以及后 1 小时至 1 周的价格。每个结果都保留目标时间、实际取价时间和行情来源。</p>
+      <p class="lede">输入港股与新闻发布时间，按港交所交易日查询发布前约 1 周、1 个月、1 季度、半年，以及发布后第 1、3、5 个交易日的涨跌（原始与复权），并与盈富基金、恒生指数对照。每个结果都保留目标日期、实际取价日期和行情来源。</p>
       <div class="data-strip">
         <div><span class="strip-label">新闻索引</span><strong id="newsStatus">载入中…</strong></div>
         <div><span class="strip-label">自动行情</span><strong id="priceStatus">检查服务中…</strong></div>
@@ -40,7 +40,7 @@
             <option value="2800.HK">盈富基金 · 2800.HK</option>
             <option value="3033.HK">南方恒生科技 ETF · 3033.HK</option>
           </select>
-          <p class="field-help">首版限定五只公司股票和两只对照 ETF。</p>
+          <p class="field-help">已登记标的加上本地价格库股票池中的股票。</p>
 
           <label for="publishedAt">新闻发布时间 · 香港时间</label>
           <div class="time-presets" role="group" aria-label="按现在选择新闻发布时间">
@@ -57,7 +57,7 @@
 
           <div class="upload-box">
             <strong>自动获取价格</strong>
-            <p>查询时由内部服务连接富途 OpenD。需要运行服务的电脑已登录富途并具备历史行情权限；网页无需选择价格文件。</p>
+            <p id="sourceHelp">正在检查价格来源…</p>
           </div>
           <label class="checkbox"><input id="benchmarkMarket" type="checkbox" checked><span>比较盈富基金 2800.HK · 整体港股</span></label>
           <label class="checkbox"><input id="benchmarkTech" type="checkbox"><span>比较南方恒生科技 ETF 3033.HK · 科技板块</span></label>
@@ -81,9 +81,9 @@
 
     <section id="results" class="panel results-panel" hidden aria-labelledby="resultsHeading">
       <div class="results-head"><div><p class="eyebrow">RESULTS</p><h2 id="resultsHeading">价格窗口</h2><p id="resultSubtitle"></p></div><div class="download-actions"><button id="downloadJson" type="button">下载 JSON</button><button id="downloadCsv" type="button">下载 CSV</button></div></div>
-      <div class="baseline-card"><span>发布前最后一根已完成分钟线</span><strong id="baselinePrice">—</strong><small id="baselineDetail"></small></div>
-      <div class="table-scroll"><table><thead><tr><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>差价</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
-      <p class="result-note">新闻前差价＝发布前基准价－历史价格；新闻后差价＝后续价格－发布前基准价。差价单位与价格相同。涨跌幅为未复权价格收益率；休市顺延的取价不能解释为精确时长的价格变化。新闻与价格同时变化不代表因果关系。</p>
+      <div class="baseline-card"><span id="baselineLabel">发布前基准价</span><strong id="baselinePrice">—</strong><small id="baselineDetail"></small></div>
+      <div class="table-scroll"><table><thead><tr id="resultHead"><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>差价</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
+      <p class="result-note">日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。原始＝未除权收盘价（仅拆股调整），复权＝含分红调整。超额＝个股涨跌幅－对照涨跌幅（简单差值，不是市场模型）；恒生指数为价格指数，复权与原始相同。缺数据不按零处理。新闻与价格同时变化不代表因果关系。</p>
     </section>
   </main>
   <footer><span>新闻 × 港股价格查询 · 数据来源与时间始终随结果保留</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">查看源代码与使用说明 ↗</a></footer>

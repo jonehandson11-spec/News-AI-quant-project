@@ -1,5 +1,7 @@
 # 网页模式
 
+> 现在默认用**本地价格库 + 交易日窗口**（不需要富途 OpenD，也不用导入 CSV）。先按 [docs/price-store.md](../docs/price-store.md) 运行一次 `python scripts/update_prices.py --universe ...`，再 `python -m web.server`，打开 <http://127.0.0.1:8765/>。旧的富途分钟模式：`python -m web.server --provider futu --mode minute`。下文是旧版说明。
+
 本地网页地址是 <http://127.0.0.1:8765/>，需要先启动服务：Windows 在项目根目录双击 `START-WINDOWS.bat`，macOS／Linux 在项目根目录运行 `bash start-local.sh`。`index.html` 不能直接双击使用，因为查询需要 Python 服务连接富途 OpenD。首次安装、登录 OpenD 和团队共享步骤见[根目录说明](../README.md)。
 
 `index.html`、`app.mjs`、`server.py` 和 `service.py` 组成**团队内部自动取价网页**。

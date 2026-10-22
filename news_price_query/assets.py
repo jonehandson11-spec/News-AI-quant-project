@@ -24,13 +24,19 @@ ASSETS = (
 )
 
 
+# Price indexes used only as benchmarks (not listed securities).
+INDEXES = (
+    Asset("^HSI", "HK.800000", "benchmark", ("恒生指数", "恒指", "Hang Seng Index", "HSI")),
+)
+
+
 def _key(value: str) -> str:
     return "".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 
 _LOOKUP = {
     _key(alias): asset
-    for asset in ASSETS
+    for asset in (*ASSETS, *INDEXES)
     for alias in (asset.ticker, asset.futu_code, *asset.aliases)
 }
 

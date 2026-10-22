@@ -257,3 +257,8 @@ access-state.json*
 
 # Built GitHub Pages artifact
 /_site/
+
+# Local price database (news_price_query/price_store.py); never commit price data
+.news_price_query/
+prices.sqlite3
+prices.sqlite3-*
