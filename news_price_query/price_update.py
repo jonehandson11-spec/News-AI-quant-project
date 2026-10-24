@@ -14,7 +14,8 @@ from zoneinfo import ZoneInfo
 
 from .assets import market_of_ticker, resolve_asset
 from .daily_report import BENCHMARKS_BY_MARKET
-from .futures import METHOD as FUTURES_METHOD, roll_dates, root_for_ticker
+from .futures import (METHOD as FUTURES_METHOD, contract_ticker, front_contract,
+                      is_contract_ticker, next_contract, roll_dates, root_for_ticker)
 from .market_calendars import calendar_for
 from .price_store import DailyRow, FuturesRollRow, Instrument, PriceStore
 
@@ -54,6 +55,7 @@ class TickerSummary:
     dropped_unfinalized: list = field(default_factory=list)
     rebased: bool = False
     rolls: int = 0
+    derived_contract_rows: int = 0
     error: str | None = None
     skipped: str | None = None
 
@@ -96,7 +98,7 @@ def read_universe(path: str | Path) -> list[UniverseEntry]:
 
 def _clean(raw_rows, calendar, today: date, summary: TickerSummary):
     kept = []
-    futures = root_for_ticker(summary.ticker) is not None
+    futures = root_for_ticker(summary.ticker) is not None or is_contract_ticker(summary.ticker)
     for item in raw_rows:
         day = date.fromisoformat(item["date"])
         close = item.get("close")
@@ -164,6 +166,25 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
             if ticker not in known:
                 entries.append(_benchmark_entry(ticker))
                 known.add(ticker)
+    # Single futures contracts: the current front month and the next one, so their
+    # history is kept while Yahoo still lists them (expired contracts disappear there).
+    for entry in list(entries):
+        root = root_for_ticker(entry.ticker)
+        if root is None:
+            continue
+        try:
+            front = front_contract(root, now.astimezone(calendar_for("NYMEX").tz).date())
+        except ValueError:
+            continue
+        try:
+            label = resolve_asset(entry.ticker).name_zh or entry.ticker
+        except ValueError:
+            label = entry.ticker
+        for code in (front, next_contract(front)):
+            ticker = contract_ticker(code)
+            if ticker not in known:
+                entries.append(UniverseEntry(ticker, f"{label} {code}", (code,), "contract"))
+                known.add(ticker)
     today = now.astimezone(HK).date()
     run_id = store.start_run(source, universe_label, len(entries), now)
     fetched_at = now.isoformat()
@@ -183,7 +204,8 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
             # "Today" in the exchange's own time zone: that session may still be
             # running (or unfinalized), so it is excluded and picked up next run.
             today = now.astimezone(calendar.tz).date()
-            role = "futures" if root_for_ticker(entry.ticker) else entry.role
+            role = ("futures" if root_for_ticker(entry.ticker)
+                    else "contract" if is_contract_ticker(entry.ticker) else entry.role)
             store.upsert_instrument(Instrument(entry.ticker, market, currency, entry.name,
                                                entry.aliases, role))
             if entry.ticker in refetch_tickers:
@@ -231,12 +253,44 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
                         for item in detected])
         except (NotImplementedError, ValueError, RuntimeError, OSError) as exc:
             summary.error = str(exc)
+    for summary in summaries:
+        root = root_for_ticker(summary.ticker)
+        if root and not summary.error and not summary.skipped:
+            summary.derived_contract_rows = _derive_contract_rows(store, summary.ticker, root,
+                                                                  fetched_at, run_id)
+            written += summary.derived_contract_rows
     failures = [s for s in summaries if s.error]
     status = "ok" if not failures else ("partial" if len(failures) < len(summaries) else "failed")
     store.finish_run(run_id, datetime.now(HK), written, status,
                      f"{len(failures)} ticker(s) failed" if failures else None)
     return {"run_id": run_id, "status": status, "rows_written": written,
             "db": str(store.path), "tickers": summaries}
+
+
+def _derive_contract_rows(store: PriceStore, ticker: str, root: str, fetched_at: str, run_id: str) -> int:
+    """On days the roll rule says contract C was the front month, the continuous
+    series (e.g. BZ=F) is C's price. Store those as C's rows where no direct
+    single-contract row exists (direct Yahoo rows always win)."""
+    by_contract: dict[str, list] = {}
+    for row in store.rows(ticker):
+        try:
+            code = front_contract(root, date.fromisoformat(row.date))
+        except ValueError:
+            continue
+        by_contract.setdefault(code, []).append(row)
+    new_rows = []
+    for code, rows in by_contract.items():
+        target = contract_ticker(code)
+        have = {row.date for row in store.rows(target)}
+        missing = [row for row in rows if row.date not in have]
+        if not missing:
+            continue
+        if not have:
+            store.upsert_instrument(Instrument(target, "NYMEX", "USD", code, (code,), "contract"))
+        new_rows.extend(DailyRow(target, "NYMEX", "USD", row.date, row.close, row.close, row.volume,
+                                 f"derived:{ticker} front-month", fetched_at, run_id)
+                        for row in missing)
+    return store.upsert_rows(new_rows) if new_rows else 0
 
 
 def yfinance_downloader(ticker: str, start: str, end: str) -> list[dict]:

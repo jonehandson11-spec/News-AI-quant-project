@@ -112,6 +112,8 @@ def market_of_ticker(ticker: str) -> tuple[str, str]:
         if asset.data_status == "no_free_source" or not asset.queryable:
             raise NotImplementedError(f"{ticker}: no free data source")
         return asset.market, asset.currency
+    if re.fullmatch(r"(CL|HO|RB|BZ)[FGHJKMNQUVXZ]\d{2}\.NYM", upper):
+        return "NYMEX", "USD"  # Yahoo single futures contract, e.g. CLZ26.NYM
     if upper.endswith(".HK") or upper == "^HSI":
         return "XHKG", "HKD"
     if upper.endswith(".TO"):

@@ -4,7 +4,7 @@ const byId = (id) => document.getElementById(id);
 const state = { news: [], result: null, newsRequest: 0 };
 const statusText = {
   on_date: "目标日期", deferred_back: "前一交易日", on_time: "准时",
-  deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情",
+  deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情", expired: "合约已到期",
 };
 const flagText = { missing_data: "该交易日无行情（停牌或缺数据，无法区分）", zero_volume: "成交量为 0（零成交，或数据源缺成交量）", nonpositive_price: "价格≤0（如 2020-04-20 WTI 负结算价），收益率无意义" };
 const benchmarkName = {
@@ -101,12 +101,17 @@ function statusCell(tr, item) {
 
 function renderDaily(result) {
   const codes = Object.keys(result.benchmarks || {});
-  byId("baselineLabel").textContent = "发布前最后一个收盘价（基准）";
+  const contract = result.contract;
+  byId("baselineLabel").textContent = contract ? `发布前最后一个结算价（固定合约 ${contract.contract}）` : "发布前最后一个收盘价（基准）";
   byId("baselinePrice").textContent = showPrice(result.baseline.price);
   const adj = result.baseline.adj_price === null || result.baseline.adj_price === undefined ? "" : ` · 复权 ${showPrice(result.baseline.adj_price)}`;
   const flag = result.baseline.flag ? ` · ${flagText[result.baseline.flag] || result.baseline.flag}` : "";
   const localNote = result.market && result.market !== "XHKG" ? "（当地时间）" : "";
   byId("baselineDetail").textContent = `${showTime(result.baseline.observed_at)}${localNote} 收盘${adj} · 事件日 t0 = ${result.t0} · 发布时段 ${sessionText[result.session] || result.session}${flag}`;
+  if (contract) {
+    renderFutures(result, contract);
+    return;
+  }
   setHead(["窗口", "目标交易日收盘", "实际取价", "价格", "涨跌幅（原始）", "涨跌幅（复权）",
     ...codes.map((code) => `超额 vs ${benchmarkName[code] || code}（原始 / 复权）`), "状态"]);
   const body = byId("resultRows");
@@ -129,13 +134,49 @@ function renderDaily(result) {
     statusCell(tr, item);
     body.append(tr);
   }
+  renderSubtitle(result, codes);
+}
+
+function renderFutures(result, contract) {
+  const continuousBase = result.continuous_baseline?.price;
+  setHead(["窗口", "目标交易日结算", "实际取价", `价格（${contract.contract}）`, `涨跌幅（固定合约 ${contract.contract}）`,
+    `连续合约 ${result.ticker}（参考，基准 ${showPrice(continuousBase)}）`, "状态"]);
+  const body = byId("resultRows");
+  body.replaceChildren();
+  for (const [label, item] of Object.entries(result.windows)) {
+    const tr = document.createElement("tr");
+    addText(tr, "td", item.label_zh || WINDOW_LABELS[label] || label);
+    addText(tr, "td", showTime(item.target_at));
+    addText(tr, "td", showTime(item.observed_at));
+    addText(tr, "td", showPrice(item.price));
+    returnCell(tr, item.return_pct);
+    const ref = item.continuous || {};
+    const cell = document.createElement("td");
+    addText(cell, "span", `${showReturn(ref.return_pct)} · ${showPrice(ref.price)}`);
+    if (ref.crosses_roll) {
+      addText(cell, "span", "跨换月", "tag");
+      const rolls = ref.rolls || [];
+      const path = rolls.length ? `${rolls[0].from_contract}→${rolls[rolls.length - 1].to_contract}` : "";
+      addText(cell, "small", `换月 ${rolls.length} 次（${path}），含合约价差，仅供参考`, "comparison-note");
+    }
+    tr.append(cell);
+    statusCell(tr, item);
+    body.append(tr);
+  }
+  if (contract.error) byId("baselineDetail").textContent = `固定合约 ${contract.contract} 无基准价格（雅虎不提供已到期合约，且本地库未存到该日）：${contract.error}`;
+  renderSubtitle(result, []);
+}
+
+function renderSubtitle(result, codes) {
   const version = result.data_version ? ` · 数据版本 ${result.data_version.run_id}` : "";
+  const contractNote = result.contract
+    ? ` · 固定合约 ${result.contract.contract}（最后交易日 ${result.contract.last_trade_date}）` : "";
   const local = result.market && result.market !== "XHKG"
     ? ` = ${showTime(result.published_at_local)} 交易所当地时间（${result.exchange_timezone}）` : "";
   const currency = result.currency ? ` · 价格与涨跌幅以 ${result.currency} 计` : "";
   const unit = result.asset_type === "futures" && result.unit ? ` · 价格单位 ${unitText[result.unit] || result.unit}` : "";
   const noBench = codes.length === 0 ? ` · 无对照${result.market === "XSAU" ? "（沙特指数无免费历史数据）" : result.asset_type === "futures" ? "（期货）" : ""}` : "";
-  byId("resultSubtitle").textContent = `${result.ticker} · ${marketText[result.market] || result.market || "港交所"} · 新闻发布 ${showTime(result.published_at)} 香港时间${local}${currency}${unit}${noBench} · ${result.baseline.source}${version}`;
+  byId("resultSubtitle").textContent = `${result.ticker} · ${marketText[result.market] || result.market || "港交所"} · 新闻发布 ${showTime(result.published_at)} 香港时间${local}${currency}${unit}${contractNote}${noBench} · ${result.baseline.source || "—"}${version}`;
 }
 
 const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: "午休", afternoon: "下午盘", after_close: "收盘后", non_trading_day: "非交易日", regular_session: "交易时段内" };
@@ -198,12 +239,13 @@ function downloadCsv() {
   if (result.mode === "daily") {
     const codes = Object.keys(result.benchmarks || {});
     const headers = ["ticker", "published_at", "session", "t0", "baseline_at", "baseline_price", "baseline_adj_price",
-      "window", "target_at", "observed_at", "price", "adj_price", "return_pct", "adj_return_pct", "status", "flag", "crosses_roll", "rolls", "source",
+      "window", "target_at", "observed_at", "price", "adj_price", "return_pct", "adj_return_pct", "status", "flag", "contract", "continuous_price", "continuous_return_pct", "continuous_crosses_roll", "continuous_rolls", "source",
       ...codes.flatMap((code) => [`${code}_return_pct`, `${code}_excess_pct`, `${code}_adj_excess_pct`]), "data_version"];
     const rows = Object.entries(result.windows).map(([label, item]) => [
       result.ticker, result.published_at, result.session, result.t0, result.baseline.observed_at, result.baseline.price,
       result.baseline.adj_price, label, item.target_at, item.observed_at, item.price, item.adj_price, item.return_pct,
-      item.adj_return_pct, item.status, item.flag, item.crosses_roll, JSON.stringify(item.rolls || []), item.source,
+      item.adj_return_pct, item.status, item.flag, item.contract, item.continuous?.price, item.continuous?.return_pct,
+      item.continuous?.crosses_roll ?? item.crosses_roll, JSON.stringify(item.continuous?.rolls || item.rolls || []), item.source,
       ...codes.flatMap((code) => { const row = result.benchmarks[code].windows?.[label]; return [row?.return_pct, row?.excess_return_pct, row?.adj_excess_return_pct]; }),
       result.data_version?.run_id,
     ].map(quote).join(","));

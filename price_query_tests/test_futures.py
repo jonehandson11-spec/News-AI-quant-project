@@ -122,11 +122,19 @@ class FuturesIntegrationTests(unittest.TestCase):
         self.assertEqual(report["benchmarks"], {})
         self.assertEqual(report["unit"], "USD/bbl")
         self.assertEqual(report["asset_type"], "futures")
-        self.assertTrue(report["windows"]["after_t1"]["crosses_roll"])
-        self.assertEqual(report["windows"]["after_t1"]["rolls"][0]["to_contract"], "CLZ26")
-        self.assertTrue(report["windows"]["after_t1"]["adj_crosses_roll"])
-        self.assertAlmostEqual(report["windows"]["after_t1"]["return_pct"], (73.0 / 70.0 - 1) * 100)
-        self.assertFalse(report["windows"]["before_1td"]["crosses_roll"])
+        # Fixed contract = CLX26 (front on the 10-19 baseline); it expires 10-20, so t+1 (10-21) is expired.
+        self.assertEqual(report["contract"]["contract"], "CLX26")
+        self.assertEqual(report["contract"]["last_trade_date"], "2026-10-20")
+        after = report["windows"]["after_t1"]
+        self.assertEqual(after["status"], "expired")
+        self.assertIsNone(after["return_pct"])
+        self.assertTrue(after["continuous"]["crosses_roll"])
+        self.assertEqual(after["continuous"]["rolls"][0]["to_contract"], "CLZ26")
+        self.assertAlmostEqual(after["continuous"]["return_pct"], (73.0 / 70.0 - 1) * 100)
+        before = report["windows"]["before_1td"]
+        self.assertAlmostEqual(before["return_pct"], (70.0 - 69.0) / 69.0 * 100)
+        self.assertIn("derived:CL=F", before["source"])
+        self.assertFalse(before["continuous"]["crosses_roll"])
         service = QueryService(lambda: provider, news_source=lambda: [], now=lambda: self.now,
                                mode="daily", instruments=self.store.instruments)
         catalog = {row["ticker"]: row for row in service.catalog()}
@@ -135,6 +143,40 @@ class FuturesIntegrationTests(unittest.TestCase):
         self.assertFalse(catalog["ICE-LSGO"]["queryable"])
         with self.assertRaisesRegex(ValueError, "无免费数据"):
             service.query("ICE-LSGO", "2026-10-20T14:00:00-04:00")
+
+    def test_fixed_contract_uses_single_contract_across_roll(self):
+        now = datetime(2026, 10, 24, 12, tzinfo=NY)
+        continuous = {"2026-10-16": 69.0, "2026-10-19": 70.0, "2026-10-20": 71.0,
+                      "2026-10-21": 73.0, "2026-10-22": 74.0, "2026-10-23": 75.0}
+        clz = {"2026-10-16": 66.0, "2026-10-19": 67.0, "2026-10-20": 68.0,
+               "2026-10-21": 73.0, "2026-10-22": 74.0, "2026-10-23": 75.0}
+        calls = []
+
+        def download(ticker, start, end):
+            calls.append(ticker)
+            table = {"CL=F": continuous, "CLZ26.NYM": clz}.get(ticker, {})
+            return [{"date": d, "close": c, "adj_close": c, "volume": 10.0}
+                    for d, c in table.items() if start <= d < end]
+
+        update_prices(self.store, [UniverseEntry("CL=F")], download, now=now, start="2026-10-16")
+        self.assertIn("CLZ26.NYM", calls)
+        self.assertIn("CLF27.NYM", calls)  # next contract is fetched too
+        clx = self.store.rows("CLX26.NYM")
+        self.assertEqual([r.date for r in clx], ["2026-10-16", "2026-10-19", "2026-10-20"])
+        self.assertTrue(all(r.source.startswith("derived:CL=F") for r in clx))
+        direct = self.store.rows("CLZ26.NYM", "2026-10-16", "2026-10-16")[0]
+        self.assertEqual((direct.close, direct.source), (66.0, "yfinance"))
+        provider = LocalDbPriceProvider(store=self.store)
+        # 2026-10-21 15:00 New York is after the 14:30 close: t0 = 10-22, baseline 10-21 (front = CLZ26).
+        report = daily_report(provider, resolve_asset("CL=F"), datetime(2026, 10, 21, 15, tzinfo=NY),
+                              as_of=now, config=TradingWindowConfig(before_days=(1,), after_days=(1,)))
+        self.assertEqual(report["contract"]["contract"], "CLZ26")
+        self.assertEqual(report["baseline"]["price"], 73.0)
+        before = report["windows"]["before_1td"]
+        self.assertAlmostEqual(before["return_pct"], (73.0 - 68.0) / 68.0 * 100)
+        self.assertTrue(before["continuous"]["crosses_roll"])
+        self.assertAlmostEqual(before["continuous"]["return_pct"], (73.0 - 71.0) / 71.0 * 100)
+        self.assertAlmostEqual(report["windows"]["after_t1"]["return_pct"], (75.0 / 73.0 - 1) * 100)
 
     def test_negative_cl_settlement_is_stored_and_has_no_percentage_return(self):
         prices = {"2020-04-16": 0.0, "2020-04-17": 18.27,

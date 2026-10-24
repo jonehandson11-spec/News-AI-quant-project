@@ -1,10 +1,12 @@
 """Daily (trading-day) event report: raw and adjusted returns plus excess
 returns against benchmarks, with a source on every price."""
 
+from dataclasses import replace
 from datetime import datetime
 
 from .assets import Asset, resolve_asset
-from .futures import METHOD as FUTURES_METHOD, roll_dates, root_for_ticker
+from .futures import (FIXED_METHOD, METHOD as FUTURES_METHOD, contract_expiry, contract_ticker,
+                      front_contract, roll_dates, root_for_ticker)
 from .query import query_event
 from .windows import DEFAULT_TRADING_WINDOWS, TradingWindowConfig, window_label_zh
 
@@ -87,6 +89,44 @@ def _window_rolls(root, label, baseline, observation):
             for roll in roll_dates(root, first, last) if first < roll.roll_date <= last]
 
 
+def _fixed_contract(provider, asset, root, continuous, published_at, as_of, config, calendar):
+    """Re-run the windows on the single contract that was the front month on the
+    continuous baseline day. Windows after its last trade date are 'expired'."""
+    base_day = continuous.baseline.observed_at.date()
+    code = front_contract(root, base_day)
+    expiry = contract_expiry(code)
+    info = {"contract": code, "ticker": contract_ticker(code), "last_trade_date": expiry.isoformat(),
+            "error": None, "baseline": None}
+    contract_asset = replace(asset, ticker=contract_ticker(code), aliases=(code,),
+                             data_ticker=contract_ticker(code))
+    try:
+        fixed = _run(_with_basis(provider, "raw"), contract_asset, published_at, as_of, config, calendar)
+    except ValueError as exc:
+        fixed = None
+        info["error"] = f"{code}: {exc}"
+    if fixed is not None:
+        info["baseline"] = {"observed_at": fixed.baseline.observed_at.isoformat(),
+                            "price": fixed.baseline.price, "source": fixed.baseline.source,
+                            "status": fixed.baseline_status, "flag": fixed.baseline_flag}
+    fixed_windows = {item.label: item for item in fixed.windows} if fixed else {}
+    rows = {}
+    for item in continuous.windows:
+        target_day = item.target_at.date() if item.target_at is not None else None
+        own = fixed_windows.get(item.label)
+        if target_day is not None and target_day > expiry:
+            rows[item.label] = {"target_at": _iso(item.target_at), "observed_at": None, "price": None,
+                                "return_pct": None, "status": "expired", "flag": None, "source": None}
+        elif own is None:
+            rows[item.label] = {"target_at": _iso(item.target_at), "observed_at": None, "price": None,
+                                "return_pct": None, "status": "missing", "flag": "missing_data",
+                                "source": None}
+        else:
+            rows[item.label] = {"target_at": _iso(own.target_at), "observed_at": _iso(own.observed_at),
+                                "price": own.price, "return_pct": own.return_pct, "status": own.status,
+                                "flag": own.flag, "source": own.source}
+    return info, rows
+
+
 def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datetime,
                  benchmarks=None,
                  config: TradingWindowConfig = DEFAULT_TRADING_WINDOWS, calendar=None) -> dict:
@@ -130,6 +170,28 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             "adj_crosses_roll": bool(adj_rolls),
             "adj_rolls": adj_rolls,
         }
+    contract = None
+    if root:
+        contract, fixed_rows = _fixed_contract(provider, asset, root, raw, published_at, as_of,
+                                               config, calendar)
+        for label, window in windows.items():
+            fixed = fixed_rows[label]
+            window["continuous"] = {key: window[key] for key in (
+                "observed_at", "price", "return_pct", "status", "flag", "source",
+                "crosses_roll", "rolls")}
+            window.update({
+                "observed_at": fixed["observed_at"], "price": fixed["price"],
+                "adj_price": fixed["price"], "return_pct": fixed["return_pct"],
+                "adj_return_pct": fixed["return_pct"], "status": fixed["status"],
+                "flag": fixed["flag"], "source": fixed["source"], "price_change": None,
+                "contract": contract["contract"],
+                # A single contract never rolls; roll marks live on the continuous reference.
+                "crosses_roll": False, "rolls": [], "adj_crosses_roll": False, "adj_rolls": [],
+            })
+            if fixed["price"] is not None and contract["baseline"]:
+                base = contract["baseline"]["price"]
+                window["price_change"] = (base - fixed["price"] if label.startswith("before_")
+                                          else fixed["price"] - base)
     payload = {
         "ticker": asset.ticker,
         "asset_role": asset.role,
@@ -157,11 +219,22 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             "flag": raw.baseline_flag,
         },
         "windows": windows,
+        "contract": contract,
+        "continuous_baseline": None,
         "adj_error": adj_error,
         "method": METHOD,
-        "contract_method": FUTURES_METHOD if root else None,
+        "contract_method": (FIXED_METHOD + " " + FUTURES_METHOD) if root else None,
         "data_version": provider.data_version() if hasattr(provider, "data_version") else None,
     }
+    if contract is not None:
+        payload["continuous_baseline"] = payload["baseline"]
+        fixed_base = contract["baseline"] or {}
+        payload["baseline"] = {
+            "observed_at": fixed_base.get("observed_at"), "price": fixed_base.get("price"),
+            "adj_price": fixed_base.get("price"), "source": fixed_base.get("source"), "basis": "raw",
+            "gap_seconds": None, "status": fixed_base.get("status", "missing"),
+            "flag": fixed_base.get("flag"),
+        }
     comparisons = {}
     for code in dict.fromkeys(benchmarks):
         bench_asset = resolve_asset(code)
