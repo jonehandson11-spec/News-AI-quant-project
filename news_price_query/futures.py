@@ -1,5 +1,6 @@
 """Rule-based expiry and unadjusted continuous-futures roll dates (stdlib only)."""
 
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -117,3 +118,45 @@ def roll_dates(root: str, start: date, end: date) -> list[Roll]:
             output.append(Roll(roll_day, _contract(root, year, month),
                                _contract(root, next_year, next_month), expiry))
     return output
+
+
+CONTRACT_SUFFIX = ".NYM"  # Yahoo single-contract symbols, e.g. CLZ26.NYM
+_CONTRACT = re.compile(r"^(CL|HO|RB|BZ)([FGHJKMNQUVXZ])(\d{2})(?:\.NYM)?$")
+FIXED_METHOD = (
+    "Fixed contract: the front-month contract on the baseline day (e.g. BZX26) is used for "
+    "every window; if fewer than N (default 5) NYMEX trading days remain after the baseline "
+    "day up to and including its last trade date, the next contract is used instead. It is used for "
+    "every window before and after the news. Windows ending after that contract's last trade "
+    "date are 'expired' (no return, never zero). Prices come from Yahoo single-contract "
+    "symbols (e.g. CLZ26.NYM; Yahoo only lists live contracts, so history of expired "
+    "contracts exists only if it was stored while live) or, on days when the rule says the "
+    "contract was the front month, from the continuous series (source marked 'derived'). "
+    "The continuous-series result is kept as a reference with its roll marks."
+)
+
+
+def parse_contract(code: str) -> tuple[str, int, int] | None:
+    """'BZX26' or 'BZX26.NYM' -> ('BZ', 2026, 11)."""
+    match = _CONTRACT.match(code.upper())
+    if match is None:
+        return None
+    return match.group(1), 2000 + int(match.group(3)), MONTH_CODES.index(match.group(2)) + 1
+
+
+def is_contract_ticker(ticker: str) -> bool:
+    return ticker.upper().endswith(CONTRACT_SUFFIX) and parse_contract(ticker) is not None
+
+
+def contract_ticker(code: str) -> str:
+    return f"{code.upper()}{CONTRACT_SUFFIX}"
+
+
+def contract_expiry(code: str) -> date:
+    root, year, month = parse_contract(code)
+    return last_trade_date(root, year, month)
+
+
+def next_contract(code: str) -> str:
+    root, year, month = parse_contract(code)
+    year, month = _month(year, month, 1)
+    return _contract(root, year, month)

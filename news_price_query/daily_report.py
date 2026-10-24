@@ -1,10 +1,12 @@
 """Daily (trading-day) event report: raw and adjusted returns plus excess
 returns against benchmarks, with a source on every price."""
 
+from dataclasses import replace
 from datetime import datetime
 
 from .assets import Asset, resolve_asset
-from .futures import METHOD as FUTURES_METHOD, roll_dates, root_for_ticker
+from .futures import (FIXED_METHOD, METHOD as FUTURES_METHOD, contract_expiry, contract_ticker,
+                      front_contract, next_contract, roll_dates, root_for_ticker)
 from .query import query_event
 from .windows import DEFAULT_TRADING_WINDOWS, TradingWindowConfig, window_label_zh
 
@@ -75,6 +77,30 @@ def _aligned(own, other, own_base, other_base):
     )
 
 
+CURRENCY_NAMES = {"HKD": "港元", "USD": "美元", "CAD": "加元", "SAR": "里亚尔", "GBP": "英镑"}
+UNIT_NAMES = {"USD/bbl": "美元/桶", "USD/gal": "美元/加仑", "USD/t": "美元/吨"}
+
+
+def price_unit(asset) -> str:
+    """Label printed next to every price: 'HKD 港元', '美元/桶', or '点' for an index."""
+    if asset.ticker.startswith("^"):
+        return "点"
+    unit = getattr(asset, "unit", None)
+    if unit:
+        return UNIT_NAMES.get(unit, unit)
+    code = getattr(asset, "currency", None) or "HKD"
+    return f"{code} {CURRENCY_NAMES.get(code, '')}".strip()
+
+
+def _span(label, base_at, base_price, obs_at, obs_price) -> dict:
+    """Start/end of a window: before_* runs from the N-days-ago close to the baseline,
+    after_* from the baseline to the t+K close. Missing prices stay None."""
+    base = (_iso(base_at) if not isinstance(base_at, str) else base_at, base_price)
+    obs = (_iso(obs_at) if not isinstance(obs_at, str) else obs_at, obs_price)
+    start, end = (obs, base) if label.startswith("before_") else (base, obs)
+    return {"start_at": start[0], "start_price": start[1], "end_at": end[0], "end_price": end[1]}
+
+
 def _window_rolls(root, label, baseline, observation):
     if root is None or observation is None or baseline is None:
         return []
@@ -87,9 +113,77 @@ def _window_rolls(root, label, baseline, observation):
             for roll in roll_dates(root, first, last) if first < roll.roll_date <= last]
 
 
+# Fixed-contract choice: if fewer than this many NYMEX trading days remain after the
+# baseline day up to and including the front contract's last trade date, use the next
+# contract instead ("临近到期，改用 …"). Configurable per call (min_days_to_expiry).
+DEFAULT_MIN_DAYS_TO_EXPIRY = 5
+
+
+def _days_to_expiry(calendar, base_day, expiry) -> int:
+    """Trading days d with base_day < d <= expiry (0 if the baseline day is the last trade date)."""
+    count, day = 0, base_day
+    while True:
+        day = calendar.shift_trading_days(day, 1)
+        if day > expiry:
+            return count
+        count += 1
+
+
+def _fixed_contract(provider, asset, root, continuous, published_at, as_of, config, calendar,
+                    min_days_to_expiry=DEFAULT_MIN_DAYS_TO_EXPIRY):
+    """Re-run the windows on the single contract that was the front month on the
+    continuous baseline day (or the next one if the front is about to expire).
+    Windows after the chosen contract's last trade date are 'expired'."""
+    from .market_calendars import calendar_for
+
+    base_day = continuous.baseline.observed_at.date()
+    front = front_contract(root, base_day)
+    remaining = _days_to_expiry(calendar or calendar_for(asset.market), base_day, contract_expiry(front))
+    code, switched = front, remaining < min_days_to_expiry
+    if switched:
+        code = next_contract(front)
+    expiry = contract_expiry(code)
+    info = {"contract": code, "ticker": contract_ticker(code), "last_trade_date": expiry.isoformat(),
+            "front_contract": front, "front_last_trade_date": contract_expiry(front).isoformat(),
+            "front_days_to_expiry": remaining, "min_days_to_expiry": min_days_to_expiry,
+            "switched": switched,
+            "note": (f"临近到期，改用 {code}（{front} 在基准日后仅剩 {remaining} 个交易日，"
+                     f"阈值 {min_days_to_expiry}）") if switched else None,
+            "error": None, "baseline": None}
+    contract_asset = replace(asset, ticker=contract_ticker(code), aliases=(code,),
+                             data_ticker=contract_ticker(code))
+    try:
+        fixed = _run(_with_basis(provider, "raw"), contract_asset, published_at, as_of, config, calendar)
+    except ValueError as exc:
+        fixed = None
+        info["error"] = f"{code}: {exc}"
+    if fixed is not None:
+        info["baseline"] = {"observed_at": fixed.baseline.observed_at.isoformat(),
+                            "price": fixed.baseline.price, "source": fixed.baseline.source,
+                            "status": fixed.baseline_status, "flag": fixed.baseline_flag}
+    fixed_windows = {item.label: item for item in fixed.windows} if fixed else {}
+    rows = {}
+    for item in continuous.windows:
+        target_day = item.target_at.date() if item.target_at is not None else None
+        own = fixed_windows.get(item.label)
+        if target_day is not None and target_day > expiry:
+            rows[item.label] = {"target_at": _iso(item.target_at), "observed_at": None, "price": None,
+                                "return_pct": None, "status": "expired", "flag": None, "source": None}
+        elif own is None:
+            rows[item.label] = {"target_at": _iso(item.target_at), "observed_at": None, "price": None,
+                                "return_pct": None, "status": "missing", "flag": "missing_data",
+                                "source": None}
+        else:
+            rows[item.label] = {"target_at": _iso(own.target_at), "observed_at": _iso(own.observed_at),
+                                "price": own.price, "return_pct": own.return_pct, "status": own.status,
+                                "flag": own.flag, "source": own.source}
+    return info, rows
+
+
 def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datetime,
                  benchmarks=None,
-                 config: TradingWindowConfig = DEFAULT_TRADING_WINDOWS, calendar=None) -> dict:
+                 config: TradingWindowConfig = DEFAULT_TRADING_WINDOWS, calendar=None,
+                 min_days_to_expiry: int = DEFAULT_MIN_DAYS_TO_EXPIRY) -> dict:
     """benchmarks=None uses the asset's market defaults (BENCHMARKS_BY_MARKET);
     extra benchmarks from another market are reported as skipped."""
     if benchmarks is None:
@@ -129,7 +223,40 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             "rolls": rolls,
             "adj_crosses_roll": bool(adj_rolls),
             "adj_rolls": adj_rolls,
+            **_span(item.label, raw.baseline.observed_at, raw.baseline.price,
+                    item.observed_at, item.price),
+            **{f"adj_{key}": value for key, value in _span(
+                item.label, adj.baseline.observed_at if adj else None,
+                adj.baseline.price if adj else None,
+                other.observed_at if other else None, other.price if other else None).items()},
         }
+    contract = None
+    if root:
+        contract, fixed_rows = _fixed_contract(provider, asset, root, raw, published_at, as_of,
+                                               config, calendar, min_days_to_expiry)
+        for label, window in windows.items():
+            fixed = fixed_rows[label]
+            window["continuous"] = {key: window[key] for key in (
+                "observed_at", "price", "return_pct", "status", "flag", "source",
+                "crosses_roll", "rolls", "start_at", "start_price", "end_at", "end_price")}
+            fixed_base = contract["baseline"] or {}
+            span = _span(label, fixed_base.get("observed_at"), fixed_base.get("price"),
+                         fixed["observed_at"], fixed["price"])
+            window.update(span)
+            window.update({f"adj_{key}": value for key, value in span.items()})
+            window.update({
+                "observed_at": fixed["observed_at"], "price": fixed["price"],
+                "adj_price": fixed["price"], "return_pct": fixed["return_pct"],
+                "adj_return_pct": fixed["return_pct"], "status": fixed["status"],
+                "flag": fixed["flag"], "source": fixed["source"], "price_change": None,
+                "contract": contract["contract"],
+                # A single contract never rolls; roll marks live on the continuous reference.
+                "crosses_roll": False, "rolls": [], "adj_crosses_roll": False, "adj_rolls": [],
+            })
+            if fixed["price"] is not None and contract["baseline"]:
+                base = contract["baseline"]["price"]
+                window["price_change"] = (base - fixed["price"] if label.startswith("before_")
+                                          else fixed["price"] - base)
     payload = {
         "ticker": asset.ticker,
         "asset_role": asset.role,
@@ -139,6 +266,7 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
         "exchange_timezone": str(local_tz),
         "currency": getattr(asset, "currency", "HKD"),
         "unit": asset.unit,
+        "price_unit": price_unit(asset),
         "asset_type": asset.asset_type,
         "stage": getattr(asset, "stage", None),
         "fx": None,  # interface only: see fx.py; returns are in local currency
@@ -157,11 +285,22 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             "flag": raw.baseline_flag,
         },
         "windows": windows,
+        "contract": contract,
+        "continuous_baseline": None,
         "adj_error": adj_error,
         "method": METHOD,
-        "contract_method": FUTURES_METHOD if root else None,
+        "contract_method": (FIXED_METHOD + " " + FUTURES_METHOD) if root else None,
         "data_version": provider.data_version() if hasattr(provider, "data_version") else None,
     }
+    if contract is not None:
+        payload["continuous_baseline"] = payload["baseline"]
+        fixed_base = contract["baseline"] or {}
+        payload["baseline"] = {
+            "observed_at": fixed_base.get("observed_at"), "price": fixed_base.get("price"),
+            "adj_price": fixed_base.get("price"), "source": fixed_base.get("source"), "basis": "raw",
+            "gap_seconds": None, "status": fixed_base.get("status", "missing"),
+            "flag": fixed_base.get("flag"),
+        }
     comparisons = {}
     for code in dict.fromkeys(benchmarks):
         bench_asset = resolve_asset(code)
@@ -196,8 +335,17 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
                 "source": other.source,
                 "excess_return_pct": excess,
                 "adj_excess_return_pct": adj_excess,
+                **_span(item.label, b_raw.baseline.observed_at, b_raw.baseline.price,
+                        other.observed_at, other.price),
+                **{f"adj_{key}": value for key, value in _span(
+                    item.label, b_adj.baseline.observed_at if b_adj else None,
+                    b_adj.baseline.price if b_adj else None,
+                    other_adj.observed_at if other_adj else None,
+                    other_adj.price if other_adj else None).items()},
             }
         comparisons[bench_asset.ticker] = {
+            "currency": getattr(bench_asset, "currency", None) or "HKD",
+            "price_unit": price_unit(bench_asset),
             "baseline": {"observed_at": b_raw.baseline.observed_at.isoformat(),
                          "price": b_raw.baseline.price, "source": b_raw.baseline.source},
             "adj_error": b_adj_error,

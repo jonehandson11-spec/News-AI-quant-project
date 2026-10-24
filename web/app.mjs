@@ -1,10 +1,13 @@
-import { WINDOW_LABELS, hongKongInputToIso, relativeHongKongInput } from "./core.mjs";
+import { WINDOW_LABELS, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, relativeHongKongInput } from "./core.mjs";
 
 const byId = (id) => document.getElementById(id);
-const state = { news: [], result: null, newsRequest: 0 };
+const state = { news: [], result: null, newsRequest: 0,
+  showDetail: detailPreference(window.location.search, localStorage.getItem("pq.showAdjExcess")) };
+const fullResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。原始＝未除权收盘价（仅拆股调整），复权＝含分红调整。超额＝个股涨跌幅－同市场对照涨跌幅（简单差值，不是市场模型）；恒生指数、多伦多综指为价格指数，复权与原始相同。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
+const shortResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
 const statusText = {
   on_date: "目标日期", deferred_back: "前一交易日", on_time: "准时",
-  deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情",
+  deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情", expired: "合约已到期",
 };
 const flagText = { missing_data: "该交易日无行情（停牌或缺数据，无法区分）", zero_volume: "成交量为 0（零成交，或数据源缺成交量）", nonpositive_price: "价格≤0（如 2020-04-20 WTI 负结算价），收益率无意义" };
 const benchmarkName = {
@@ -12,9 +15,9 @@ const benchmarkName = {
   SPY: "标普500 ETF SPY", XLE: "能源板块 ETF XLE", "XIU.TO": "TSX 60 ETF XIU", "^GSPTSE": "多伦多综指",
 };
 const marketText = { XHKG: "港交所", XNYS: "美股（纽交所日历）", XTSE: "多伦多交易所", XSAU: "沙特交易所", NYMEX: "纽约商品交易所", ICE_EU: "ICE 欧洲" };
-const unitText = { "USD/bbl": "美元/桶", "USD/gal": "美元/加仑", "USD/t": "美元/吨" };
 const showTime = (value) => value ? value.slice(0, 19).replace("T", " ") : "—";
-const showPrice = (value) => value === null || value === undefined ? "—" : Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 4 });
+const showDate = (value) => value ? String(value).slice(0, 10) : "缺失";
+const showPrice = (value) => value === null || value === undefined ? "缺失" : Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;
 const showReturn = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 const timePresetButtons = [...document.querySelectorAll(".time-presets button")];
@@ -80,62 +83,138 @@ function renderNews() {
 function setHead(columns) {
   const head = byId("resultHead");
   head.replaceChildren();
-  for (const column of columns) addText(head, "th", column);
+  for (const column of columns) {
+    const th = addText(head, "th", typeof column === "string" ? column : column.text);
+    if (typeof column === "object" && column.title) th.title = column.title;
+  }
+}
+
+function priceUnit(result) {
+  return result.price_unit || result.currency || "";
+}
+
+function priceWithUnit(value, unit) {
+  const price = showPrice(value);
+  return value === null || value === undefined || !unit ? price : `${price} ${unit}`;
+}
+
+function addPrice(parent, value, unit, className = "") {
+  return addText(parent, "span", priceWithUnit(value, unit), `price-value ${className}`.trim());
+}
+
+function setBaselinePrice(value, unit) {
+  const target = byId("baselinePrice");
+  target.replaceChildren();
+  addText(target, "span", showPrice(value), "price-value");
+  if (value !== null && value !== undefined && unit) addText(target, "small", unit, "price-unit");
 }
 
 function returnCell(tr, value) {
   addText(tr, "td", showReturn(value), value === null || value === undefined ? "" : value >= 0 ? "positive" : "negative");
 }
 
+function endpointCell(tr, date, price, unit) {
+  const cell = document.createElement("td");
+  addText(cell, "span", showDate(date), "endpoint-date");
+  addPrice(cell, price, unit);
+  tr.append(cell);
+}
+
+function adjustedReturnCell(tr, item, unit) {
+  const cell = document.createElement("td");
+  addText(cell, "span", showReturn(item.adj_return_pct), item.adj_return_pct === null || item.adj_return_pct === undefined ? "" : item.adj_return_pct >= 0 ? "positive" : "negative");
+  const detail = addText(cell, "small", "", "comparison-note price-range");
+  addPrice(detail, item.adj_start_price, unit);
+  detail.append(document.createTextNode(" → "));
+  addPrice(detail, item.adj_end_price, unit);
+  tr.append(cell);
+}
+
 function statusCell(tr, item) {
   const cell = document.createElement("td");
   addText(cell, "span", statusText[item.status] || item.status, `status ${item.status}`);
   if (item.flag) addText(cell, "small", flagText[item.flag] || item.flag, "comparison-note");
-  if (item.crosses_roll) {
-    addText(cell, "span", "跨换月", "tag");
-    const contracts = (item.rolls || []).map((roll) => `${roll.from_contract}→${roll.to_contract}`).join("、");
-    addText(cell, "small", `窗口内连续合约换月（${contracts}），涨跌幅含新旧合约价差，未调整`, "comparison-note");
-  }
   tr.append(cell);
 }
 
 function renderDaily(result) {
   const codes = Object.keys(result.benchmarks || {});
-  byId("baselineLabel").textContent = "发布前最后一个收盘价（基准）";
-  byId("baselinePrice").textContent = showPrice(result.baseline.price);
-  const adj = result.baseline.adj_price === null || result.baseline.adj_price === undefined ? "" : ` · 复权 ${showPrice(result.baseline.adj_price)}`;
+  const contract = result.contract;
+  const unit = priceUnit(result);
+  byId("baselineLabel").textContent = contract
+    ? `发布前最后一个结算价（固定合约 ${contract.contract}${contract.switched ? "，临近到期改用" : ""}）` : "发布前最后一个收盘价（基准）";
+  setBaselinePrice(result.baseline.price, unit);
+  const adj = result.baseline.adj_price === null || result.baseline.adj_price === undefined ? "" : ` · 复权 ${priceWithUnit(result.baseline.adj_price, unit)}`;
   const flag = result.baseline.flag ? ` · ${flagText[result.baseline.flag] || result.baseline.flag}` : "";
   const localNote = result.market && result.market !== "XHKG" ? "（当地时间）" : "";
   byId("baselineDetail").textContent = `${showTime(result.baseline.observed_at)}${localNote} 收盘${adj} · 事件日 t0 = ${result.t0} · 发布时段 ${sessionText[result.session] || result.session}${flag}`;
-  setHead(["窗口", "目标交易日收盘", "实际取价", "价格", "涨跌幅（原始）", "涨跌幅（复权）",
-    ...codes.map((code) => `超额 vs ${benchmarkName[code] || code}（原始 / 复权）`), "状态"]);
+  if (contract) {
+    renderFutures(result, contract);
+    return;
+  }
+  setHead(dailyColumns(result, { showDetail: state.showDetail }));
   const body = byId("resultRows");
   body.replaceChildren();
   for (const [label, item] of Object.entries(result.windows)) {
     const tr = document.createElement("tr");
     addText(tr, "td", item.label_zh || WINDOW_LABELS[label] || label);
-    addText(tr, "td", showTime(item.target_at));
-    addText(tr, "td", showTime(item.observed_at));
-    addText(tr, "td", showPrice(item.price));
+    endpointCell(tr, item.start_at, item.start_price, unit);
+    endpointCell(tr, item.end_at, item.end_price, unit);
     returnCell(tr, item.return_pct);
-    returnCell(tr, item.adj_return_pct);
-    for (const code of codes) {
+    if (state.showDetail) adjustedReturnCell(tr, item, unit);
+    for (const code of state.showDetail ? codes : []) {
       const compared = result.benchmarks[code];
       const row = compared.windows?.[label];
-      const text = compared.error ? "无对照行情"
-        : `${showReturn(row?.excess_return_pct)} / ${showReturn(row?.adj_excess_return_pct)}`;
-      addText(tr, "td", text);
+      const cell = document.createElement("td");
+      addText(cell, "span", compared.error ? "无对照行情"
+        : `${showReturn(row?.excess_return_pct)} / ${showReturn(row?.adj_excess_return_pct)}`);
+      if (!compared.error && row) {
+        const benchmarkUnit = compared.price_unit || compared.currency || result.currency || "";
+        const detail = addText(cell, "small", `${benchmarkName[code] || code} `, "comparison-note");
+        addPrice(detail, row.start_price, benchmarkUnit);
+        detail.append(document.createTextNode(" → "));
+        addPrice(detail, row.end_price, benchmarkUnit);
+        detail.append(document.createTextNode(` ${showReturn(row.return_pct)}`));
+      }
+      tr.append(cell);
     }
     statusCell(tr, item);
     body.append(tr);
   }
+  renderSubtitle(result, codes);
+  byId("resultNote").textContent = state.showDetail ? fullResultNote : shortResultNote;
+}
+
+function renderFutures(result, contract) {
+  const unit = priceUnit(result);
+  setHead(["窗口", `起点（${unit}）`, `终点（${unit}）`, `涨跌幅（固定合约 ${contract.contract}）`,
+    "状态"]);
+  const body = byId("resultRows");
+  body.replaceChildren();
+  for (const [label, item] of Object.entries(result.windows)) {
+    const tr = document.createElement("tr");
+    addText(tr, "td", item.label_zh || WINDOW_LABELS[label] || label);
+    endpointCell(tr, item.start_at, item.start_price, unit);
+    endpointCell(tr, item.end_at, item.end_price, unit);
+    returnCell(tr, item.return_pct);
+    statusCell(tr, item);
+    body.append(tr);
+  }
+  if (contract.error) byId("baselineDetail").textContent = `固定合约 ${contract.contract} 无基准价格（雅虎不提供已到期合约，且本地库未存到该日）：${contract.error}`;
+  renderSubtitle(result, []);
+  byId("resultNote").textContent = shortResultNote;
+}
+
+function renderSubtitle(result, codes) {
   const version = result.data_version ? ` · 数据版本 ${result.data_version.run_id}` : "";
+  const contractNote = result.contract
+    ? ` · 固定合约 ${result.contract.contract}（最后交易日 ${result.contract.last_trade_date}）` : "";
   const local = result.market && result.market !== "XHKG"
     ? ` = ${showTime(result.published_at_local)} 交易所当地时间（${result.exchange_timezone}）` : "";
   const currency = result.currency ? ` · 价格与涨跌幅以 ${result.currency} 计` : "";
-  const unit = result.asset_type === "futures" && result.unit ? ` · 价格单位 ${unitText[result.unit] || result.unit}` : "";
+  const unit = result.price_unit || result.currency ? ` · 价格单位：${result.price_unit || result.currency}` : "";
   const noBench = codes.length === 0 ? ` · 无对照${result.market === "XSAU" ? "（沙特指数无免费历史数据）" : result.asset_type === "futures" ? "（期货）" : ""}` : "";
-  byId("resultSubtitle").textContent = `${result.ticker} · ${marketText[result.market] || result.market || "港交所"} · 新闻发布 ${showTime(result.published_at)} 香港时间${local}${currency}${unit}${noBench} · ${result.baseline.source}${version}`;
+  byId("resultSubtitle").textContent = `${result.ticker} · ${marketText[result.market] || result.market || "港交所"} · 新闻发布 ${showTime(result.published_at)} 香港时间${local}${currency}${unit}${contractNote}${noBench} · ${result.baseline.source || "—"}${version}`;
 }
 
 const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: "午休", afternoon: "下午盘", after_close: "收盘后", non_trading_day: "非交易日", regular_session: "交易时段内" };
@@ -143,6 +222,11 @@ const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: 
 function renderResult(result) {
   state.result = result;
   byId("results").hidden = false;
+  const toggle = byId("detailToggle");
+  const available = detailToggleAvailable(result);
+  toggle.disabled = !available;
+  toggle.title = available ? "" : "期货无复权/超额列";
+  toggle.checked = state.showDetail;
   if (result.mode === "daily") {
     renderDaily(result);
     byId("results").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -151,6 +235,7 @@ function renderResult(result) {
   setHead(["窗口", "目标时间", "实际取价", "价格", "差价", "涨跌幅", "状态"]);
   byId("baselineLabel").textContent = "发布前最后一根已完成分钟线";
   byId("resultSubtitle").textContent = `${result.ticker} · 新闻发布 ${showTime(result.published_at)} 香港时间 · ${result.baseline.source}`;
+  byId("resultNote").textContent = shortResultNote;
   byId("baselinePrice").textContent = showPrice(result.baseline.price);
   byId("baselineDetail").textContent = `${showTime(result.baseline.observed_at)} 开始的分钟线 · 完成后至新闻发布 ${result.baseline.gap_seconds} 秒 · ${result.baseline.status === "stale" ? "价格可能已过时" : "近期价格"}`;
   const body = byId("resultRows");
@@ -197,14 +282,17 @@ function downloadCsv() {
   const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
   if (result.mode === "daily") {
     const codes = Object.keys(result.benchmarks || {});
-    const headers = ["ticker", "published_at", "session", "t0", "baseline_at", "baseline_price", "baseline_adj_price",
-      "window", "target_at", "observed_at", "price", "adj_price", "return_pct", "adj_return_pct", "status", "flag", "crosses_roll", "rolls", "source",
-      ...codes.flatMap((code) => [`${code}_return_pct`, `${code}_excess_pct`, `${code}_adj_excess_pct`]), "data_version"];
+    const headers = ["ticker", "price_unit", "currency", "published_at", "session", "t0", "baseline_at", "baseline_price", "baseline_adj_price",
+      "window", "target_at", "observed_at", "price", "adj_price", "start_at", "start_price", "end_at", "end_price", "adj_start_price", "adj_end_price", "return_pct", "adj_return_pct", "status", "flag", "contract", "continuous_price", "continuous_return_pct", "continuous_start_price", "continuous_end_price", "continuous_crosses_roll", "continuous_rolls", "source",
+      ...codes.flatMap((code) => [`${code}_return_pct`, `${code}_excess_pct`, `${code}_adj_excess_pct`, `${code}_start_price`, `${code}_end_price`, `${code}_price_unit`]), "data_version"];
     const rows = Object.entries(result.windows).map(([label, item]) => [
-      result.ticker, result.published_at, result.session, result.t0, result.baseline.observed_at, result.baseline.price,
-      result.baseline.adj_price, label, item.target_at, item.observed_at, item.price, item.adj_price, item.return_pct,
-      item.adj_return_pct, item.status, item.flag, item.crosses_roll, JSON.stringify(item.rolls || []), item.source,
-      ...codes.flatMap((code) => { const row = result.benchmarks[code].windows?.[label]; return [row?.return_pct, row?.excess_return_pct, row?.adj_excess_return_pct]; }),
+      result.ticker, result.price_unit || result.currency || "", result.currency || "", result.published_at, result.session, result.t0, result.baseline.observed_at, result.baseline.price,
+      result.baseline.adj_price, label, item.target_at, item.observed_at, item.price, item.adj_price, item.start_at, item.start_price,
+      item.end_at, item.end_price, item.adj_start_price, item.adj_end_price, item.return_pct,
+      item.adj_return_pct, item.status, item.flag, item.contract, item.continuous?.price, item.continuous?.return_pct,
+      item.continuous?.start_price, item.continuous?.end_price,
+      item.continuous?.crosses_roll ?? item.crosses_roll, JSON.stringify(item.continuous?.rolls || item.rolls || []), item.source,
+      ...codes.flatMap((code) => { const compared = result.benchmarks[code]; const row = compared.windows?.[label]; return [row?.return_pct, row?.excess_return_pct, row?.adj_excess_return_pct, row?.start_price, row?.end_price, compared.price_unit || compared.currency || result.currency || ""]; }),
       result.data_version?.run_id,
     ].map(quote).join(","));
     download(`${result.ticker}-news-price.csv`, `\uFEFF${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`, "text/csv;charset=utf-8");
@@ -289,9 +377,11 @@ async function loadCatalog() {
     if (stages.includes(chosenStage)) stageSelect.value = chosenStage;
     fillAssets();
     state.mode = data.mode || "minute";
+    byId("detailToggle").disabled = state.mode !== "daily";
+    byId("detailToggle").title = state.mode === "daily" ? "" : "期货无复权/超额列";
     byId("priceStatus").textContent = state.mode === "daily" ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
     byId("sourceHelp").textContent = state.mode === "daily"
-      ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按标的所在交易所的交易日计算（港股港交所、美股纽交所、加股多伦多、沙特 Tadawul、NYMEX 期货），涨跌幅以当地货币计；期货跨换月窗口会标记，价格未调整。股票同时给出原始与复权涨跌幅和同市场对照的超额收益。"
+      ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按标的所在交易所的交易日计算（港股港交所、美股纽交所、加股多伦多、沙特 Tadawul、NYMEX 期货），涨跌幅以当地货币计。股票同时给出原始与复权涨跌幅和同市场对照的超额收益。"
       : "查询时由内部服务连接富途 OpenD。需要运行服务的电脑已登录富途并具备历史行情权限；网页无需选择价格文件。";
   } catch (error) {
     byId("priceStatus").textContent = "内部查询服务不可用";
@@ -336,4 +426,13 @@ byId("downloadJson").addEventListener("click", () => {
   if (state.result) download(`${state.result.ticker}-news-price.json`, JSON.stringify(state.result, null, 2), "application/json;charset=utf-8");
 });
 byId("downloadCsv").addEventListener("click", downloadCsv);
+byId("detailToggle").checked = state.showDetail;
+byId("detailToggle").addEventListener("change", (event) => {
+  state.showDetail = event.currentTarget.checked;
+  localStorage.setItem("pq.showAdjExcess", state.showDetail ? "1" : "0");
+  const url = new URL(window.location.href);
+  url.searchParams.set("detail", state.showDetail ? "1" : "0");
+  history.replaceState(null, "", url);
+  if (state.result) renderResult(state.result);
+});
 loadCatalog();

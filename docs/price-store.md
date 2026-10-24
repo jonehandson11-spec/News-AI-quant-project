@@ -119,3 +119,23 @@ USD/t. ICE gasoil has no free daily source and remains unavailable for queries.
 - Per-contract Yahoo series: BZ=F, HO=F, RB=F equal BZZ26/HOX26/RBX26 from 2026-10-01 (not on 2026-09-30); CL=F equals CLZ26 from 2026-10-21 (not on 2026-10-20). All four match the rule.
 - CL 2020: CLK20 last trade 2020-04-21 (CL=F -37.63 on 04-20 and 10.01 on 04-21 are the May contract); roll 2020-04-22.
 - History (jump test): on the predicted roll day the absolute move is the largest of its 5-day neighbourhood in 29% (CL), 31% (HO), 42% (RB) of rolls vs 20% by chance; the day before/after are not elevated. For BZ the test is inconclusive (24% on the rule day, 30% one day later), so older Brent roll dates may be off by one day.
+
+## Fixed-contract futures windows (block 5)
+- Main result for BZ=F/CL=F/RB=F/HO=F = the single contract that was front month on the
+  baseline day (e.g. BZX26), used for every before/after window. Windows ending after its
+  last trade date are `expired` (合约已到期; no return, never zero). The continuous-series
+  result stays as a reference (`windows[label].continuous`) with its 跨换月 marks.
+- Single-contract prices are stored as tickers like `CLZ26.NYM` (market NYMEX, source
+  `yfinance`). Each update fetches the current front and next contract. Yahoo lists only
+  live contracts (e.g. CLZ26 from 2017-11-21, BZZ26 from 2018-11-01, HO/RB from 2022-11-30;
+  expired contracts such as BZX26/CLX26 return nothing), so history accumulates only while
+  a contract is live.
+- For days the roll rule says contract C was front, the continuous price is C's price; those
+  rows are stored for C with source `derived:<ticker> front-month` where no direct row exists
+  (direct rows always win). Older months of an expired contract are missing (not invented).
+- Near-expiry switch: let N = number of NYMEX trading days d with baseline_day < d <= the
+  front contract's last trade date. If N < `min_days_to_expiry` (default 5,
+  `daily_report.DEFAULT_MIN_DAYS_TO_EXPIRY`, overridable per call), the next contract is
+  used and the result says 「临近到期，改用 XXX」 (`contract.switched`, `contract.note`,
+  `contract.front_days_to_expiry`). Example: BZX26 on baseline 2026-09-29 has N = 1
+  (only 09-30) -> BZZ26. CLX26 on baseline 2026-10-05 has N = 11 -> kept.

@@ -9,6 +9,10 @@ select:focus{border-color:#267764;box-shadow:0 0 0 3px rgba(38,119,100,.12)}
 .comparison-note{display:block;color:#617872;margin-top:3px;white-space:nowrap}
 .primary-button:disabled{opacity:.65;cursor:wait}
 .clear-saved{margin-top:12px;border:0;background:transparent;color:#8a4e42;font-size:12px;padding:2px 0;text-decoration:underline}.clear-saved[hidden]{display:none}
+.price-value{white-space:nowrap}.price-range{display:flex;flex-wrap:wrap;gap:0 4px}.baseline-card strong{white-space:nowrap}#baselinePrice .price-value{font:inherit;color:inherit}#baselinePrice .price-unit{font-size:14px;font-weight:600;margin-left:6px;color:#4b625b}.endpoint-date{display:block;color:#617872;font-size:11px}
 
 .news-card{border:1px solid #e4ebe4;border-radius:11px;background:#fbfcfa}.news-card:hover{border-color:#6ea88d;background:#f3faf4}.news-card .news-item{border:0;background:transparent;padding-bottom:3px}.news-card .news-item:hover,.news-card .news-item:focus{background:transparent}.news-source-link{display:inline-block;padding:0 15px 14px;color:#267764;font-size:11px;font-weight:700;text-decoration:none}.news-source-link:hover{text-decoration:underline}
 .hk-only[hidden],#stageFilter[hidden],#stageLabel[hidden]{display:none}
+.table-scroll td,.table-scroll th{overflow-wrap:break-word;vertical-align:top}
+.table-scroll .comparison-note{white-space:normal;line-height:1.45;font-size:10px}
+.detail-toggle{display:flex;align-items:center;gap:7px;border:1px solid #cbd8cf;background:#fff;border-radius:8px;padding:9px 12px;font-size:12px;color:#2d6659;white-space:nowrap}.detail-toggle input{accent-color:#267764;margin:0}.detail-toggle:has(input:disabled){color:#89958f;background:#f5f7f5;cursor:not-allowed}.detail-toggle input:disabled{cursor:not-allowed}

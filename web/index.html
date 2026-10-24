@@ -84,10 +84,10 @@
     </div>
 
     <section id="results" class="panel results-panel" hidden aria-labelledby="resultsHeading">
-      <div class="results-head"><div><p class="eyebrow">RESULTS</p><h2 id="resultsHeading">价格窗口</h2><p id="resultSubtitle"></p></div><div class="download-actions"><button id="downloadJson" type="button">下载 JSON</button><button id="downloadCsv" type="button">下载 CSV</button></div></div>
+      <div class="results-head"><div><p class="eyebrow">RESULTS</p><h2 id="resultsHeading">价格窗口</h2><p id="resultSubtitle"></p></div><div class="download-actions"><label class="detail-toggle" title="期货无复权/超额列"><input id="detailToggle" type="checkbox" disabled>显示复权和超额</label><button id="downloadJson" type="button">下载 JSON</button><button id="downloadCsv" type="button">下载 CSV</button></div></div>
       <div class="baseline-card"><span id="baselineLabel">发布前基准价</span><strong id="baselinePrice">—</strong><small id="baselineDetail"></small></div>
       <div class="table-scroll"><table><thead><tr id="resultHead"><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>差价</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
-      <p class="result-note">日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。原始＝未除权收盘价（仅拆股调整），复权＝含分红调整。超额＝个股涨跌幅－同市场对照涨跌幅（简单差值，不是市场模型）；恒生指数、多伦多综指为价格指数，复权与原始相同。期货连续合约跨换月时会标记，涨跌幅包含新旧合约价差，未作调整。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。</p>
+      <p class="result-note" id="resultNote">日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。缺数据不按零处理。新闻与价格同时变化不代表因果关系。</p>
     </section>
   </main>
   <footer><span>新闻 × 港股价格查询 · 数据来源与时间始终随结果保留</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">查看源代码与使用说明 ↗</a></footer>
