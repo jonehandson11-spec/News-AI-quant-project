@@ -7,9 +7,13 @@ import time
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
+from dataclasses import replace
+from pathlib import Path
+
 from news_price_query.assets import ASSETS, resolve_asset
 from news_price_query.cli import _result_dict
-from news_price_query.news import find_direct_match, parse_news
+from news_price_query.daily_report import DEFAULT_BENCHMARKS, daily_report
+from news_price_query.news import find_direct_match, parse_news, read_news
 from news_price_query.query import query_event
 
 
@@ -58,25 +62,74 @@ class RemoteNewsStore:
             return items
 
 
+class LocalNewsStore:
+    """Read the team news CSV from a local path; re-read when the file changes."""
+
+    def __init__(self, path):
+        self.path = Path(path)
+        self._items = None
+        self._mtime = None
+        self._lock = Lock()
+        self.stale = False
+
+    def __call__(self):
+        with self._lock:
+            mtime = self.path.stat().st_mtime
+            if self._items is None or mtime != self._mtime:
+                self._items = read_news(self.path)
+                self._mtime = mtime
+            return self._items
+
+
 class QueryService:
-    def __init__(self, provider_factory, *, news_source=None, now=None, mode="minute"):
+    def __init__(self, provider_factory, *, news_source=None, now=None, mode="minute",
+                 instruments=None, price_source="富途 OpenD", data_version=None):
+        """instruments: optional callable returning price_store.Instrument rows
+        (local price database); they are added to the seven registered assets."""
         if mode not in ("minute", "daily"):
             raise ValueError(f"Unknown query mode: {mode}")
         self.mode = mode
         self.provider_factory = provider_factory
         self.news_source = news_source or RemoteNewsStore()
         self.now = now or (lambda: datetime.now(HK))
+        self.instruments = instruments
+        self.price_source = price_source
+        self.data_version = data_version or (lambda: None)
 
-    @staticmethod
-    def _asset(value):
-        asset = resolve_asset(value)
-        if asset.ticker not in ALLOWED:
-            raise ValueError("首版仅支持七个已登记标的")
-        return asset
+    def _allowed(self):
+        allowed = dict(ALLOWED)
+        if self.instruments is not None:
+            for item in self.instruments():
+                if item.ticker in allowed or item.role != "equity":
+                    continue
+                base = resolve_asset(item.ticker)
+                names = tuple(name for name in (item.name, *item.aliases) if name)
+                allowed[item.ticker] = replace(base, aliases=names + base.aliases)
+        return allowed
+
+    def _asset(self, value):
+        allowed = self._allowed()
+        key = "".join(str(value).casefold().split())
+        for candidate in allowed.values():
+            if key in {"".join(alias.casefold().split()) for alias in candidate.aliases}:
+                return candidate
+        try:
+            asset = resolve_asset(value)
+        except ValueError:
+            asset = None
+        if asset is None or asset.ticker not in allowed:
+            if self.instruments is None:
+                raise ValueError("首版仅支持七个已登记标的")
+            raise ValueError("只支持已登记标的和本地价格库中的标的；新股票请先加入股票池并运行 update_prices.py")
+        return allowed[asset.ticker]
 
     def catalog(self):
         return [{"ticker": asset.ticker, "name": asset.aliases[0], "role": asset.role}
-                for asset in ASSETS]
+                for asset in self._allowed().values()]
+
+    def source_info(self):
+        return {"price_source": self.price_source, "mode": self.mode,
+                "data_version": self.data_version()}
 
     def news(self, asset_name, start=None, end=None):
         asset = self._asset(asset_name)
@@ -119,10 +172,21 @@ class QueryService:
         if not isinstance(benchmarks, (list, tuple)):
             raise ValueError("benchmarks 必须是标的代码列表")
         selected = list(dict.fromkeys(benchmarks))
-        if any(code not in BENCHMARKS for code in selected):
+        if self.mode == "daily":
+            if any(code not in BENCHMARKS | {"^HSI"} for code in selected):
+                raise ValueError("对照标的只支持 2800.HK、3033.HK 和 ^HSI")
+        elif any(code not in BENCHMARKS for code in selected):
             raise ValueError("对照标的只支持 2800.HK 和 3033.HK")
         as_of = self.now()
         provider = self.provider_factory()
+        if self.mode == "daily":
+            try:
+                return daily_report(provider, asset, event_time, as_of=as_of,
+                                    benchmarks=(*DEFAULT_BENCHMARKS, *selected))
+            finally:
+                close = getattr(provider, "close", None)
+                if close:
+                    close()
         try:
             main = query_event(provider, asset, event_time, as_of=as_of, mode=self.mode)
             payload = _result_dict(main)

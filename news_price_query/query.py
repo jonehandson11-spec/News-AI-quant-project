@@ -18,6 +18,7 @@ class Observation:
     price: float
     source: str
     basis: str
+    volume: float | None = None
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class WindowResult:
     delay_seconds: int | None
     source: str | None
     basis: str | None
+    flag: str | None = None  # daily mode: missing_data (trading day without a bar) or zero_volume
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,7 @@ class EventResult:
     mode: str = "minute"
     session: str | None = None
     t0: object = None  # datetime.date in daily mode
+    baseline_flag: str | None = None
 
 
 def _observation(bar: PriceBar) -> Observation:
@@ -173,7 +176,17 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
             continue
         if not info.is_trading or info.close_at() > as_of:
             continue
-        closes[day] = Observation(info.close_at(), bar.close, bar.source, bar.basis)
+        closes[day] = Observation(info.close_at(), bar.close, bar.source, bar.basis,
+                                  getattr(bar, "volume", None))
+
+    def _flag(observation, gap_days):
+        if observation is None or gap_days:
+            return "missing_data"  # trading day without a bar: suspension or data gap
+        info = calendar.day(observation.observed_at.date())
+        # Index volume from free feeds is unreliable, so only securities get this flag.
+        if observation.volume == 0 and not info.half_day and not asset.ticker.startswith("^"):
+            return "zero_volume"
+        return None
 
     def _nearest(day, step):
         """Exact bar, else up to max_gap_days trading days in `step` direction."""
@@ -198,6 +211,7 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
             f"{config.max_gap_days} trading days before {baseline_day.isoformat()}")
     baseline_gap = int((event_time - baseline.observed_at).total_seconds())
     baseline_status = "on_date" if baseline_gap_days == 0 else "stale"
+    baseline_flag = _flag(baseline, baseline_gap_days)
 
     results: list[WindowResult] = []
     for target in window_targets:
@@ -222,7 +236,8 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
                 except ValueError:
                     pass
             results.append(WindowResult(target.label, target.target, None, None, None,
-                                        status, None, None, None))
+                                        status, None, None, None,
+                                        "missing_data" if status == "missing" else None))
             continue
         if match.basis != baseline.basis:
             raise ValueError(f"Mixed price basis for {asset.ticker}: {baseline.basis} and {match.basis}")
@@ -235,10 +250,11 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
         delay = int((match.observed_at - target.target).total_seconds())
         results.append(WindowResult(
             target.label, target.target, match.observed_at, match.price, value,
-            status, delay, match.source, match.basis,
+            status, delay, match.source, match.basis, _flag(match, gap_days),
         ))
     return EventResult(
         asset=asset, published_at=event_time, baseline=baseline,
         baseline_gap_seconds=baseline_gap, baseline_status=baseline_status,
         windows=tuple(results), mode="daily", session=session, t0=t0,
+        baseline_flag=baseline_flag,
     )

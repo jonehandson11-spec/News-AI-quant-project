@@ -19,6 +19,7 @@ class PriceBar:
     close: float
     source: str
     basis: str = "raw"
+    volume: float | None = None
 
 
 def _parse_timestamp(value: str, interval: str) -> datetime:
