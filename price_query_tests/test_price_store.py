@@ -1,8 +1,12 @@
 import argparse
+import csv
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from news_price_query.assets import resolve_asset
@@ -10,7 +14,9 @@ from news_price_query.daily_report import daily_report
 from news_price_query.news import NewsItem
 from news_price_query.price_store import DailyRow, LocalDbPriceProvider, PriceStore
 from news_price_query.price_update import UniverseEntry, read_universe, update_prices
+from news_price_query.market_calendars import calendar_for
 from news_price_query.windows import TradingWindowConfig
+from scripts.update_prices import main as update_main
 from web.service import QueryService
 
 
@@ -105,11 +111,94 @@ class PriceStoreTests(unittest.TestCase):
         row = self.store.rows("0883.HK", "2023-08-31", "2023-08-31")[0]
         self.assertAlmostEqual(row.adj_close, 9.9 * 0.95)
 
-    def test_futures_and_unknown_markets_are_skipped_not_guessed(self):
+    def test_explicit_refetch_replaces_history_and_downloads_from_start(self):
+        calls = []
+        corrected = [row for row in STOCK if row[0] != "2023-08-29"]
+        result = update_prices(self.store, [UniverseEntry("0883.HK")],
+                               fake_downloader({**self.tables, "0883.HK": corrected}, calls),
+                               now=self.now, start="2023-08-01", refetch=("0883.HK",))
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual([call[1] for call in calls if call[0] == "0883.HK"], ["2023-08-01"])
+        self.assertEqual(self.store.rows("0883.HK", "2023-08-29", "2023-08-29"), [])
+        self.assertEqual(self.store.rows("0883.HK", "2023-08-30", "2023-08-30")[0].close, 10.5)
+
+    def test_refetch_applies_corrected_calendar_to_old_row(self):
+        self.assertEqual(self.store.rows("0883.HK", "2023-09-01", "2023-09-01"), [])
+        original = calendar_for("XHKG")
+
+        class CorrectedCalendar:
+            def __getattr__(self, name):
+                return getattr(original, name)
+
+            def is_trading_day(self, day):
+                return day.isoformat() == "2023-09-01" or original.is_trading_day(day)
+
+        with patch("news_price_query.price_update.calendar_for", return_value=CorrectedCalendar()):
+            update_prices(self.store, [UniverseEntry("0883.HK")], fake_downloader(self.tables),
+                          now=self.now, start="2023-08-01", refetch=("0883.HK",))
+        self.assertEqual(self.store.rows("0883.HK", "2023-09-01", "2023-09-01")[0].close, 11.0)
+
+    def test_equity_still_rejects_zero_and_negative_closes(self):
+        invalid = [(d, -1.0, -1.0, v) if d == "2023-09-11" else (d, c, a, v)
+                   for d, c, a, v in STOCK]
+        invalid.append(("2023-09-06", 0.0, 0.0, 100))
+        update_prices(self.store, [UniverseEntry("0883.HK")],
+                      fake_downloader({**self.tables, "0883.HK": invalid}),
+                      now=self.now, start="2023-08-01", refetch=("0883.HK",))
+        self.assertEqual(self.store.rows("0883.HK", "2023-09-06", "2023-09-06"), [])
+        self.assertEqual(self.store.rows("0883.HK", "2023-09-11", "2023-09-11"), [])
+
+    def test_cli_repeatable_refetch_replaces_each_named_ticker(self):
+        universe = Path(self.tmp.name) / "universe.csv"
+        with universe.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(("ticker",))
+            writer.writerow(("0883.HK",))
+        changed = {**self.tables,
+                   "0883.HK": [row for row in STOCK if row[0] != "2023-08-29"],
+                   "^HSI": [row for row in HSI if row[0] != "2023-08-31"]}
+        with patch("scripts.update_prices.yfinance_downloader", fake_downloader(changed)):
+            with redirect_stdout(io.StringIO()):
+                status = update_main(["--db", str(self.db), "--universe", str(universe),
+                                      "--start", "2023-08-01", "--refetch", "0883.HK",
+                                      "--refetch", "^HSI"])
+        self.assertEqual(status, 0)
+        self.assertEqual(self.store.rows("0883.HK", "2023-08-29", "2023-08-29"), [])
+        self.assertEqual(self.store.rows("^HSI", "2023-08-31", "2023-08-31"), [])
+
+    def test_adjusted_nonpositive_price_flags_window_without_discarding_raw_return(self):
+        old = self.store.rows("0883.HK", "2023-09-04", "2023-09-04")[0]
+        self.store.upsert_rows([DailyRow(old.ticker, old.market, old.currency, old.date,
+                                         old.close, -1.0, old.volume, old.source,
+                                         old.fetched_at, old.run_id)])
+        report = daily_report(LocalDbPriceProvider(self.db), resolve_asset("0883.HK"),
+                              hk(2023, 8, 31, 17), as_of=hk(2023, 10, 1),
+                              config=TradingWindowConfig(before_days=(1,), after_days=(0,)))
+        window = report["windows"]["after_t0"]
+        self.assertAlmostEqual(window["return_pct"], (10.0 - 11.0) / 11.0 * 100)
+        self.assertIsNone(window["adj_return_pct"])
+        self.assertEqual(window["flag"], "nonpositive_price")
+
+    def test_nonpositive_window_preserves_existing_zero_volume_flag(self):
+        old = self.store.rows("0883.HK", "2023-09-05", "2023-09-05")[0]
+        self.store.upsert_rows([DailyRow(old.ticker, old.market, old.currency, old.date,
+                                         0.0, 0.0, old.volume, old.source,
+                                         old.fetched_at, old.run_id)])
+        report = daily_report(LocalDbPriceProvider(self.db), resolve_asset("0883.HK"),
+                              hk(2023, 8, 31, 17), as_of=hk(2023, 10, 1),
+                              config=TradingWindowConfig(before_days=(1,), after_days=(1,)))
+        window = report["windows"]["after_t1"]
+        self.assertIsNone(window["return_pct"])
+        self.assertIsNone(window["adj_return_pct"])
+        self.assertEqual(window["flag"], "zero_volume")
+
+    def test_futures_are_queryable_and_unknown_markets_are_skipped(self):
         result = update_prices(self.store, [UniverseEntry("CL=F"), UniverseEntry("SHEL.L")],
                                fake_downloader(self.tables), now=self.now, start="2023-08-01")
         summary = {t.ticker: t for t in result["tickers"]}
-        self.assertIn("next block", summary["CL=F"].skipped)
+        self.assertIsNone(summary["CL=F"].skipped)
+        self.assertEqual(summary["CL=F"].market, "NYMEX")
+        self.assertIn("no data for CL=F", summary["CL=F"].error)
         self.assertIn("unknown market", summary["SHEL.L"].skipped)
         self.assertEqual(self.store.rows("CL=F", "2000-01-01", "2030-01-01"), [])
 

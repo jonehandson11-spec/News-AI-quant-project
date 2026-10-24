@@ -104,7 +104,7 @@ class QueryService:
                 if item.role in ("equity", "futures"):
                     allowed.setdefault(item.ticker, item)
             for item in self.instruments():
-                if item.role != "equity":
+                if item.role not in ("equity", "futures"):
                     continue
                 if item.ticker in allowed:
                     base = allowed[item.ticker]
@@ -135,11 +135,11 @@ class QueryService:
     def catalog(self):
         rows = []
         for asset in self._allowed().values():
-            row = {"ticker": asset.ticker, "name": asset.aliases[0], "role": asset.role}
+            row = {"ticker": asset.ticker, "name": asset.aliases[0], "role": asset.role,
+                   "unit": asset.unit, "data_status": asset.data_status}
             if self.instruments is not None:
                 row.update({"stage": asset.stage, "market": asset.market, "currency": asset.currency,
-                            "asset_type": asset.asset_type, "queryable": asset.queryable,
-                            "data_status": asset.data_status})
+                            "asset_type": asset.asset_type, "queryable": asset.queryable})
             rows.append(row)
         return rows
 
@@ -155,7 +155,7 @@ class QueryService:
             raise ValueError("开始日期不能晚于结束日期")
         found = []
         seen = set()
-        if asset.role != "equity":
+        if asset.role not in ("equity", "futures"):
             return found
         for item in self.news_source():
             published_date = item.published_at.astimezone(HK).date()
@@ -181,7 +181,7 @@ class QueryService:
     def query(self, asset_name, published_at, *, benchmarks=()):
         asset = self._asset(asset_name)
         if not asset.queryable:
-            raise ValueError(f"{asset.ticker}（{asset.asset_type}）已登记，但价格查询将在下一块实现：{asset.notes or ''}")
+            raise ValueError(f"{asset.ticker} 无免费数据：{asset.notes or ''}")
         if not isinstance(published_at, str):
             raise ValueError("新闻发布时间必须包含时区")
         event_time = datetime.fromisoformat(published_at)

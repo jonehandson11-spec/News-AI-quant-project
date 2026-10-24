@@ -1,8 +1,7 @@
 """Incremental daily-price update into the local store.
 
-Markets: XHKG, XNYS (NYSE/Nasdaq), XTSE, XSAU. market/currency come from the
-asset registry or the ticker suffix; calendar_for(market) picks the calendar.
-Futures are registered but skipped here (next block).
+Markets: XHKG, XNYS (NYSE/Nasdaq), XTSE, XSAU, NYMEX. market/currency come
+from the asset registry or ticker suffix; calendar_for(market) picks the calendar.
 """
 
 import csv
@@ -15,8 +14,9 @@ from zoneinfo import ZoneInfo
 
 from .assets import market_of_ticker, resolve_asset
 from .daily_report import BENCHMARKS_BY_MARKET
+from .futures import METHOD as FUTURES_METHOD, roll_dates, root_for_ticker
 from .market_calendars import calendar_for
-from .price_store import DailyRow, Instrument, PriceStore
+from .price_store import DailyRow, FuturesRollRow, Instrument, PriceStore
 
 
 HK = ZoneInfo("Asia/Hong_Kong")
@@ -53,6 +53,7 @@ class TickerSummary:
     dropped_non_trading: list = field(default_factory=list)
     dropped_unfinalized: list = field(default_factory=list)
     rebased: bool = False
+    rolls: int = 0
     error: str | None = None
     skipped: str | None = None
 
@@ -95,10 +96,11 @@ def read_universe(path: str | Path) -> list[UniverseEntry]:
 
 def _clean(raw_rows, calendar, today: date, summary: TickerSummary):
     kept = []
+    futures = root_for_ticker(summary.ticker) is not None
     for item in raw_rows:
         day = date.fromisoformat(item["date"])
         close = item.get("close")
-        if close is None or not isfinite(close) or close <= 0:
+        if close is None or not isfinite(close) or (close <= 0 and not futures):
             continue
         if day >= today:
             summary.dropped_unfinalized.append(item["date"])
@@ -128,7 +130,8 @@ def _rebased(store: PriceStore, ticker: str, rows: list[dict]) -> bool:
     stored = {row.date: row for row in store.rows(ticker, rows[0]["date"], rows[-1]["date"])}
     for item in rows:
         old = stored.get(item["date"])
-        if old is None or old.adj_close is None or item["adj_close"] is None:
+        if (old is None or old.adj_close is None or item["adj_close"] is None
+                or old.close == 0 or item["close"] == 0):
             continue
         if abs(old.adj_close / old.close - item["adj_close"] / item["close"]) > 1e-6:
             return True
@@ -137,11 +140,15 @@ def _rebased(store: PriceStore, ticker: str, rows: list[dict]) -> bool:
 
 def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, *, now: datetime,
                   start: str = "2000-01-01", overlap_days: int = 10, source: str = "yfinance",
-                  universe_label: str | None = None) -> dict:
+                  universe_label: str | None = None, refetch=()) -> dict:
     """downloader(ticker, start_date_iso, end_date_iso_exclusive) -> list of
     {date, close, adj_close, volume}."""
     entries = list(universe)
     known = {entry.ticker for entry in entries}
+    refetch_tickers = {_normalize(ticker) for ticker in refetch}
+    for ticker in sorted(refetch_tickers - known):
+        entries.append(UniverseEntry(ticker))
+        known.add(ticker)
     for ticker, name, aliases, role in ALWAYS_INCLUDED:
         if ticker not in known:
             entries.append(UniverseEntry(ticker, name, aliases, role))
@@ -176,8 +183,11 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
             # "Today" in the exchange's own time zone: that session may still be
             # running (or unfinalized), so it is excluded and picked up next run.
             today = now.astimezone(calendar.tz).date()
+            role = "futures" if root_for_ticker(entry.ticker) else entry.role
             store.upsert_instrument(Instrument(entry.ticker, market, currency, entry.name,
-                                               entry.aliases, entry.role))
+                                               entry.aliases, role))
+            if entry.ticker in refetch_tickers:
+                store.delete_ticker(entry.ticker)
             last = store.last_date(entry.ticker)
             fetch_from = start
             if last is not None:
@@ -210,6 +220,15 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
                     day = calendar.shift_trading_days(day, 1)
                 summary.calendar_trading_days = len(expected)
                 summary.missing_trading_days = [d for d in expected if d not in have]
+                root = root_for_ticker(entry.ticker)
+                if root:
+                    detected = roll_dates(root, date.fromisoformat(summary.first_date),
+                                          date.fromisoformat(summary.last_date))
+                    summary.rolls = store.upsert_rolls([
+                        FuturesRollRow(entry.ticker, item.roll_date.isoformat(),
+                                       item.from_contract, item.to_contract,
+                                       item.last_trade_date.isoformat(), FUTURES_METHOD, run_id)
+                        for item in detected])
         except (NotImplementedError, ValueError, RuntimeError, OSError) as exc:
             summary.error = str(exc)
     failures = [s for s in summaries if s.error]

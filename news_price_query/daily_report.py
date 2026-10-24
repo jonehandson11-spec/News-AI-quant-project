@@ -4,6 +4,7 @@ returns against benchmarks, with a source on every price."""
 from datetime import datetime
 
 from .assets import Asset, resolve_asset
+from .futures import METHOD as FUTURES_METHOD, roll_dates, root_for_ticker
 from .query import query_event
 from .windows import DEFAULT_TRADING_WINDOWS, TradingWindowConfig, window_label_zh
 
@@ -16,6 +17,7 @@ BENCHMARKS_BY_MARKET = {
     # Yahoo's ^TASI.SR has only the latest day (no history) and Tadawul ETFs are
     # not on the free feed, so Saudi results have no benchmark for now.
     "XSAU": (),
+    "NYMEX": (),
 }
 
 
@@ -23,7 +25,7 @@ def benchmarks_for(asset: Asset) -> tuple[str, ...]:
     return BENCHMARKS_BY_MARKET.get(getattr(asset, "market", "XHKG"), ())
 
 METHOD = (
-    "t0 = news day if published before that day's close, else next HKEX trading day. "
+    "t0 = news day if published before that day's close, else next trading day on the asset's exchange. "
     "Baseline = close of the trading day before t0 (last close before publication). "
     "before_Ntd: return from the close N trading days before the baseline day to the baseline. "
     "after_tK: return from the baseline to the close K trading days after t0. "
@@ -73,6 +75,18 @@ def _aligned(own, other, own_base, other_base):
     )
 
 
+def _window_rolls(root, label, baseline, observation):
+    if root is None or observation is None or baseline is None:
+        return []
+    first = observation.date() if label.startswith("before_") else baseline.date()
+    last = baseline.date() if label.startswith("before_") else observation.date()
+    if first >= last:
+        return []
+    return [{"roll_date": roll.roll_date.isoformat(),
+             "from_contract": roll.from_contract, "to_contract": roll.to_contract}
+            for roll in roll_dates(root, first, last) if first < roll.roll_date <= last]
+
+
 def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datetime,
                  benchmarks=None,
                  config: TradingWindowConfig = DEFAULT_TRADING_WINDOWS, calendar=None) -> dict:
@@ -86,6 +100,7 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
 
     local_tz = (calendar or calendar_for(market)).tz
     adj_windows = {item.label: item for item in adj.windows} if adj else {}
+    root = root_for_ticker(asset.ticker) if asset.asset_type == "futures" else None
     windows = {}
     for item in raw.windows:
         other = adj_windows.get(item.label)
@@ -93,6 +108,9 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
         if item.price is not None:
             change = (raw.baseline.price - item.price if item.label.startswith("before_")
                       else item.price - raw.baseline.price)
+        rolls = _window_rolls(root, item.label, raw.baseline.observed_at, item.observed_at)
+        adj_rolls = _window_rolls(root, item.label, adj.baseline.observed_at if adj else None,
+                                  other.observed_at if other else None)
         windows[item.label] = {
             "label_zh": window_label_zh(item.label),
             "target_at": _iso(item.target_at),
@@ -103,10 +121,14 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             "return_pct": item.return_pct,
             "adj_return_pct": other.return_pct if other else None,
             "status": item.status,
-            "flag": item.flag,
+            "flag": item.flag or (other.flag if other else None),
             "delay_seconds": item.delay_seconds,
             "source": item.source,
             "basis": "raw",
+            "crosses_roll": bool(rolls),
+            "rolls": rolls,
+            "adj_crosses_roll": bool(adj_rolls),
+            "adj_rolls": adj_rolls,
         }
     payload = {
         "ticker": asset.ticker,
@@ -116,6 +138,8 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
         "market": market,
         "exchange_timezone": str(local_tz),
         "currency": getattr(asset, "currency", "HKD"),
+        "unit": asset.unit,
+        "asset_type": asset.asset_type,
         "stage": getattr(asset, "stage", None),
         "fx": None,  # interface only: see fx.py; returns are in local currency
         "as_of": as_of.isoformat(),
@@ -135,6 +159,7 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
         "windows": windows,
         "adj_error": adj_error,
         "method": METHOD,
+        "contract_method": FUTURES_METHOD if root else None,
         "data_version": provider.data_version() if hasattr(provider, "data_version") else None,
     }
     comparisons = {}
@@ -167,7 +192,7 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
                 "return_pct": other.return_pct,
                 "adj_return_pct": other_adj.return_pct if other_adj else None,
                 "status": other.status,
-                "flag": other.flag,
+                "flag": other.flag or (other_adj.flag if other_adj else None),
                 "source": other.source,
                 "excess_return_pct": excess,
                 "adj_excess_return_pct": adj_excess,

@@ -19,6 +19,7 @@ class Asset:
     aliases: tuple[str, ...]
     market: str = "XHKG"
     currency: str = "HKD"
+    unit: str | None = None
     asset_type: str = "equity"
     stage: str | None = None
     stage_en: str | None = None
@@ -33,7 +34,7 @@ class Asset:
 
     @property
     def queryable(self) -> bool:
-        return self.asset_type in ("equity", "index") and self.data_status != "no_free_source"
+        return self.data_status != "no_free_source" and (self.data_ticker is not None or self.data_status is None)
 
 
 ASSETS = (
@@ -73,7 +74,8 @@ def load_research_assets(path: Path = RESEARCH_CSV) -> tuple[Asset, ...]:
         output.append(Asset(
             ticker=row["ticker"], futu_code=_futu_code(row["ticker"]), role=role,
             aliases=tuple(dict.fromkeys((*names, *_split(row["aliases"])))),
-            market=row["market"], currency=row["currency"], asset_type=row["asset_type"],
+            market=row["market"], currency=row["currency"], unit=row.get("unit") or None,
+            asset_type=row["asset_type"],
             stage=row["stage_zh"] or None, stage_en=row["stage_en"] or None,
             name_zh=row["name_zh"] or None, name_en=row["name_en"] or None,
             data_ticker=row["data_ticker"] or None, exchange=row["exchange"] or None,
@@ -107,8 +109,8 @@ def market_of_ticker(ticker: str) -> tuple[str, str]:
     # Alternative listings (e.g. SHEL.L for SHEL) resolve to the primary asset in
     # name lookups but trade elsewhere, so only an exact ticker match counts here.
     if asset is not None and upper in {asset.ticker.upper(), (asset.data_ticker or "").upper()}:
-        if asset.asset_type == "futures":
-            raise NotImplementedError(f"{ticker}: futures are registered but not priced yet (next block)")
+        if asset.data_status == "no_free_source" or not asset.queryable:
+            raise NotImplementedError(f"{ticker}: no free data source")
         return asset.market, asset.currency
     if upper.endswith(".HK") or upper == "^HSI":
         return "XHKG", "HKD"
@@ -117,7 +119,7 @@ def market_of_ticker(ticker: str) -> tuple[str, str]:
     if upper.endswith(".SR"):
         return "XSAU", "SAR"
     if upper.endswith("=F"):
-        raise NotImplementedError(f"{ticker}: futures are registered but not priced yet")
+        raise NotImplementedError(f"{ticker}: unregistered futures ticker")
     if re.fullmatch(r"[A-Z]{1,5}(?:-[A-Z]{1,2})?", upper):  # Yahoo US style, e.g. XOM, BRK-B
         return "XNYS", "USD"
     raise NotImplementedError(f"{ticker}: unknown market")

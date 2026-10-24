@@ -63,6 +63,16 @@ CREATE TABLE IF NOT EXISTS daily_prices (
     run_id TEXT NOT NULL REFERENCES update_runs(run_id),
     PRIMARY KEY (ticker, date)
 );
+CREATE TABLE IF NOT EXISTS futures_rolls (
+    ticker TEXT NOT NULL,
+    roll_date TEXT NOT NULL,
+    from_contract TEXT NOT NULL,
+    to_contract TEXT NOT NULL,
+    last_trade_date TEXT NOT NULL,
+    method TEXT NOT NULL,
+    run_id TEXT NOT NULL REFERENCES update_runs(run_id),
+    PRIMARY KEY (ticker, roll_date)
+);
 """
 
 
@@ -77,6 +87,17 @@ class DailyRow:
     volume: float | None
     source: str
     fetched_at: str
+    run_id: str
+
+
+@dataclass(frozen=True)
+class FuturesRollRow:
+    ticker: str
+    roll_date: str
+    from_contract: str
+    to_contract: str
+    last_trade_date: str
+    method: str
     run_id: str
 
 
@@ -148,6 +169,18 @@ class PriceStore:
     def delete_ticker(self, ticker: str) -> None:
         with closing(self._connect()) as conn, conn:
             conn.execute("DELETE FROM daily_prices WHERE ticker=?", (ticker,))
+            conn.execute("DELETE FROM futures_rolls WHERE ticker=?", (ticker,))
+
+    def upsert_rolls(self, rows: list[FuturesRollRow]) -> int:
+        with closing(self._connect()) as conn, conn:
+            conn.executemany(
+                "INSERT INTO futures_rolls VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(ticker, roll_date) DO UPDATE SET "
+                "from_contract=excluded.from_contract, to_contract=excluded.to_contract, "
+                "last_trade_date=excluded.last_trade_date, method=excluded.method, run_id=excluded.run_id",
+                [(r.ticker, r.roll_date, r.from_contract, r.to_contract, r.last_trade_date,
+                  r.method, r.run_id) for r in rows])
+        return len(rows)
 
     # --- reads --------------------------------------------------------------
     def rows(self, ticker: str, start: str | None = None, end: str | None = None) -> list[DailyRow]:
@@ -161,6 +194,18 @@ class PriceStore:
             params.append(end)
         with closing(self._connect()) as conn:
             return [DailyRow(**dict(row)) for row in conn.execute(query + " ORDER BY date", params)]
+
+    def rolls(self, ticker: str, start: str | None = None, end: str | None = None) -> list[FuturesRollRow]:
+        query = "SELECT * FROM futures_rolls WHERE ticker=?"
+        params: list = [ticker]
+        if start:
+            query += " AND roll_date>=?"
+            params.append(start)
+        if end:
+            query += " AND roll_date<=?"
+            params.append(end)
+        with closing(self._connect()) as conn:
+            return [FuturesRollRow(**dict(row)) for row in conn.execute(query + " ORDER BY roll_date", params)]
 
     def last_date(self, ticker: str) -> str | None:
         with closing(self._connect()) as conn:

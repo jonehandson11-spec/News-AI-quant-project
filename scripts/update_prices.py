@@ -25,6 +25,8 @@ def main(argv=None) -> int:
     parser.add_argument("--start", default="2000-01-01", help="First date for tickers not yet stored")
     parser.add_argument("--overlap-days", type=int, default=10,
                         help="Re-fetch this many stored trading days to pick up revisions and dividends")
+    parser.add_argument("--refetch", action="append", default=[], metavar="TICKER",
+                        help="Delete stored prices and rolls for TICKER, then fetch from --start. Repeatable.")
     parser.add_argument("--json", action="store_true", help="Print the full summary as JSON")
     args = parser.parse_args(argv)
 
@@ -38,7 +40,7 @@ def main(argv=None) -> int:
     result = update_prices(store, entries, yfinance_downloader,
                            now=datetime.now(ZoneInfo("Asia/Hong_Kong")),
                            start=args.start, overlap_days=args.overlap_days,
-                           universe_label=";".join(args.universe))
+                           universe_label=";".join(args.universe), refetch=args.refetch)
     if args.json:
         print(json.dumps({**result, "tickers": [vars(t) for t in result["tickers"]]},
                          ensure_ascii=False, indent=2))
@@ -48,10 +50,15 @@ def main(argv=None) -> int:
             if t.error:
                 print(f"  {t.ticker:9s} ERROR {t.error}")
                 continue
+            if t.skipped:
+                print(f"  {t.ticker:9s} SKIPPED {t.skipped}")
+                continue
             print(f"  {t.ticker:9s} stored={t.stored_rows:5d} {t.first_date}..{t.last_date} "
                   f"calendar_days={t.calendar_trading_days:5d} missing={len(t.missing_trading_days):3d} "
                   f"dropped_non_trading={len(t.dropped_non_trading):3d} "
-                  f"dropped_unfinalized={len(t.dropped_unfinalized)}{' REBASED' if t.rebased else ''}")
+                  f"dropped_unfinalized={len(t.dropped_unfinalized)}"
+                  f"{' rolls=' + str(t.rolls) if t.market == 'NYMEX' else ''}"
+                  f"{' REBASED' if t.rebased else ''}")
     return 0 if result["status"] == "ok" else 1
 
 

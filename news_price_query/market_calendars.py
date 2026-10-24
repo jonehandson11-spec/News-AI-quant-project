@@ -14,6 +14,8 @@ MARKETS = {
     "XNYS": ("America/New_York", CALENDAR_DIR / "XNYS.csv", "16:00"),   # NYSE; also used for Nasdaq listings
     "XTSE": ("America/Toronto", CALENDAR_DIR / "XTSE.csv", "16:00"),
     "XSAU": ("Asia/Riyadh", CALENDAR_DIR / "XSAU.csv", "15:00"),
+    "NYMEX": ("America/New_York", CALENDAR_DIR / "NYMEX.csv", "14:30"),
+    "XLON": ("Europe/London", CALENDAR_DIR / "XLON.csv", "16:30"),
 }
 
 
