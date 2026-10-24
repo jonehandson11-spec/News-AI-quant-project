@@ -1,7 +1,10 @@
-import { WINDOW_LABELS, hongKongInputToIso, relativeHongKongInput } from "./core.mjs";
+import { WINDOW_LABELS, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, relativeHongKongInput } from "./core.mjs";
 
 const byId = (id) => document.getElementById(id);
-const state = { news: [], result: null, newsRequest: 0 };
+const state = { news: [], result: null, newsRequest: 0,
+  showDetail: detailPreference(window.location.search, localStorage.getItem("pq.showAdjExcess")) };
+const fullResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。原始＝未除权收盘价（仅拆股调整），复权＝含分红调整。超额＝个股涨跌幅－同市场对照涨跌幅（简单差值，不是市场模型）；恒生指数、多伦多综指为价格指数，复权与原始相同。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
+const shortResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
 const statusText = {
   on_date: "目标日期", deferred_back: "前一交易日", on_time: "准时",
   deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情", expired: "合约已到期",
@@ -149,8 +152,7 @@ function renderDaily(result) {
     renderFutures(result, contract);
     return;
   }
-  setHead(["窗口", `起点（${unit}）`, `终点（${unit}）`, "涨跌幅（原始）", "涨跌幅（复权）",
-    ...codes.map((code) => `超额 vs ${benchmarkName[code] || code}（原始 / 复权）`), "状态"]);
+  setHead(dailyColumns(result, { showDetail: state.showDetail }));
   const body = byId("resultRows");
   body.replaceChildren();
   for (const [label, item] of Object.entries(result.windows)) {
@@ -159,8 +161,8 @@ function renderDaily(result) {
     endpointCell(tr, item.start_at, item.start_price, unit);
     endpointCell(tr, item.end_at, item.end_price, unit);
     returnCell(tr, item.return_pct);
-    adjustedReturnCell(tr, item, unit);
-    for (const code of codes) {
+    if (state.showDetail) adjustedReturnCell(tr, item, unit);
+    for (const code of state.showDetail ? codes : []) {
       const compared = result.benchmarks[code];
       const row = compared.windows?.[label];
       const cell = document.createElement("td");
@@ -180,6 +182,7 @@ function renderDaily(result) {
     body.append(tr);
   }
   renderSubtitle(result, codes);
+  byId("resultNote").textContent = state.showDetail ? fullResultNote : shortResultNote;
 }
 
 function renderFutures(result, contract) {
@@ -199,6 +202,7 @@ function renderFutures(result, contract) {
   }
   if (contract.error) byId("baselineDetail").textContent = `固定合约 ${contract.contract} 无基准价格（雅虎不提供已到期合约，且本地库未存到该日）：${contract.error}`;
   renderSubtitle(result, []);
+  byId("resultNote").textContent = shortResultNote;
 }
 
 function renderSubtitle(result, codes) {
@@ -218,6 +222,11 @@ const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: 
 function renderResult(result) {
   state.result = result;
   byId("results").hidden = false;
+  const toggle = byId("detailToggle");
+  const available = detailToggleAvailable(result);
+  toggle.disabled = !available;
+  toggle.title = available ? "" : "期货无复权/超额列";
+  toggle.checked = state.showDetail;
   if (result.mode === "daily") {
     renderDaily(result);
     byId("results").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -226,6 +235,7 @@ function renderResult(result) {
   setHead(["窗口", "目标时间", "实际取价", "价格", "差价", "涨跌幅", "状态"]);
   byId("baselineLabel").textContent = "发布前最后一根已完成分钟线";
   byId("resultSubtitle").textContent = `${result.ticker} · 新闻发布 ${showTime(result.published_at)} 香港时间 · ${result.baseline.source}`;
+  byId("resultNote").textContent = shortResultNote;
   byId("baselinePrice").textContent = showPrice(result.baseline.price);
   byId("baselineDetail").textContent = `${showTime(result.baseline.observed_at)} 开始的分钟线 · 完成后至新闻发布 ${result.baseline.gap_seconds} 秒 · ${result.baseline.status === "stale" ? "价格可能已过时" : "近期价格"}`;
   const body = byId("resultRows");
@@ -367,6 +377,8 @@ async function loadCatalog() {
     if (stages.includes(chosenStage)) stageSelect.value = chosenStage;
     fillAssets();
     state.mode = data.mode || "minute";
+    byId("detailToggle").disabled = state.mode !== "daily";
+    byId("detailToggle").title = state.mode === "daily" ? "" : "期货无复权/超额列";
     byId("priceStatus").textContent = state.mode === "daily" ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
     byId("sourceHelp").textContent = state.mode === "daily"
       ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按标的所在交易所的交易日计算（港股港交所、美股纽交所、加股多伦多、沙特 Tadawul、NYMEX 期货），涨跌幅以当地货币计。股票同时给出原始与复权涨跌幅和同市场对照的超额收益。"
@@ -414,4 +426,13 @@ byId("downloadJson").addEventListener("click", () => {
   if (state.result) download(`${state.result.ticker}-news-price.json`, JSON.stringify(state.result, null, 2), "application/json;charset=utf-8");
 });
 byId("downloadCsv").addEventListener("click", downloadCsv);
+byId("detailToggle").checked = state.showDetail;
+byId("detailToggle").addEventListener("change", (event) => {
+  state.showDetail = event.currentTarget.checked;
+  localStorage.setItem("pq.showAdjExcess", state.showDetail ? "1" : "0");
+  const url = new URL(window.location.href);
+  url.searchParams.set("detail", state.showDetail ? "1" : "0");
+  history.replaceState(null, "", url);
+  if (state.result) renderResult(state.result);
+});
 loadCatalog();

@@ -197,3 +197,33 @@ export const WINDOW_LABELS = {
   after_1h: "新闻后 1 小时", after_3h: "新闻后 3 小时", after_12h: "新闻后 12 小时",
   after_24h: "新闻后 24 小时", after_3d: "新闻后 3 天", after_1w: "新闻后 1 周",
 };
+
+const DETAIL_BENCHMARK_NAMES = {
+  "2800.HK": "盈富 2800", "^HSI": "恒指", "3033.HK": "恒科 3033",
+  SPY: "标普500 ETF SPY", XLE: "能源板块 ETF XLE", "XIU.TO": "TSX 60 ETF XIU", "^GSPTSE": "多伦多综指",
+};
+
+export function detailToggleAvailable(result) {
+  return result?.mode === "daily" && !result.contract;
+}
+
+export function dailyColumns(result, { showDetail = false } = {}) {
+  const unit = result.price_unit || result.currency || "";
+  const columns = ["窗口", `起点（${unit}）`, `终点（${unit}）`, "涨跌幅（原始）"];
+  if (showDetail && detailToggleAvailable(result)) {
+    columns.push("涨跌幅（复权）");
+    for (const code of Object.keys(result.benchmarks || {})) {
+      columns.push(`超额 vs ${DETAIL_BENCHMARK_NAMES[code] || code}（原始 / 复权）`);
+    }
+  }
+  columns.push("状态");
+  return columns;
+}
+
+export function detailPreference(search, storedValue) {
+  const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+  const detail = params.get("detail");
+  if (detail === "1") return true;
+  if (detail === "0") return false;
+  return storedValue === "1";
+}

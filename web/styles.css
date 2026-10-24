@@ -15,3 +15,4 @@ select:focus{border-color:#267764;box-shadow:0 0 0 3px rgba(38,119,100,.12)}
 .hk-only[hidden],#stageFilter[hidden],#stageLabel[hidden]{display:none}
 .table-scroll td,.table-scroll th{overflow-wrap:break-word;vertical-align:top}
 .table-scroll .comparison-note{white-space:normal;line-height:1.45;font-size:10px}
+.detail-toggle{display:flex;align-items:center;gap:7px;border:1px solid #cbd8cf;background:#fff;border-radius:8px;padding:9px 12px;font-size:12px;color:#2d6659;white-space:nowrap}.detail-toggle input{accent-color:#267764;margin:0}.detail-toggle:has(input:disabled){color:#89958f;background:#f5f7f5;cursor:not-allowed}.detail-toggle input:disabled{cursor:not-allowed}

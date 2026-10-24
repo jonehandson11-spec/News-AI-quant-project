@@ -1,6 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset } from "./core.mjs";
+import { dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset } from "./core.mjs";
+
+test("detail preference defaults off and URL overrides stored preference", () => {
+  assert.equal(detailPreference("", null), false);
+  assert.equal(detailPreference("?detail=1", "0"), true);
+  assert.equal(detailPreference("?detail=0", "1"), false);
+  assert.equal(detailPreference("", "1"), true);
+});
+
+test("daily columns show optional stock detail and never expose it for futures", () => {
+  const stock = { mode: "daily", ticker: "1211.HK", price_unit: "HKD",
+    benchmarks: { "2800.HK": {}, "^HSI": {} } };
+  const compact = dailyColumns(stock);
+  assert.deepEqual(compact, ["窗口", "起点（HKD）", "终点（HKD）", "涨跌幅（原始）", "状态"]);
+  assert.equal(compact.some((label) => label.includes("复权") || label.includes("超额")), false);
+  const detailed = dailyColumns(stock, { showDetail: true });
+  assert.ok(detailed.includes("涨跌幅（复权）"));
+  assert.ok(detailed.includes("超额 vs 盈富 2800（原始 / 复权）"));
+  assert.ok(detailed.includes("超额 vs 恒指（原始 / 复权）"));
+  const futures = { ...stock, contract: { contract: "CLZ26" } };
+  assert.equal(detailToggleAvailable(futures), false);
+  assert.deepEqual(dailyColumns(futures, { showDetail: true }), compact);
+});
 
 const header = "ticker,interval,timestamp,close\n";
 const fixture = header + [
