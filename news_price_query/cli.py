@@ -156,6 +156,8 @@ def _parser():
     single = commands.add_parser("query", help="Look up one asset and news time")
     _add_common(single)
     single.add_argument("--time", required=True, help="Publication time in ISO 8601")
+    single.add_argument("--format", choices=("json", "table"), default="json",
+                        help="table: start/end date+price per window (daily local mode)")
     batch = commands.add_parser("batch", help="Query articles with a direct asset mention")
     _add_common(batch)
     batch.add_argument("--news", required=True, help="Team news.csv or BBC export")
@@ -266,7 +268,12 @@ def main(argv=None) -> int:
 
             report = daily_report(provider, asset, event_time, as_of=as_of, config=options["config"],
                                   benchmarks=(*benchmarks_for(asset), *([benchmark_asset.ticker] if benchmark_asset else [])))
-            print(json.dumps(report, ensure_ascii=False, indent=2))
+            if args.format == "table":
+                from .daily_table import format_daily_table
+
+                print(format_daily_table(report), end="")
+            else:
+                print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
         if args.command == "query":
             result = query_event(provider, asset, event_time, as_of=as_of, **options)

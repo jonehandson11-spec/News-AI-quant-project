@@ -77,6 +77,15 @@ def _aligned(own, other, own_base, other_base):
     )
 
 
+def _span(label, base_at, base_price, obs_at, obs_price) -> dict:
+    """Start/end of a window: before_* runs from the N-days-ago close to the baseline,
+    after_* from the baseline to the t+K close. Missing prices stay None."""
+    base = (_iso(base_at) if not isinstance(base_at, str) else base_at, base_price)
+    obs = (_iso(obs_at) if not isinstance(obs_at, str) else obs_at, obs_price)
+    start, end = (obs, base) if label.startswith("before_") else (base, obs)
+    return {"start_at": start[0], "start_price": start[1], "end_at": end[0], "end_price": end[1]}
+
+
 def _window_rolls(root, label, baseline, observation):
     if root is None or observation is None or baseline is None:
         return []
@@ -199,6 +208,12 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             "rolls": rolls,
             "adj_crosses_roll": bool(adj_rolls),
             "adj_rolls": adj_rolls,
+            **_span(item.label, raw.baseline.observed_at, raw.baseline.price,
+                    item.observed_at, item.price),
+            **{f"adj_{key}": value for key, value in _span(
+                item.label, adj.baseline.observed_at if adj else None,
+                adj.baseline.price if adj else None,
+                other.observed_at if other else None, other.price if other else None).items()},
         }
     contract = None
     if root:
@@ -208,7 +223,12 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             fixed = fixed_rows[label]
             window["continuous"] = {key: window[key] for key in (
                 "observed_at", "price", "return_pct", "status", "flag", "source",
-                "crosses_roll", "rolls")}
+                "crosses_roll", "rolls", "start_at", "start_price", "end_at", "end_price")}
+            fixed_base = contract["baseline"] or {}
+            span = _span(label, fixed_base.get("observed_at"), fixed_base.get("price"),
+                         fixed["observed_at"], fixed["price"])
+            window.update(span)
+            window.update({f"adj_{key}": value for key, value in span.items()})
             window.update({
                 "observed_at": fixed["observed_at"], "price": fixed["price"],
                 "adj_price": fixed["price"], "return_pct": fixed["return_pct"],
@@ -299,6 +319,13 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
                 "source": other.source,
                 "excess_return_pct": excess,
                 "adj_excess_return_pct": adj_excess,
+                **_span(item.label, b_raw.baseline.observed_at, b_raw.baseline.price,
+                        other.observed_at, other.price),
+                **{f"adj_{key}": value for key, value in _span(
+                    item.label, b_adj.baseline.observed_at if b_adj else None,
+                    b_adj.baseline.price if b_adj else None,
+                    other_adj.observed_at if other_adj else None,
+                    other_adj.price if other_adj else None).items()},
             }
         comparisons[bench_asset.ticker] = {
             "baseline": {"observed_at": b_raw.baseline.observed_at.isoformat(),

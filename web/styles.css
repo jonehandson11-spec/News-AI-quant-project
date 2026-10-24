@@ -12,3 +12,5 @@ select:focus{border-color:#267764;box-shadow:0 0 0 3px rgba(38,119,100,.12)}
 
 .news-card{border:1px solid #e4ebe4;border-radius:11px;background:#fbfcfa}.news-card:hover{border-color:#6ea88d;background:#f3faf4}.news-card .news-item{border:0;background:transparent;padding-bottom:3px}.news-card .news-item:hover,.news-card .news-item:focus{background:transparent}.news-source-link{display:inline-block;padding:0 15px 14px;color:#267764;font-size:11px;font-weight:700;text-decoration:none}.news-source-link:hover{text-decoration:underline}
 .hk-only[hidden],#stageFilter[hidden],#stageLabel[hidden]{display:none}
+.table-scroll td,.table-scroll th{overflow-wrap:break-word;vertical-align:top}
+.table-scroll .comparison-note{white-space:normal;line-height:1.45;font-size:10px}
