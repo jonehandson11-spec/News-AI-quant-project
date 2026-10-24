@@ -102,7 +102,8 @@ function statusCell(tr, item) {
 function renderDaily(result) {
   const codes = Object.keys(result.benchmarks || {});
   const contract = result.contract;
-  byId("baselineLabel").textContent = contract ? `发布前最后一个结算价（固定合约 ${contract.contract}）` : "发布前最后一个收盘价（基准）";
+  byId("baselineLabel").textContent = contract
+    ? `发布前最后一个结算价（固定合约 ${contract.contract}${contract.switched ? "，临近到期改用" : ""}）` : "发布前最后一个收盘价（基准）";
   byId("baselinePrice").textContent = showPrice(result.baseline.price);
   const adj = result.baseline.adj_price === null || result.baseline.adj_price === undefined ? "" : ` · 复权 ${showPrice(result.baseline.adj_price)}`;
   const flag = result.baseline.flag ? ` · ${flagText[result.baseline.flag] || result.baseline.flag}` : "";
@@ -170,7 +171,7 @@ function renderFutures(result, contract) {
 function renderSubtitle(result, codes) {
   const version = result.data_version ? ` · 数据版本 ${result.data_version.run_id}` : "";
   const contractNote = result.contract
-    ? ` · 固定合约 ${result.contract.contract}（最后交易日 ${result.contract.last_trade_date}）` : "";
+    ? ` · 固定合约 ${result.contract.contract}（最后交易日 ${result.contract.last_trade_date}）${result.contract.note ? ` · ${result.contract.note}` : ""}` : "";
   const local = result.market && result.market !== "XHKG"
     ? ` = ${showTime(result.published_at_local)} 交易所当地时间（${result.exchange_timezone}）` : "";
   const currency = result.currency ? ` · 价格与涨跌幅以 ${result.currency} 计` : "";

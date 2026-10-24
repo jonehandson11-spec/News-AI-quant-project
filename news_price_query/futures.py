@@ -124,6 +124,8 @@ CONTRACT_SUFFIX = ".NYM"  # Yahoo single-contract symbols, e.g. CLZ26.NYM
 _CONTRACT = re.compile(r"^(CL|HO|RB|BZ)([FGHJKMNQUVXZ])(\d{2})(?:\.NYM)?$")
 FIXED_METHOD = (
     "Fixed contract: the front-month contract on the baseline day (e.g. BZX26) is used for "
+    "every window; if fewer than N (default 5) NYMEX trading days remain after the baseline "
+    "day up to and including its last trade date, the next contract is used instead. It is used for "
     "every window before and after the news. Windows ending after that contract's last trade "
     "date are 'expired' (no return, never zero). Prices come from Yahoo single-contract "
     "symbols (e.g. CLZ26.NYM; Yahoo only lists live contracts, so history of expired "

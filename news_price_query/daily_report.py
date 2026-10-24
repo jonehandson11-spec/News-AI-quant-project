@@ -6,7 +6,7 @@ from datetime import datetime
 
 from .assets import Asset, resolve_asset
 from .futures import (FIXED_METHOD, METHOD as FUTURES_METHOD, contract_expiry, contract_ticker,
-                      front_contract, roll_dates, root_for_ticker)
+                      front_contract, next_contract, roll_dates, root_for_ticker)
 from .query import query_event
 from .windows import DEFAULT_TRADING_WINDOWS, TradingWindowConfig, window_label_zh
 
@@ -89,13 +89,42 @@ def _window_rolls(root, label, baseline, observation):
             for roll in roll_dates(root, first, last) if first < roll.roll_date <= last]
 
 
-def _fixed_contract(provider, asset, root, continuous, published_at, as_of, config, calendar):
+# Fixed-contract choice: if fewer than this many NYMEX trading days remain after the
+# baseline day up to and including the front contract's last trade date, use the next
+# contract instead ("临近到期，改用 …"). Configurable per call (min_days_to_expiry).
+DEFAULT_MIN_DAYS_TO_EXPIRY = 5
+
+
+def _days_to_expiry(calendar, base_day, expiry) -> int:
+    """Trading days d with base_day < d <= expiry (0 if the baseline day is the last trade date)."""
+    count, day = 0, base_day
+    while True:
+        day = calendar.shift_trading_days(day, 1)
+        if day > expiry:
+            return count
+        count += 1
+
+
+def _fixed_contract(provider, asset, root, continuous, published_at, as_of, config, calendar,
+                    min_days_to_expiry=DEFAULT_MIN_DAYS_TO_EXPIRY):
     """Re-run the windows on the single contract that was the front month on the
-    continuous baseline day. Windows after its last trade date are 'expired'."""
+    continuous baseline day (or the next one if the front is about to expire).
+    Windows after the chosen contract's last trade date are 'expired'."""
+    from .market_calendars import calendar_for
+
     base_day = continuous.baseline.observed_at.date()
-    code = front_contract(root, base_day)
+    front = front_contract(root, base_day)
+    remaining = _days_to_expiry(calendar or calendar_for(asset.market), base_day, contract_expiry(front))
+    code, switched = front, remaining < min_days_to_expiry
+    if switched:
+        code = next_contract(front)
     expiry = contract_expiry(code)
     info = {"contract": code, "ticker": contract_ticker(code), "last_trade_date": expiry.isoformat(),
+            "front_contract": front, "front_last_trade_date": contract_expiry(front).isoformat(),
+            "front_days_to_expiry": remaining, "min_days_to_expiry": min_days_to_expiry,
+            "switched": switched,
+            "note": (f"临近到期，改用 {code}（{front} 在基准日后仅剩 {remaining} 个交易日，"
+                     f"阈值 {min_days_to_expiry}）") if switched else None,
             "error": None, "baseline": None}
     contract_asset = replace(asset, ticker=contract_ticker(code), aliases=(code,),
                              data_ticker=contract_ticker(code))
@@ -129,7 +158,8 @@ def _fixed_contract(provider, asset, root, continuous, published_at, as_of, conf
 
 def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datetime,
                  benchmarks=None,
-                 config: TradingWindowConfig = DEFAULT_TRADING_WINDOWS, calendar=None) -> dict:
+                 config: TradingWindowConfig = DEFAULT_TRADING_WINDOWS, calendar=None,
+                 min_days_to_expiry: int = DEFAULT_MIN_DAYS_TO_EXPIRY) -> dict:
     """benchmarks=None uses the asset's market defaults (BENCHMARKS_BY_MARKET);
     extra benchmarks from another market are reported as skipped."""
     if benchmarks is None:
@@ -173,7 +203,7 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
     contract = None
     if root:
         contract, fixed_rows = _fixed_contract(provider, asset, root, raw, published_at, as_of,
-                                               config, calendar)
+                                               config, calendar, min_days_to_expiry)
         for label, window in windows.items():
             fixed = fixed_rows[label]
             window["continuous"] = {key: window[key] for key in (

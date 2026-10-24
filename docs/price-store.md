@@ -133,3 +133,9 @@ USD/t. ICE gasoil has no free daily source and remains unavailable for queries.
 - For days the roll rule says contract C was front, the continuous price is C's price; those
   rows are stored for C with source `derived:<ticker> front-month` where no direct row exists
   (direct rows always win). Older months of an expired contract are missing (not invented).
+- Near-expiry switch: let N = number of NYMEX trading days d with baseline_day < d <= the
+  front contract's last trade date. If N < `min_days_to_expiry` (default 5,
+  `daily_report.DEFAULT_MIN_DAYS_TO_EXPIRY`, overridable per call), the next contract is
+  used and the result says 「临近到期，改用 XXX」 (`contract.switched`, `contract.note`,
+  `contract.front_days_to_expiry`). Example: BZX26 on baseline 2026-09-29 has N = 1
+  (only 09-30) -> BZZ26. CLX26 on baseline 2026-10-05 has N = 11 -> kept.

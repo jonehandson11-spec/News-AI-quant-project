@@ -116,9 +116,19 @@ class FuturesIntegrationTests(unittest.TestCase):
     def test_report_and_service(self):
         self._update()
         provider = LocalDbPriceProvider(store=self.store)
+        config = TradingWindowConfig(before_days=(1,), after_days=(1,))
+        # Default rule: CLX26 has only 1 trading day (10-20) left after the 10-19 baseline (< 5),
+        # so the next contract CLZ26 is used and the result says so.
+        switched = daily_report(provider, resolve_asset("CL=F"), datetime(2026, 10, 20, 14, tzinfo=NY),
+                                as_of=self.now, config=config)
+        self.assertEqual(switched["contract"]["contract"], "CLZ26")
+        self.assertTrue(switched["contract"]["switched"])
+        self.assertEqual(switched["contract"]["front_days_to_expiry"], 1)
+        self.assertIn("临近到期，改用 CLZ26", switched["contract"]["note"])
+        # min_days_to_expiry=0 keeps the front contract (used below to test 'expired').
         report = daily_report(provider, resolve_asset("CL=F"),
                               datetime(2026, 10, 20, 14, tzinfo=NY), as_of=self.now,
-                              config=TradingWindowConfig(before_days=(1,), after_days=(1,)))
+                              config=config, min_days_to_expiry=0)
         self.assertEqual(report["benchmarks"], {})
         self.assertEqual(report["unit"], "USD/bbl")
         self.assertEqual(report["asset_type"], "futures")
@@ -178,6 +188,39 @@ class FuturesIntegrationTests(unittest.TestCase):
         self.assertAlmostEqual(before["continuous"]["return_pct"], (73.0 - 71.0) / 71.0 * 100)
         self.assertAlmostEqual(report["windows"]["after_t1"]["return_pct"], (75.0 / 73.0 - 1) * 100)
 
+    def test_days_to_expiry_threshold_is_exact(self):
+        from news_price_query.daily_report import _days_to_expiry
+        nymex = calendar_for("NYMEX")
+        # CLX26 last trade date 2026-10-20.
+        self.assertEqual(_days_to_expiry(nymex, date(2026, 10, 20), date(2026, 10, 20)), 0)
+        self.assertEqual(_days_to_expiry(nymex, date(2026, 10, 13), date(2026, 10, 20)), 5)
+        self.assertEqual(_days_to_expiry(nymex, date(2026, 10, 14), date(2026, 10, 20)), 4)
+        prices = {d: 70.0 + i for i, d in enumerate(
+            ["2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"])}
+        def download(ticker, start, end):
+            return [{"date": d, "close": c, "adj_close": c, "volume": 1.0}
+                    for d, c in prices.items() if start <= d < end] if ticker == "CL=F" else []
+        update_prices(self.store, [UniverseEntry("CL=F")], download,
+                      now=datetime(2026, 10, 17, 12, tzinfo=NY), start="2026-10-09")
+        provider = LocalDbPriceProvider(store=self.store)
+        config = TradingWindowConfig(before_days=(1,), after_days=(1,))
+        as_of = datetime(2026, 10, 17, 12, tzinfo=NY)
+        # Baseline 10-13: 5 trading days left (14,15,16,19,20) -> keep CLX26.
+        keep = daily_report(provider, resolve_asset("CL=F"), datetime(2026, 10, 14, 9, tzinfo=NY),
+                            as_of=as_of, config=config)
+        self.assertEqual((keep["contract"]["contract"], keep["contract"]["switched"]), ("CLX26", False))
+        # Baseline 10-14: 4 left -> switch to CLZ26 (no CLZ26 prices in this fixture -> missing, not zero).
+        switch = daily_report(provider, resolve_asset("CL=F"), datetime(2026, 10, 15, 9, tzinfo=NY),
+                              as_of=as_of, config=config)
+        self.assertEqual((switch["contract"]["contract"], switch["contract"]["switched"]), ("CLZ26", True))
+        self.assertIsNone(switch["baseline"]["price"])
+        self.assertIsNotNone(switch["contract"]["error"])
+        self.assertIsNone(switch["windows"]["after_t1"]["return_pct"])
+        # Configurable: threshold 4 keeps CLX26 on the 10-14 baseline.
+        custom = daily_report(provider, resolve_asset("CL=F"), datetime(2026, 10, 15, 9, tzinfo=NY),
+                              as_of=as_of, config=config, min_days_to_expiry=4)
+        self.assertEqual(custom["contract"]["contract"], "CLX26")
+
     def test_negative_cl_settlement_is_stored_and_has_no_percentage_return(self):
         prices = {"2020-04-16": 0.0, "2020-04-17": 18.27,
                   "2020-04-20": -37.63, "2020-04-21": 10.01}
@@ -200,7 +243,7 @@ class FuturesIntegrationTests(unittest.TestCase):
         ):
             with self.subTest(published=published):
                 report = daily_report(provider, resolve_asset("CL=F"), published,
-                                      as_of=self.now, config=config)
+                                      as_of=self.now, config=config, min_days_to_expiry=0)
                 window = report["windows"]["after_t0"]
                 self.assertEqual(report["baseline"]["price"], expected_baseline)
                 self.assertEqual(window["price"], expected_window)
