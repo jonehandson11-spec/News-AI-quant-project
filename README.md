@@ -1,8 +1,30 @@
 # BBC + 新浪财经 + Financial Times 新闻共享库
 
-这是一个每天自动采集、可用 Git 同步的 SQLite 新闻库。每天**北京时间 20:00**开始采集 BBC、新浪财经和 Financial Times，按原文 URL 去重，**三个来源达到 `crawl_config.json` 中的总量上限后停止新增**（初始上限为 3000，明确批准的历史补录可提高上限）。
+## 新闻价格查询页面（入口）
 
-初始数据为 **181 篇**（BBC 23 篇、新浪财经 158 篇），原始采集窗口为北京时间 **2026-09-25 21:07:26 至 2026-09-27 21:07:26**。此后每次查找最近 48 小时发布的新文章，保留以往已收集的数据。当前总量、剩余数量和下次计划时间见 [data/progress.json](data/progress.json)。
+**组员直接用：** 打开 <https://passport-shield-quad-danny.trycloudflare.com>，输入组长单独发的访问码即可使用，什么都不用装。链接只在组长电脑开着时可用；组长重开后链接会变，以本 README 为准。
+
+输入股票（或期货）和新闻发布时间，查看新闻前后各交易日窗口的起止价和涨跌幅；不用导入 CSV，也不用登录富途 OpenD。覆盖港股、美股、加股、沙特股票和 Brent/WTI/RBOB/ULSD 期货（石油研究首期标的见 `news_price_query/data/research_assets.csv`）。
+
+**第一次用：先建本地价格库**（需要 Python 3.10+；以后每天重跑同一命令即可增量更新）：
+
+```sh
+python3 -m pip install yfinance
+python3 scripts/update_prices.py --universe news_price_query/data/universe_example_hk.csv --universe news_price_query/data/universe_oil_research.csv
+```
+
+Windows 把 `python3` 换成 `py -3`。价格库默认在 `~/.news_price_query/prices.sqlite3`，不进仓库。
+
+**启动（两步）：**
+
+1. Windows 双击 `START-WINDOWS.bat`；Mac/Linux 在仓库目录运行 `./start-local.sh`（窗口保持打开）。
+2. 浏览器会自动打开 `http://127.0.0.1:8765/`；没打开就手动访问这个地址。
+
+**怎么查：**按研究环节选标的 → 点一条候选新闻或手动填发布时间（香港时间）→ 查询。结果表每个窗口给出起点、终点（日期 + 价格 + 币种/单位）、涨跌幅和状态；勾选「显示复权和超额」可看复权涨幅和相对对照标的（盈富 2800/恒指、SPY/XLE 等）的超额。期货按固定合约计算。缺数据显示「缺失」，不当零；未到期窗口显示「未到期」。结果可下载 JSON/CSV。命令行：`python3 -m news_price_query query --asset 0883.HK --time 2026-09-28T11:17:00+08:00 --mode daily --provider local --format table`。
+
+价格数据来自 yfinance，**仅供组内研究**；网页默认只在本机 127.0.0.1 运行，不要公开部署或把 8765 端口开放到公网。价格与新闻同时变化不代表因果关系。详细说明见 [本地价格库](docs/price-store.md)（更新、交易日历、期货规则）、[命令行](docs/news-price-query.md)、[网页说明](web/README.md)。
+
+旧版备选：代码仍保留富途 OpenD 取价（`--provider futu --mode minute`），不再作为组员使用方式。
 
 ## 自动采集
 
@@ -128,43 +150,3 @@ python scripts/crawl_daily.py --probe --cloud-only
 BBC／新浪使用 GitHub 定时任务；FT 使用本机定时任务上传批次，交由 GitHub 串行合并。遇到人工提交冲突时停止推送，不强制覆盖仓库。
 
 FT 本机自动程序、Windows 任务和故障弹窗的操作方法见[本机自动采集说明](docs/ft-local-automatic.md)。日常采集与上传不需要 Codex 运行。
-
-## 新闻 × 港股价格查询
-
-**技术上可以让组员共用一个查询网页。**由一台电脑运行富途 OpenD 和本项目的 Python 网页服务；同一内网或 VPN 中的其他组员只需浏览器，不用各自安装 Python、OpenD，也不用导入价格 CSV。运行服务的电脑必须保持开机、联网、登录 OpenD；富途免费账号能查询哪些历史分钟线、调用额度及是否允许团队共享，以账号实际权限和富途条款为准。
-
-首版支持腾讯 `0700.HK`、阿里巴巴 `9988.HK`、中芯国际 `0981.HK`、比亚迪 `1211.HK`、汇丰 `0005.HK`、盈富基金 `2800.HK` 和南方恒生科技 ETF `3033.HK`。后两只可用作大盘与科技板块对照。
-
-### 第一次设置：由负责运行服务的组员操作
-
-1. 打开本仓库，点击 **Code → Download ZIP** 并解压整个项目，或者 `git clone` 本仓库。之后在**解压后的项目根目录**运行下列命令，不要直接双击 `web/index.html`。
-2. 安装 Python 3.10 或更新版本。Windows 在终端执行 `py -3 -m pip install futu-api`；macOS／Linux 执行 `python3 -m pip install futu-api`。这个 Python 包与已下载的 OpenD 是两个组件。
-3. 启动富途 OpenD，在 OpenD 内登录免费账号，确认其监听地址为默认的 `127.0.0.1:11111`，并保持 OpenD 运行。账号和密码只输入 OpenD，不写入仓库。
-4. 先在这台电脑上打开本地网页：Windows 双击项目根目录的 `START-WINDOWS.bat`；macOS／Linux 在终端运行 `bash start-local.sh`。浏览器应打开 `http://127.0.0.1:8765/`。如果浏览器没自动打开，手动输入该地址。此时只有这台电脑能用这个地址。
-5. 要让其他组员访问，在这台电脑的项目根目录**关闭上一步的服务窗口后**，重新运行以下命令。Windows：
-
-   ```powershell
-   py -3 -m web.server --host 0.0.0.0 --port 8765
-   ```
-
-   macOS／Linux：
-
-   ```sh
-   python3 -m web.server --host 0.0.0.0 --port 8765
-   ```
-
-6. 查出这台电脑的**内网 IP**：Windows 终端运行 `ipconfig`，在当前 Wi-Fi／以太网连接下找“IPv4 地址”；macOS 可在“系统设置 → 网络”查看。把 `http://<内网IP>:8765/` 发给同一内网的组员。若组员不在同一内网，需要先连团队 VPN，再使用这台电脑的 VPN 地址。先从另一台电脑试开网址；打不开时检查服务窗口是否仍在运行、两台电脑是否互通，以及主机防火墙是否允许团队网络访问 TCP 8765。
-
-网页没有登录功能，只在团队内网或 VPN 中共享，不要把 8765 端口直接开放到公网。`127.0.0.1` 只代表当前电脑，组员不能用你电脑的 `127.0.0.1` 访问网页。若没有一台持续运行的共享电脑，每位组员可分别按第 1–4 步在自己电脑启动，并使用自己的 OpenD；此时数据权限和调用额度也各自独立。
-
-### 组员每天怎么查
-
-1. 在浏览器打开运行服务的组员发来的 `http://<内网IP或VPN地址>:8765/`。页面顶部应显示“富途 OpenD · 查询时取价”。这个文字只表明服务已启动，**不代表富途历史行情权限已验证**。
-2. 在“设置查询”选择七个标的之一。需要找相关新闻时，在“相关候选新闻”填开始、结束日期，点击“筛选新闻”，再点击一条候选；页面会自动填入该新闻的香港时间。也可以手动填“新闻发布时间”，或选择“1 小时前”等快捷时间。ETF 没有公司新闻候选，可手动输入事件时间。
-3. 需要比较整体港股或科技板块时，勾选 `2800.HK` 或 `3033.HK` 对照。点击“自动取价并查询”；价格由运行服务的电脑向 OpenD 请求，组员无需上传 CSV。
-4. 在“价格窗口”查看发布前基准价，以及新闻前 1／3／6 个月和后 1／3／12／24 小时、3 天、1 周的价格、涨跌幅与实际取价时间。“尚未到期”表示未来窗口还不能算；“缺少行情”或取价报错时不能把空值当成零涨跌。需要留档时点“下载 JSON”或“下载 CSV”；这里的 CSV 是**查询结果**。
-5. 点击候选新闻的原文链接核对事件与公司是否相关，并检查是否有重复报道。价格变化只是观察结果，不能单凭它判断新闻造成了涨跌。
-
-新闻由服务定期读取仓库的 `data/news.csv`；若新闻暂时读取失败，仍可手动输入发布时间查询行情。若网页打不开，先检查共享电脑、OpenD 和服务窗口是否都在运行；若网页可打开但行情报错，检查 `futu-api`、OpenD 登录、历史行情权限和免费调用额度。
-
-**不要把旧的 [GitHub Pages 网页](https://jonehandson11-spec.github.io/News-AI-quant-project/) 当作这个自动取价网页。**GitHub Pages 不能连接你电脑上的 OpenD；它保留原来的浏览器价格 CSV 用法。更多细节见 [网页说明](web/README.md)、[组员交接说明](QUERY_SYSTEM_TEAM_HANDOFF.md) 和 [命令行说明](docs/news-price-query.md)。
