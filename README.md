@@ -1,31 +1,5 @@
 # BBC + 新浪财经 + Financial Times 新闻共享库
 
-## 新闻价格查询页面（入口）
-
-**组员直接用：** 打开 <https://passport-shield-quad-danny.trycloudflare.com>，输入组长单独发的访问码即可使用，什么都不用装。链接只在组长电脑开着时可用；组长重开后链接会变，以本 README 为准。
-
-输入股票（或期货）和新闻发布时间，查看新闻前后各交易日窗口的起止价和涨跌幅；不用导入 CSV，也不用登录富途 OpenD。覆盖港股、美股、加股、沙特股票和 Brent/WTI/RBOB/ULSD 期货（石油研究首期标的见 `news_price_query/data/research_assets.csv`）。
-
-**第一次用：先建本地价格库**（需要 Python 3.10+；以后每天重跑同一命令即可增量更新）：
-
-```sh
-python3 -m pip install yfinance
-python3 scripts/update_prices.py --universe news_price_query/data/universe_example_hk.csv --universe news_price_query/data/universe_oil_research.csv
-```
-
-Windows 把 `python3` 换成 `py -3`。价格库默认在 `~/.news_price_query/prices.sqlite3`，不进仓库。
-
-**启动（两步）：**
-
-1. Windows 双击 `START-WINDOWS.bat`；Mac/Linux 在仓库目录运行 `./start-local.sh`（窗口保持打开）。
-2. 浏览器会自动打开 `http://127.0.0.1:8765/`；没打开就手动访问这个地址。
-
-**怎么查：**按研究环节选标的 → 点一条候选新闻或手动填发布时间（香港时间）→ 查询。结果表每个窗口给出起点、终点（日期 + 价格 + 币种/单位）、涨跌幅和状态；勾选「显示复权和超额」可看复权涨幅和相对对照标的（盈富 2800/恒指、SPY/XLE 等）的超额。期货按固定合约计算。缺数据显示「缺失」，不当零；未到期窗口显示「未到期」。结果可下载 JSON/CSV。命令行：`python3 -m news_price_query query --asset 0883.HK --time 2026-09-28T11:17:00+08:00 --mode daily --provider local --format table`。
-
-价格数据来自 yfinance，**仅供组内研究**；网页默认只在本机 127.0.0.1 运行，不要公开部署或把 8765 端口开放到公网。价格与新闻同时变化不代表因果关系。详细说明见 [本地价格库](docs/price-store.md)（更新、交易日历、期货规则）、[命令行](docs/news-price-query.md)、[网页说明](web/README.md)。
-
-旧版备选：代码仍保留富途 OpenD 取价（`--provider futu --mode minute`），不再作为组员使用方式。
-
 ## 自动采集
 
 每天北京时间 **20:00** 开始，UTC 为 **12:00**，每轮只新增最近 48 小时发布的文章。三个来源合计达到配置中的总量上限后停止新增；已有数据保留。网站没有足够文章时不会生成填充数据。
@@ -150,3 +124,29 @@ python scripts/crawl_daily.py --probe --cloud-only
 BBC／新浪使用 GitHub 定时任务；FT 使用本机定时任务上传批次，交由 GitHub 串行合并。遇到人工提交冲突时停止推送，不强制覆盖仓库。
 
 FT 本机自动程序、Windows 任务和故障弹窗的操作方法见[本机自动采集说明](docs/ft-local-automatic.md)。日常采集与上传不需要 Codex 运行。
+
+## 新闻价格查询页面（入口）
+
+**组员直接用：** 打开 <https://passport-shield-quad-danny.trycloudflare.com>，输入组长单独发的访问码即可使用，什么都不用装。链接只在组长电脑开着时可用；组长重开后链接会变，以本 README 为准。
+
+输入股票（或期货）和新闻发布时间，查看新闻前后各交易日窗口的起止价和涨跌幅；不用导入 CSV，也不用登录富途 OpenD。覆盖港股、美股、加股、沙特股票和 Brent/WTI/RBOB/ULSD 期货（石油研究首期标的见 `news_price_query/data/research_assets.csv`）。
+
+**第一次用：先建本地价格库**（需要 Python 3.10+；以后每天重跑同一命令即可增量更新）：
+
+```sh
+python3 -m pip install yfinance
+python3 scripts/update_prices.py --universe news_price_query/data/universe_example_hk.csv --universe news_price_query/data/universe_oil_research.csv
+```
+
+Windows 把 `python3` 换成 `py -3`。价格库默认在 `~/.news_price_query/prices.sqlite3`，不进仓库。
+
+**启动（两步）：**
+
+1. Windows 双击 `START-WINDOWS.bat`；Mac/Linux 在仓库目录运行 `./start-local.sh`（窗口保持打开）。
+2. 浏览器会自动打开 `http://127.0.0.1:8765/`；没打开就手动访问这个地址。
+
+**怎么查：**按研究环节选标的 → 点一条候选新闻或手动填发布时间（香港时间）→ 查询。结果表每个窗口给出起点、终点（日期 + 价格 + 币种/单位）、涨跌幅和状态；勾选「显示复权和超额」可看复权涨幅和相对对照标的（盈富 2800/恒指、SPY/XLE 等）的超额。期货按固定合约计算。缺数据显示「缺失」，不当零；未到期窗口显示「未到期」。结果可下载 JSON/CSV。命令行：`python3 -m news_price_query query --asset 0883.HK --time 2026-09-28T11:17:00+08:00 --mode daily --provider local --format table`。
+
+价格数据来自 yfinance，**仅供组内研究**；网页默认只在本机 127.0.0.1 运行，不要公开部署或把 8765 端口开放到公网。价格与新闻同时变化不代表因果关系。详细说明见 [本地价格库](docs/price-store.md)（更新、交易日历、期货规则）、[命令行](docs/news-price-query.md)、[网页说明](web/README.md)。
+
+旧版备选：代码仍保留富途 OpenD 取价（`--provider futu --mode minute`），不再作为组员使用方式。
