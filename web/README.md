@@ -12,6 +12,18 @@
 
 API 只供同源内部页面使用。团队共享时把服务放在内网或 VPN 中；如需公网入口，应先在前面加身份验证和访问控制。
 
+## 访问码
+
+可为每位使用者生成独立访问码，再通过 HTTPS 隧道共享网页。生成访问码并保存哈希文件和仅供管理员保管的明文清单：
+
+```bash
+python -m web.access generate --names 张三,李四 --hash-file /安全目录/access_codes.json --plain-file /安全目录/access_codes.txt
+python -m web.server --access-codes /安全目录/access_codes.json   # 仍只监听 127.0.0.1
+cloudflared tunnel --url http://127.0.0.1:8765         # 免费 quick tunnel，给出 https://….trycloudflare.com 链接
+```
+
+哈希文件旁会自动创建会话密钥和访问日志；也可用 `--session-secret`、`--access-log` 指定路径，或用环境变量 `NEWS_PRICE_ACCESS_CODES` 指定哈希文件。访问码明文清单应妥善保管，访问码、哈希文件、会话密钥和日志都不要放进仓库。开启后所有页面和 /api/* 须先登录（会话 cookie 30 天，HttpOnly、Secure、SameSite=Lax）；同一来源 15 分钟内输错 5 次会被限速。可用 `python -m web.access list --hash-file 路径` 查看标签；重新生成同名标签会替换该标签的访问码。
+
 ## 行情来源
 
 内部网页使用富途 OpenD。旧命令行和公开静态版仍接受本地价格 CSV，格式为 `ticker,interval,timestamp,close[,basis]`；`interval` 为 `day` 或 `minute`，分钟时间需包含时区。例如：
