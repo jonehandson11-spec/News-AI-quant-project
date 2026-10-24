@@ -1,5 +1,25 @@
 # BBC + 新浪财经 + Financial Times 新闻共享库
 
+## 新闻价格查询页面（入口）
+
+输入股票（或期货）和新闻发布时间，查看新闻前后各交易日窗口的起止价和涨跌幅；不用导入 CSV，也不用登录富途 OpenD。
+
+**第一次用：先建本地价格库**（需要 Python 3.10+；以后每天重跑同一命令即可增量更新）：
+
+```sh
+python3 -m pip install yfinance
+python3 scripts/update_prices.py --universe news_price_query/data/universe_example_hk.csv --universe news_price_query/data/universe_oil_research.csv
+```
+
+Windows 把 `python3` 换成 `py -3`。价格库默认在 `~/.news_price_query/prices.sqlite3`，不进仓库。
+
+**启动（两步）：**
+
+1. Windows 双击 `START-WINDOWS.bat`；Mac/Linux 在仓库目录运行 `./start-local.sh`（窗口保持打开）。
+2. 浏览器会自动打开 `http://127.0.0.1:8765/`；没打开就手动访问这个地址。
+
+价格数据来自 yfinance，**仅供组内研究**；网页默认只在本机 127.0.0.1 运行，不要公开部署或把 8765 端口开放到公网。详细说明见 [本地价格库](docs/price-store.md)、[命令行与窗口规则](docs/news-price-query.md)、[网页说明](web/README.md)。下文「新闻 × 港股价格查询」一节是旧的富途 OpenD 用法（`python -m web.server --provider futu --mode minute`）。
+
 这是一个每天自动采集、可用 Git 同步的 SQLite 新闻库。每天**北京时间 20:00**开始采集 BBC、新浪财经和 Financial Times，按原文 URL 去重，**三个来源达到 `crawl_config.json` 中的总量上限后停止新增**（初始上限为 3000，明确批准的历史补录可提高上限）。
 
 初始数据为 **181 篇**（BBC 23 篇、新浪财经 158 篇），原始采集窗口为北京时间 **2026-09-25 21:07:26 至 2026-09-27 21:07:26**。此后每次查找最近 48 小时发布的新文章，保留以往已收集的数据。当前总量、剩余数量和下次计划时间见 [data/progress.json](data/progress.json)。
@@ -140,7 +160,7 @@ FT 本机自动程序、Windows 任务和故障弹窗的操作方法见[本机�
 1. 打开本仓库，点击 **Code → Download ZIP** 并解压整个项目，或者 `git clone` 本仓库。之后在**解压后的项目根目录**运行下列命令，不要直接双击 `web/index.html`。
 2. 安装 Python 3.10 或更新版本。Windows 在终端执行 `py -3 -m pip install futu-api`；macOS／Linux 执行 `python3 -m pip install futu-api`。这个 Python 包与已下载的 OpenD 是两个组件。
 3. 启动富途 OpenD，在 OpenD 内登录免费账号，确认其监听地址为默认的 `127.0.0.1:11111`，并保持 OpenD 运行。账号和密码只输入 OpenD，不写入仓库。
-4. 先在这台电脑上打开本地网页：Windows 双击项目根目录的 `START-WINDOWS.bat`；macOS／Linux 在终端运行 `bash start-local.sh`。浏览器应打开 `http://127.0.0.1:8765/`。如果浏览器没自动打开，手动输入该地址。此时只有这台电脑能用这个地址。
+4. 先在这台电脑上打开本地网页：Windows 双击项目根目录的 `START-WINDOWS.bat`；macOS／Linux 在终端运行 `bash start-local.sh`。浏览器应打开 `http://127.0.0.1:8765/`。如果浏览器没自动打开，手动输入该地址。此时只有这台电脑能用这个地址。（注：这两个脚本现在默认启动本地价格库日线页面；要用富途 OpenD，改在项目根目录运行 `python -m web.server --provider futu --mode minute --open-browser`，Windows 用 `py -3`。）
 5. 要让其他组员访问，在这台电脑的项目根目录**关闭上一步的服务窗口后**，重新运行以下命令。Windows：
 
    ```powershell
