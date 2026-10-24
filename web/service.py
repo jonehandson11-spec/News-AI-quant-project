@@ -59,7 +59,10 @@ class RemoteNewsStore:
 
 
 class QueryService:
-    def __init__(self, provider_factory, *, news_source=None, now=None):
+    def __init__(self, provider_factory, *, news_source=None, now=None, mode="minute"):
+        if mode not in ("minute", "daily"):
+            raise ValueError(f"Unknown query mode: {mode}")
+        self.mode = mode
         self.provider_factory = provider_factory
         self.news_source = news_source or RemoteNewsStore()
         self.now = now or (lambda: datetime.now(HK))
@@ -121,7 +124,7 @@ class QueryService:
         as_of = self.now()
         provider = self.provider_factory()
         try:
-            main = query_event(provider, asset, event_time, as_of=as_of)
+            main = query_event(provider, asset, event_time, as_of=as_of, mode=self.mode)
             payload = _result_dict(main)
             for label, window in payload["windows"].items():
                 if window["price"] is not None:
@@ -136,14 +139,15 @@ class QueryService:
                 if code == asset.ticker:
                     continue
                 try:
-                    other = query_event(provider, ALLOWED[code], event_time, as_of=as_of)
+                    other = query_event(provider, ALLOWED[code], event_time, as_of=as_of, mode=self.mode)
                 except (ValueError, RuntimeError) as exc:
                     comparisons[code] = {"error": str(exc)}
                     continue
                 aligned_baseline = (
                     abs((main.baseline.observed_at - other.baseline.observed_at).total_seconds()) <= 60
                     and main.baseline.basis == other.baseline.basis
-                    and main.baseline_status == other.baseline_status == "recent"
+                    and main.baseline_status == other.baseline_status
+                    and main.baseline_status in ("recent", "on_date")
                 )
                 other_windows = {}
                 for own_window, other_window in zip(main.windows, other.windows):
