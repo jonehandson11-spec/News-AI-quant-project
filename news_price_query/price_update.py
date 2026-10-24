@@ -1,7 +1,8 @@
 """Incremental daily-price update into the local store.
 
-Only Hong Kong (XHKG) is implemented. market/currency are stored per ticker and
-calendar_for(market) picks the calendar, so other markets can be added later.
+Markets: XHKG, XNYS (NYSE/Nasdaq), XTSE, XSAU. market/currency come from the
+asset registry or the ticker suffix; calendar_for(market) picks the calendar.
+Futures are registered but skipped here (next block).
 """
 
 import csv
@@ -12,13 +13,23 @@ from pathlib import Path
 import re
 from zoneinfo import ZoneInfo
 
-from .hkex_calendar import default_calendar
+from .assets import market_of_ticker, resolve_asset
+from .daily_report import BENCHMARKS_BY_MARKET
+from .market_calendars import calendar_for
 from .price_store import DailyRow, Instrument, PriceStore
 
 
 HK = ZoneInfo("Asia/Hong_Kong")
 ALWAYS_INCLUDED = (("2800.HK", "盈富基金", ("Tracker Fund of Hong Kong",), "benchmark"),
                    ("^HSI", "恒生指数", ("Hang Seng Index", "恒指"), "benchmark"))
+
+
+def _benchmark_entry(ticker: str) -> "UniverseEntry":
+    try:
+        asset = resolve_asset(ticker)
+        return UniverseEntry(ticker, asset.name_zh or asset.aliases[0], asset.aliases, "benchmark")
+    except ValueError:
+        return UniverseEntry(ticker, None, (), "benchmark")
 
 
 @dataclass(frozen=True)
@@ -43,24 +54,17 @@ class TickerSummary:
     dropped_unfinalized: list = field(default_factory=list)
     rebased: bool = False
     error: str | None = None
+    skipped: str | None = None
 
 
 def market_of(ticker: str) -> tuple[str, str]:
-    if ticker.upper().endswith(".HK") or ticker.upper() in ("^HSI",):
-        return "XHKG", "HKD"
-    raise NotImplementedError(f"{ticker}: only Hong Kong tickers are implemented so far")
-
-
-def calendar_for(market: str):
-    if market == "XHKG":
-        return default_calendar()
-    raise NotImplementedError(f"No trading calendar for market {market}")
+    return market_of_ticker(ticker)
 
 
 def _normalize(code: str) -> str:
     text = code.strip().upper()
-    if re.fullmatch(r"\d{1,5}", text):
-        return f"{int(text):04d}.HK"
+    if re.fullmatch(r"\d{1,3}|\d{5}|0\d{3}", text):
+        return f"{int(text):04d}.HK"  # HK stock numbers such as 00883 / 0883
     match = re.fullmatch(r"(\d{1,5})\.HK", text)
     if match:
         return f"{int(match.group(1)):04d}.HK"
@@ -141,6 +145,18 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
     for ticker, name, aliases, role in ALWAYS_INCLUDED:
         if ticker not in known:
             entries.append(UniverseEntry(ticker, name, aliases, role))
+            known.add(ticker)
+    markets = set()
+    for entry in entries:
+        try:
+            markets.add(market_of(entry.ticker)[0])
+        except NotImplementedError:
+            pass
+    for market in sorted(markets):
+        for ticker in BENCHMARKS_BY_MARKET.get(market, ()):
+            if ticker not in known:
+                entries.append(_benchmark_entry(ticker))
+                known.add(ticker)
     today = now.astimezone(HK).date()
     run_id = store.start_run(source, universe_label, len(entries), now)
     fetched_at = now.isoformat()
@@ -150,9 +166,16 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
         summary = TickerSummary(entry.ticker)
         summaries.append(summary)
         try:
-            market, currency = market_of(entry.ticker)
+            try:
+                market, currency = market_of(entry.ticker)
+            except NotImplementedError as exc:
+                summary.skipped = str(exc)
+                continue
             summary.market = market
             calendar = calendar_for(market)
+            # "Today" in the exchange's own time zone: that session may still be
+            # running (or unfinalized), so it is excluded and picked up next run.
+            today = now.astimezone(calendar.tz).date()
             store.upsert_instrument(Instrument(entry.ticker, market, currency, entry.name,
                                                entry.aliases, entry.role))
             last = store.last_date(entry.ticker)

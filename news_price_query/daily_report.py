@@ -9,6 +9,18 @@ from .windows import DEFAULT_TRADING_WINDOWS, TradingWindowConfig, window_label_
 
 
 DEFAULT_BENCHMARKS = ("2800.HK", "^HSI")
+BENCHMARKS_BY_MARKET = {
+    "XHKG": ("2800.HK", "^HSI"),
+    "XNYS": ("SPY", "XLE"),
+    "XTSE": ("XIU.TO", "^GSPTSE"),
+    # Yahoo's ^TASI.SR has only the latest day (no history) and Tadawul ETFs are
+    # not on the free feed, so Saudi results have no benchmark for now.
+    "XSAU": (),
+}
+
+
+def benchmarks_for(asset: Asset) -> tuple[str, ...]:
+    return BENCHMARKS_BY_MARKET.get(getattr(asset, "market", "XHKG"), ())
 
 METHOD = (
     "t0 = news day if published before that day's close, else next HKEX trading day. "
@@ -17,7 +29,9 @@ METHOD = (
     "after_tK: return from the baseline to the close K trading days after t0. "
     "raw = close as delivered (split-adjusted only); adj = adjusted close (dividends and splits). "
     "excess = stock return - benchmark return on the same dates (simple difference, not a market model). "
-    "^HSI is a price index, so its adj return equals its raw return. Missing values are never zero."
+    "Index benchmarks (^HSI, ^GSPTSE) are price indexes, so their adj return equals raw. "
+    "Returns are in the asset's local currency; benchmarks are from the same market. "
+    "Missing values are never zero."
 )
 
 
@@ -60,9 +74,17 @@ def _aligned(own, other, own_base, other_base):
 
 
 def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datetime,
-                 benchmarks=DEFAULT_BENCHMARKS,
+                 benchmarks=None,
                  config: TradingWindowConfig = DEFAULT_TRADING_WINDOWS, calendar=None) -> dict:
+    """benchmarks=None uses the asset's market defaults (BENCHMARKS_BY_MARKET);
+    extra benchmarks from another market are reported as skipped."""
+    if benchmarks is None:
+        benchmarks = benchmarks_for(asset)
     raw, adj, adj_error = _pair(provider, asset, published_at, as_of, config, calendar)
+    market = getattr(asset, "market", "XHKG")
+    from .market_calendars import calendar_for
+
+    local_tz = (calendar or calendar_for(market)).tz
     adj_windows = {item.label: item for item in adj.windows} if adj else {}
     windows = {}
     for item in raw.windows:
@@ -90,6 +112,12 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
         "ticker": asset.ticker,
         "asset_role": asset.role,
         "published_at": raw.published_at.isoformat(),
+        "published_at_local": published_at.astimezone(local_tz).isoformat(),
+        "market": market,
+        "exchange_timezone": str(local_tz),
+        "currency": getattr(asset, "currency", "HKD"),
+        "stage": getattr(asset, "stage", None),
+        "fx": None,  # interface only: see fx.py; returns are in local currency
         "as_of": as_of.isoformat(),
         "mode": "daily",
         "session": raw.session,
@@ -114,6 +142,8 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
         bench_asset = resolve_asset(code)
         if bench_asset.ticker == asset.ticker:
             continue
+        if getattr(bench_asset, "market", "XHKG") != market:
+            continue  # cross-market comparisons need FX and calendar alignment: not done
         try:
             b_raw, b_adj, b_adj_error = _pair(provider, bench_asset, published_at, as_of, config, calendar)
         except (ValueError, RuntimeError) as exc:

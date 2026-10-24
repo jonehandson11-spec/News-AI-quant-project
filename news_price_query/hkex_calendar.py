@@ -1,4 +1,5 @@
-"""HKEX securities-market trading calendar (data/hkex_calendar.csv).
+"""Exchange trading calendars from CSV (HKEX: data/hkex_calendar.csv; other
+markets: data/calendars/<MIC>.csv, see market_calendars.py).
 
 Times are Hong Kong time. The CSV is XHKG-based with manual weather overrides;
 see build_calendar.py. Standard library only.
@@ -22,6 +23,7 @@ LUNCH_BREAK = "lunch_break"
 AFTERNOON = "afternoon"
 AFTER_CLOSE = "after_close"
 NON_TRADING_DAY = "non_trading_day"
+REGULAR = "regular_session"  # markets without a lunch break (e.g. NYSE, TSX, Tadawul)
 
 
 class CalendarRangeError(ValueError):
@@ -40,11 +42,12 @@ class TradingDay:
     closure_reason: str
     source_url: str
     note: str
+    tz: ZoneInfo = HK
 
     def close_at(self) -> datetime:
         if not self.is_trading or self.close is None:
             raise ValueError(f"{self.day.isoformat()} is not a trading day")
-        return datetime.combine(self.day, self.close, HK)
+        return datetime.combine(self.day, self.close, self.tz)
 
 
 def _time(value: str) -> time | None:
@@ -52,8 +55,13 @@ def _time(value: str) -> time | None:
 
 
 class HkexCalendar:
-    def __init__(self, path: str | Path = DEFAULT_PATH):
+    """Trading calendar for one market. Default: HKEX. Session times in the CSV
+    are local exchange time (`tz`)."""
+
+    def __init__(self, path: str | Path = DEFAULT_PATH, *, tz: str | ZoneInfo = HK, market: str = "XHKG"):
         self.path = Path(path)
+        self.tz = tz if isinstance(tz, ZoneInfo) else ZoneInfo(tz)
+        self.market = market
         self._days: dict[date, TradingDay] = {}
         with self.path.open("r", encoding="utf-8", newline="") as handle:
             for row in csv.DictReader(handle):
@@ -64,7 +72,7 @@ class HkexCalendar:
                     open=_time(row["open"]), break_start=_time(row["break_start"]),
                     break_end=_time(row["break_end"]), close=_time(row["close"]),
                     closure_reason=row["closure_reason"], source_url=row["source_url"],
-                    note=row.get("note", ""),
+                    note=row.get("note", ""), tz=self.tz,
                 )
                 if item.is_trading and (item.open is None or item.close is None):
                     raise ValueError(f"Trading day without session times: {row['date']}")
@@ -78,7 +86,7 @@ class HkexCalendar:
     def _check(self, day: date) -> None:
         if not self.first <= day <= self.last:
             raise CalendarRangeError(
-                f"{day.isoformat()} is outside the HKEX calendar "
+                f"{day.isoformat()} is outside the {self.market} calendar "
                 f"({self.first.isoformat()} to {self.last.isoformat()})")
 
     def day(self, value: date) -> TradingDay:
@@ -93,7 +101,7 @@ class HkexCalendar:
         after_close, or non_trading_day (weekend, holiday, weather closure)."""
         if timestamp.tzinfo is None or timestamp.utcoffset() is None:
             raise ValueError("Timestamp requires a timezone")
-        local = timestamp.astimezone(HK)
+        local = timestamp.astimezone(self.tz)
         info = self.day(local.date())
         if not info.is_trading:
             return NON_TRADING_DAY
@@ -108,15 +116,17 @@ class HkexCalendar:
             if clock < info.break_end:
                 return LUNCH_BREAK
             return AFTERNOON
-        # Half day (no break) or a weather-shortened day.
+        if self.market != "XHKG":
+            return REGULAR
+        # HKEX half day (no break) or a weather-shortened day.
         return MORNING if info.close <= time(12, 30) else AFTERNOON
 
     def t0(self, timestamp: datetime) -> date:
         """Event day: the publication day if it is a trading day and the news
         arrives before that day's close; otherwise the next trading day."""
-        local = timestamp.astimezone(HK)
+        local = timestamp.astimezone(self.tz)
         session = self.session_of(local)
-        if session in (PRE_OPEN, MORNING, LUNCH_BREAK, AFTERNOON):
+        if session in (PRE_OPEN, MORNING, LUNCH_BREAK, AFTERNOON, REGULAR):
             return local.date()
         return self.shift_trading_days(local.date(), 1)
 
@@ -134,7 +144,7 @@ class HkexCalendar:
             index = bisect_left(self._trading, start) + count
         if index < 0 or index >= len(self._trading):
             raise CalendarRangeError(
-                f"Shifting {start.isoformat()} by {count} trading days leaves the HKEX calendar "
+                f"Shifting {start.isoformat()} by {count} trading days leaves the {self.market} calendar "
                 f"({self.first.isoformat()} to {self.last.isoformat()})")
         return self._trading[index]
 
@@ -146,3 +156,6 @@ class HkexCalendar:
 @lru_cache(maxsize=1)
 def default_calendar() -> HkexCalendar:
     return HkexCalendar()
+
+
+TradingCalendar = HkexCalendar

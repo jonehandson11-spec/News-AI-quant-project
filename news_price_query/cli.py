@@ -262,10 +262,10 @@ def main(argv=None) -> int:
         provider = _provider(args)
         options = _query_options(args)
         if args.command == "query" and args.mode == "daily" and args.provider == "local":
-            from .daily_report import DEFAULT_BENCHMARKS, daily_report
+            from .daily_report import benchmarks_for, daily_report
 
             report = daily_report(provider, asset, event_time, as_of=as_of, config=options["config"],
-                                  benchmarks=(*DEFAULT_BENCHMARKS, *([benchmark_asset.ticker] if benchmark_asset else [])))
+                                  benchmarks=(*benchmarks_for(asset), *([benchmark_asset.ticker] if benchmark_asset else [])))
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
         if args.command == "query":

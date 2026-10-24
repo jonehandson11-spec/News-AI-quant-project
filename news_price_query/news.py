@@ -76,18 +76,38 @@ def read_news(path: str | Path) -> list[NewsItem]:
         return parse_news(handle)
 
 
-def _contains(text: str, alias: str) -> bool:
+def _occurrences(text: str, alias: str) -> list[int]:
     if alias.isascii():
         pattern = rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])"
-        return re.search(pattern, text, re.IGNORECASE) is not None
-    return alias in text
+        return [m.start() for m in re.finditer(pattern, text, re.IGNORECASE)]
+    return [m.start() for m in re.finditer(re.escape(alias), text)]
+
+
+def _excluded(text: str, position: int, alias: str, exclude_terms) -> bool:
+    """True if the alias at `position` is part of a longer excluded name, e.g.
+    中海油 inside 中海油田服务 (a different company)."""
+    for term in exclude_terms:
+        folded_term, folded_alias = term.casefold(), alias.casefold()
+        offset = folded_term.find(folded_alias)
+        while offset != -1:
+            start = position - offset
+            if start >= 0 and text[start:start + len(term)].casefold() == folded_term:
+                return True
+            offset = folded_term.find(folded_alias, offset + 1)
+    return False
+
+
+def _contains(text: str, alias: str, exclude_terms=()) -> bool:
+    return any(not _excluded(text, pos, alias, exclude_terms) for pos in _occurrences(text, alias))
 
 
 def find_direct_match(news: NewsItem, asset: Asset) -> Match | None:
-    """Find a named company; sector vocabulary alone is never a match."""
+    """Find a named company; sector vocabulary alone is never a match. Mentions
+    that are part of an excluded longer name (asset.exclude_terms) do not count."""
     aliases = sorted(asset.aliases, key=len, reverse=True)
+    exclude = getattr(asset, "exclude_terms", ())
     for field, kind in ((news.title, "title_mention"), (news.content, "body_mention")):
         for alias in aliases:
-            if _contains(field, alias):
+            if _contains(field, alias, exclude):
                 return Match(kind=kind, evidence=alias)
     return None
