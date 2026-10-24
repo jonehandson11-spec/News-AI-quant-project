@@ -6,12 +6,13 @@ const statusText = {
   on_date: "目标日期", deferred_back: "前一交易日", on_time: "准时",
   deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情",
 };
-const flagText = { missing_data: "该交易日无行情（停牌或缺数据，无法区分）", zero_volume: "成交量为 0（零成交，或数据源缺成交量）" };
+const flagText = { missing_data: "该交易日无行情（停牌或缺数据，无法区分）", zero_volume: "成交量为 0（零成交，或数据源缺成交量）", nonpositive_price: "价格≤0（如 2020-04-20 WTI 负结算价），收益率无意义" };
 const benchmarkName = {
   "2800.HK": "盈富 2800", "^HSI": "恒指", "3033.HK": "恒科 3033",
   SPY: "标普500 ETF SPY", XLE: "能源板块 ETF XLE", "XIU.TO": "TSX 60 ETF XIU", "^GSPTSE": "多伦多综指",
 };
 const marketText = { XHKG: "港交所", XNYS: "美股（纽交所日历）", XTSE: "多伦多交易所", XSAU: "沙特交易所", NYMEX: "纽约商品交易所", ICE_EU: "ICE 欧洲" };
+const unitText = { "USD/bbl": "美元/桶", "USD/gal": "美元/加仑", "USD/t": "美元/吨" };
 const showTime = (value) => value ? value.slice(0, 19).replace("T", " ") : "—";
 const showPrice = (value) => value === null || value === undefined ? "—" : Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 4 });
 const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;
@@ -90,6 +91,11 @@ function statusCell(tr, item) {
   const cell = document.createElement("td");
   addText(cell, "span", statusText[item.status] || item.status, `status ${item.status}`);
   if (item.flag) addText(cell, "small", flagText[item.flag] || item.flag, "comparison-note");
+  if (item.crosses_roll) {
+    addText(cell, "span", "跨换月", "tag");
+    const contracts = (item.rolls || []).map((roll) => `${roll.from_contract}→${roll.to_contract}`).join("、");
+    addText(cell, "small", `窗口内连续合约换月（${contracts}），涨跌幅含新旧合约价差，未调整`, "comparison-note");
+  }
   tr.append(cell);
 }
 
@@ -127,8 +133,9 @@ function renderDaily(result) {
   const local = result.market && result.market !== "XHKG"
     ? ` = ${showTime(result.published_at_local)} 交易所当地时间（${result.exchange_timezone}）` : "";
   const currency = result.currency ? ` · 价格与涨跌幅以 ${result.currency} 计` : "";
-  const noBench = codes.length === 0 ? " · 该市场暂无免费对照指数" : "";
-  byId("resultSubtitle").textContent = `${result.ticker} · ${marketText[result.market] || result.market || "港交所"} · 新闻发布 ${showTime(result.published_at)} 香港时间${local}${currency}${noBench} · ${result.baseline.source}${version}`;
+  const unit = result.asset_type === "futures" && result.unit ? ` · 价格单位 ${unitText[result.unit] || result.unit}` : "";
+  const noBench = codes.length === 0 ? ` · 无对照${result.market === "XSAU" ? "（沙特指数无免费历史数据）" : result.asset_type === "futures" ? "（期货）" : ""}` : "";
+  byId("resultSubtitle").textContent = `${result.ticker} · ${marketText[result.market] || result.market || "港交所"} · 新闻发布 ${showTime(result.published_at)} 香港时间${local}${currency}${unit}${noBench} · ${result.baseline.source}${version}`;
 }
 
 const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: "午休", afternoon: "下午盘", after_close: "收盘后", non_trading_day: "非交易日", regular_session: "交易时段内" };
@@ -191,12 +198,12 @@ function downloadCsv() {
   if (result.mode === "daily") {
     const codes = Object.keys(result.benchmarks || {});
     const headers = ["ticker", "published_at", "session", "t0", "baseline_at", "baseline_price", "baseline_adj_price",
-      "window", "target_at", "observed_at", "price", "adj_price", "return_pct", "adj_return_pct", "status", "flag", "source",
+      "window", "target_at", "observed_at", "price", "adj_price", "return_pct", "adj_return_pct", "status", "flag", "crosses_roll", "rolls", "source",
       ...codes.flatMap((code) => [`${code}_return_pct`, `${code}_excess_pct`, `${code}_adj_excess_pct`]), "data_version"];
     const rows = Object.entries(result.windows).map(([label, item]) => [
       result.ticker, result.published_at, result.session, result.t0, result.baseline.observed_at, result.baseline.price,
       result.baseline.adj_price, label, item.target_at, item.observed_at, item.price, item.adj_price, item.return_pct,
-      item.adj_return_pct, item.status, item.flag, item.source,
+      item.adj_return_pct, item.status, item.flag, item.crosses_roll, JSON.stringify(item.rolls || []), item.source,
       ...codes.flatMap((code) => { const row = result.benchmarks[code].windows?.[label]; return [row?.return_pct, row?.excess_return_pct, row?.adj_excess_return_pct]; }),
       result.data_version?.run_id,
     ].map(quote).join(","));
@@ -258,7 +265,7 @@ function fillAssets() {
     const option = document.createElement("option");
     option.value = asset.ticker;
     const extra = [asset.stage, asset.currency].filter(Boolean).join(" · ");
-    const pending = asset.queryable === false ? "（期货：已登记，下一块接入行情）" : "";
+    const pending = asset.data_status === "no_free_source" ? "（无免费数据）" : "";
     option.textContent = `${asset.name} · ${asset.ticker}${extra ? ` · ${extra}` : ""}${pending}`;
     option.disabled = asset.queryable === false;
     select.append(option);
@@ -284,7 +291,7 @@ async function loadCatalog() {
     state.mode = data.mode || "minute";
     byId("priceStatus").textContent = state.mode === "daily" ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
     byId("sourceHelp").textContent = state.mode === "daily"
-      ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按标的所在交易所的交易日计算（港股港交所、美股纽交所、加股多伦多、沙特 Tadawul），涨跌幅以当地货币计，同时给出原始与复权涨跌幅和同市场对照（港股 2800.HK/恒指，美股 SPY/XLE，加股 XIU.TO/多伦多综指）的超额收益。"
+      ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按标的所在交易所的交易日计算（港股港交所、美股纽交所、加股多伦多、沙特 Tadawul、NYMEX 期货），涨跌幅以当地货币计；期货跨换月窗口会标记，价格未调整。股票同时给出原始与复权涨跌幅和同市场对照的超额收益。"
       : "查询时由内部服务连接富途 OpenD。需要运行服务的电脑已登录富途并具备历史行情权限；网页无需选择价格文件。";
   } catch (error) {
     byId("priceStatus").textContent = "内部查询服务不可用";

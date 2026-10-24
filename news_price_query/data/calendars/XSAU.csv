@@ -7448,11 +7448,11 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2020-05-21,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2020-05-22,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2020-05-23,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2020-05-24,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-05-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-05-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-05-27,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-05-28,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2020-05-24,0,0,,,,,Eid Al-Fitr 2020,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of 21/5/2020, resume 31/5/2020; missing from pandas_market_calendars"
+2020-05-25,0,0,,,,,Eid Al-Fitr 2020,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of 21/5/2020, resume 31/5/2020; missing from pandas_market_calendars"
+2020-05-26,0,0,,,,,Eid Al-Fitr 2020,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of 21/5/2020, resume 31/5/2020; missing from pandas_market_calendars"
+2020-05-27,0,0,,,,,Eid Al-Fitr 2020,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of 21/5/2020, resume 31/5/2020; missing from pandas_market_calendars"
+2020-05-28,0,0,,,,,Eid Al-Fitr 2020,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of 21/5/2020, resume 31/5/2020; missing from pandas_market_calendars"
 2020-05-29,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2020-05-30,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2020-05-31,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -7514,13 +7514,13 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2020-07-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2020-07-27,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2020-07-28,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-07-29,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-07-30,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2020-07-29,0,0,,,,,Eid Al-Adha 2020,https://www.argaam.com/en/article/articledetail/id/1387677,"官方来源待补 (secondary: Argaam citing Tadawul: closed from close of 28/7 to 4/8, resume 5/8/2020)"
+2020-07-30,0,0,,,,,Eid Al-Adha 2020,https://www.argaam.com/en/article/articledetail/id/1387677,"官方来源待补 (secondary: Argaam citing Tadawul: closed from close of 28/7 to 4/8, resume 5/8/2020)"
 2020-07-31,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2020-08-01,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2020-08-02,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-08-03,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2020-08-04,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2020-08-02,0,0,,,,,Eid Al-Adha 2020,https://www.argaam.com/en/article/articledetail/id/1387677,"官方来源待补 (secondary: Argaam citing Tadawul: closed from close of 28/7 to 4/8, resume 5/8/2020)"
+2020-08-03,0,0,,,,,Eid Al-Adha 2020,https://www.argaam.com/en/article/articledetail/id/1387677,"官方来源待补 (secondary: Argaam citing Tadawul: closed from close of 28/7 to 4/8, resume 5/8/2020)"
+2020-08-04,0,0,,,,,Eid Al-Adha 2020,https://www.argaam.com/en/article/articledetail/id/1387677,"官方来源待补 (secondary: Argaam citing Tadawul: closed from close of 28/7 to 4/8, resume 5/8/2020)"
 2020-08-05,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2020-08-06,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2020-08-07,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
@@ -7722,7 +7722,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2021-02-19,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2021-02-20,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2021-02-21,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2021-02-22,0,0,,,,,holiday: Saudi Founding Day,pandas_market_calendars 5.5.0 XSAU,
+2021-02-22,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Founding Day was first observed on 22/02/2022 (first entry in the official calendar); 2021-02-22 was a normal trading day
 2021-02-23,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2021-02-24,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2021-02-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -7800,8 +7800,8 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2021-05-08,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2021-05-09,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2021-05-10,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2021-05-11,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2021-05-12,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2021-05-11,0,0,,,,,Eid Al-Fitr 2021,https://www.saudiexchange.sa/wps/portal/saudiexchange/newsandreports/issuer-news/news-details/!ut/p/z1/vVLLdoIwEP2WLrrkZOSR4DJ9oR6sUgSFDSdCbGkhIKbSz2_ULtTjo900q7k5d-bOzB0UoxmKBVvnr0zmlWCFwlGME4ti0Hs2jJyJ2wEvJK4depMO9E0UohjFqZC1fEORZBlrP4uEi1tYMe0HbuO6yVO-YiLLRcZVtP0UvN0FJWs-uNzBVO5BTQe9AybgpGGlKieYEBvFokpZwVHEmg2q0zxD0dwi2SIzDQ0vmKWZJoDWzWyukZRY2DSA2XNA08OB7KGDwXum3kgnFjghoPjyvEf54I8t8J7GQ8OFF3AA_y4fzjx6Vd9XE0eqBjlLokpknfMWBaJqSuWh_8cVKfb0fph4weOLUtrbdA_Q4Fp_6mDy9-UypuoqKiH5l0SzfzqL6abz_e5GtEuUOYM7p-9Sw8bkmHDC_UPCCXu3hAv-1WVpG6UWBLO2nfAoeXAXfj-nN9_PFVs9/dz/d5/L0lHSkovd0RNQUprQUVnQSEhLzROVkUvZW4!/,"Official news 06/04/2021: discontinue end of 10/5/2021, resume 17/5/2021"
+2021-05-12,0,0,,,,,Eid Al-Fitr 2021,https://www.saudiexchange.sa/wps/portal/saudiexchange/newsandreports/issuer-news/news-details/!ut/p/z1/vVLLdoIwEP2WLrrkZOSR4DJ9oR6sUgSFDSdCbGkhIKbSz2_ULtTjo900q7k5d-bOzB0UoxmKBVvnr0zmlWCFwlGME4ti0Hs2jJyJ2wEvJK4depMO9E0UohjFqZC1fEORZBlrP4uEi1tYMe0HbuO6yVO-YiLLRcZVtP0UvN0FJWs-uNzBVO5BTQe9AybgpGGlKieYEBvFokpZwVHEmg2q0zxD0dwi2SIzDQ0vmKWZJoDWzWyukZRY2DSA2XNA08OB7KGDwXum3kgnFjghoPjyvEf54I8t8J7GQ8OFF3AA_y4fzjx6Vd9XE0eqBjlLokpknfMWBaJqSuWh_8cVKfb0fph4weOLUtrbdA_Q4Fp_6mDy9-UypuoqKiH5l0SzfzqL6abz_e5GtEuUOYM7p-9Sw8bkmHDC_UPCCXu3hAv-1WVpG6UWBLO2nfAoeXAXfj-nN9_PFVs9/dz/d5/L0lHSkovd0RNQUprQUVnQSEhLzROVkUvZW4!/,"Official news 06/04/2021: discontinue end of 10/5/2021, resume 17/5/2021"
 2021-05-13,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2021-05-14,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2021-05-15,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
@@ -8152,7 +8152,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2022-04-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-04-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-04-27,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2022-04-28,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2022-04-28,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official Eid Al-Fitr 2022 entry 28/4-8/5; ranges in the official calendar include the last trading day and the resume day (cf. 2023: 17/04-25/04 = discontinue end 17/4, resume 25/4)"
 2022-04-29,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2022-04-30,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2022-05-01,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
@@ -8162,7 +8162,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2022-05-05,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2022-05-06,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2022-05-07,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2022-05-08,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2022-05-08,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official Eid Al-Fitr 2022 entry 28/4-8/5; ranges in the official calendar include the last trading day and the resume day (cf. 2023: 17/04-25/04 = discontinue end 17/4, resume 25/4)"
 2022-05-09,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-05-10,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-05-11,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -8228,7 +8228,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2022-07-10,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2022-07-11,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2022-07-12,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
-2022-07-13,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2022-07-13,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Eid Al-Adha 2022 trading resumes 13/7/2022
 2022-07-14,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-07-15,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2022-07-16,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
@@ -8299,7 +8299,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2022-09-19,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-09-20,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-09-21,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2022-09-22,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2022-09-22,0,0,,,,,National Day 2022,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: National Day of Saudi Arabia is on 22/9/2022
 2022-09-23,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2022-09-24,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2022-09-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -8361,7 +8361,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2022-11-20,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-11-21,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-11-22,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2022-11-23,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2022-11-23,0,0,,,,,Public holiday (World Cup win),https://www.reuters.com/world/middle-east/saudi-stock-exchange-close-wednesday-after-world-cup-win-against-argentina-2022-11-22/,"官方来源待补 (secondary: Reuters; royal decree public holiday, reopened 24/11/2022)"
 2022-11-24,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2022-11-25,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2022-11-26,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
@@ -8514,7 +8514,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2023-04-22,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2023-04-23,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2023-04-24,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
-2023-04-25,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2023-04-25,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Eid Al-Fitr 2023 trading resumes 25/4/2023
 2023-04-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-04-27,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-04-28,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
@@ -8575,14 +8575,14 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2023-06-22,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-06-23,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2023-06-24,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2023-06-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2023-06-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2023-06-25,0,0,,,,,Eid Al-Adha 2023,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of Thu 22/6/2023, resume Sun 2/7/2023"
+2023-06-26,0,0,,,,,Eid Al-Adha 2023,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of Thu 22/6/2023, resume Sun 2/7/2023"
 2023-06-27,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2023-06-28,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2023-06-29,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2023-06-30,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2023-07-01,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2023-07-02,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2023-07-02,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Eid Al-Adha 2023 trading resumes 2/7/2023
 2023-07-03,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-07-04,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-07-05,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -8666,7 +8666,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2023-09-21,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-09-22,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2023-09-23,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2023-09-24,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2023-09-24,0,0,,,,,National Day 2023,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of 21/9/2023, resume 25/9/2023"
 2023-09-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-09-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2023-09-27,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -8869,8 +8869,8 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2024-04-11,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2024-04-12,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2024-04-13,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2024-04-14,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
-2024-04-15,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2024-04-14,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Eid Al-Fitr 2024 trading resumes 14/4/2024
+2024-04-15,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Eid Al-Fitr 2024 trading resumes 14/4/2024
 2024-04-16,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2024-04-17,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2024-04-18,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -8929,7 +8929,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2024-06-10,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2024-06-11,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2024-06-12,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2024-06-13,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2024-06-13,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: Eid Al-Adha 2024 discontinue end of 13/6, resume 23/6/2024"
 2024-06-14,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2024-06-15,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2024-06-16,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
@@ -8939,7 +8939,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2024-06-20,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2024-06-21,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2024-06-22,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2024-06-23,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2024-06-23,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: Eid Al-Adha 2024 discontinue end of 13/6, resume 23/6/2024"
 2024-06-24,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2024-06-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2024-06-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -9184,7 +9184,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2025-02-20,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-02-21,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2025-02-22,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
-2025-02-23,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2025-02-23,0,0,,,,,Founding Day 2025,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Founding Day of Saudi Arabia is on 23/02/2025 (Sunday)
 2025-02-24,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-02-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-02-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
@@ -9216,7 +9216,7 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2025-03-24,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-03-25,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-03-26,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2025-03-27,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2025-03-27,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Eid Al-Fitr 2025 discontinue end of 27/3/2025
 2025-03-28,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2025-03-29,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2025-03-30,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
@@ -9285,13 +9285,13 @@ date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_
 2025-06-01,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-06-02,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-06-03,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
-2025-06-04,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
+2025-06-04,1,0,10:00,,,15:00,,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,Official: Eid Al-Adha 2025 discontinue end of 4/6/2025
 2025-06-05,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2025-06-06,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2025-06-07,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,
 2025-06-08,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
 2025-06-09,0,0,,,,,holiday or ad-hoc closure (XSAU ad-hoc list; reason not named),pandas_market_calendars 5.5.0 XSAU,
-2025-06-10,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
+2025-06-10,0,0,,,,,Eid Al-Adha 2025,https://www.saudiexchange.sa/wps/portal/saudiexchange/about-saudi-exchange/exchange-media-centre/saudi-exchange-holiday-calendar,"Official: discontinue end of 4/6/2025, resume 11/6/2025"
 2025-06-11,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-06-12,1,0,10:00,,,15:00,,pandas_market_calendars 5.5.0 XSAU,
 2025-06-13,0,0,,,,,weekend,pandas_market_calendars 5.5.0 XSAU,

@@ -1,0 +1,2 @@
+date,is_trading,half_day,open,break_start,break_end,close,closure_reason,source_url,note
+2025-01-09,1,0,09:00,,,14:30,,,"官方来源待补: NYSE closed (Carter national day of mourning) but Yahoo has full-volume rows for CL=F, BZ=F, HO=F, RB=F (e.g. CL=F vol 213421); CME notice link to be added"

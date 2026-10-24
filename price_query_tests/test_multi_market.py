@@ -64,7 +64,7 @@ class MarketCalendarTests(unittest.TestCase):
 
     def test_unknown_market_is_not_guessed(self):
         with self.assertRaises(NotImplementedError):
-            calendar_for("XLON")
+            calendar_for("UNKNOWN")
 
 
 class ResearchRegistryTests(unittest.TestCase):
@@ -74,7 +74,8 @@ class ResearchRegistryTests(unittest.TestCase):
         self.assertEqual(len({a.stage for a in research}), 10)
         futures = [a.ticker for a in research if a.asset_type == "futures"]
         self.assertEqual(futures, ["BZ=F", "CL=F", "RB=F", "HO=F", "ICE-LSGO"])
-        self.assertTrue(all(not a.queryable for a in research if a.asset_type == "futures"))
+        self.assertEqual({a.ticker for a in research if a.asset_type == "futures" and a.queryable},
+                         {"BZ=F", "CL=F", "RB=F", "HO=F"})
         pool = [e.ticker for e in read_universe(DATA / "universe_oil_research.csv")]
         self.assertEqual(sorted(pool), sorted(a.ticker for a in research))
 
@@ -87,7 +88,8 @@ class ResearchRegistryTests(unittest.TestCase):
         self.assertEqual(market_of_ticker("ATD.TO"), ("XTSE", "CAD"))
         self.assertEqual(market_of_ticker("2222.SR"), ("XSAU", "SAR"))
         self.assertEqual(market_of_ticker("0883.HK"), ("XHKG", "HKD"))
-        for ticker in ("CL=F", "ICE-LSGO", "SHEL.L"):
+        self.assertEqual(market_of_ticker("CL=F"), ("NYMEX", "USD"))
+        for ticker in ("ICE-LSGO", "SHEL.L"):
             with self.assertRaises(NotImplementedError):
                 market_of_ticker(ticker)
 
@@ -141,9 +143,9 @@ class MultiMarketUpdateTests(unittest.TestCase):
                                     fake_downloader(tables, self.calls), now=self.now, start="2026-10-01")
         self.summary = {t.ticker: t for t in self.result["tickers"]}
 
-    def test_benchmarks_per_market_and_futures_skipped(self):
+    def test_benchmarks_per_market_and_futures_queryable(self):
         self.assertTrue({"SPY", "XLE", "XIU.TO", "^GSPTSE", "2800.HK", "^HSI"} <= set(self.summary))
-        self.assertIsNotNone(self.summary["BZ=F"].skipped)
+        self.assertIsNone(self.summary["BZ=F"].skipped)
         self.assertEqual(self.summary["XOM"].market, "XNYS")
         self.assertEqual(self.summary["ATD.TO"].market, "XTSE")
         instruments = {i.ticker: i for i in self.store.instruments()}
@@ -175,7 +177,7 @@ class MultiMarketUpdateTests(unittest.TestCase):
         self.assertAlmostEqual(report["benchmarks"]["XLE"]["windows"]["after_t1"]["excess_return_pct"],
                                (105 / 103 - 1) * 100, places=4)
 
-    def test_service_catalog_has_stages_and_disabled_futures(self):
+    def test_service_catalog_has_stages_and_queryable_futures(self):
         provider = LocalDbPriceProvider(self.db)
         service = QueryService(lambda: provider, news_source=lambda: [], now=lambda: hk(2026, 10, 24, 1),
                                mode="daily", instruments=provider.store.instruments,
@@ -183,10 +185,8 @@ class MultiMarketUpdateTests(unittest.TestCase):
         catalog = {row["ticker"]: row for row in service.catalog()}
         self.assertEqual(catalog["XOM"]["stage"], "综合油气")
         self.assertEqual(catalog["ATD.TO"]["currency"], "CAD")
-        self.assertFalse(catalog["BZ=F"]["queryable"])
+        self.assertTrue(catalog["BZ=F"]["queryable"])
         self.assertNotIn("SPY", catalog)
-        with self.assertRaisesRegex(ValueError, "下一块"):
-            service.query("BZ=F", "2026-10-20T05:30:00+08:00")
         payload = service.query("XOM", "2026-10-20T05:30:00+08:00")
         self.assertEqual(set(payload["benchmarks"]), {"SPY", "XLE"})
 

@@ -1,25 +1,25 @@
-asset_id,ticker,data_ticker,role,stage_zh,stage_en,asset_type,market,exchange,currency,name_zh,name_en,aliases,exclude_terms,alt_tickers,data_status,notes
-commodity:brent,BZ=F,BZ=F,research,原油价格,Crude oil price,futures,NYMEX,NYMEX (Yahoo BZ=F),USD,布伦特原油,Brent crude oil,布伦特;布伦特原油;Brent;Brent crude,,ICE:B,next_block,Yahoo BZ=F is the NYMEX Brent Last Day Financial front-month continuous series; the ICE Brent contract itself is not on Yahoo. Rolls are not adjusted.
-commodity:wti,CL=F,CL=F,research,原油价格,Crude oil price,futures,NYMEX,NYMEX,USD,西得克萨斯中质原油,West Texas Intermediate crude oil,WTI;西得克萨斯中质原油;西德克萨斯原油;WTI crude,,,next_block,Front-month continuous series; rolls are not adjusted. USD/bbl.
-commodity:rbob,RB=F,RB=F,research,成品油价格,Refined product price,futures,NYMEX,NYMEX,USD,RBOB 汽油,RBOB gasoline,RBOB;RBOB汽油;RBOB gasoline,,,next_block,Front-month continuous series; USD/gal; rolls are not adjusted.
-commodity:ulsd_nyh,HO=F,HO=F,research,成品油价格,Refined product price,futures,NYMEX,NYMEX,USD,纽约港超低硫柴油,NY Harbor ULSD,纽约港ULSD;NY Harbor ULSD;ULSD;heating oil,,,next_block,HO=F is the NY Harbor ULSD contract (ticker kept from heating oil); USD/gal; rolls are not adjusted.
-commodity:ice_gasoil,ICE-LSGO,,research,成品油价格,Refined product price,futures,ICE_EU,ICE Futures Europe,USD,ICE 低硫柴油,ICE Low Sulphur Gasoil,ICE低硫柴油;低硫柴油;ICE gasoil;Low Sulphur Gasoil,,ICE:G,no_free_source,No free daily series found on Yahoo (tried LGO=F G=F QS=F GO=F ULS=F); USD/tonne.
-equity:xom,XOM,XOM,research,综合油气,Integrated oil and gas,equity,XNYS,NYSE,USD,埃克森美孚,Exxon Mobil Corporation,埃克森美孚;埃克森;ExxonMobil;Exxon Mobil;Exxon,,,ok,
-equity:shel,SHEL,SHEL,research,综合油气,Integrated oil and gas,equity,XNYS,NYSE (ADS),USD,壳牌,Shell plc,壳牌;壳牌公司;Shell plc;Royal Dutch Shell,,SHEL.L,ok,Primary listing is London (SHEL.L in GBp); NYSE ADS used so US news timing and SPY/XLE benchmarks apply. Plain 'Shell' is not an alias (too many false hits).
-equity:eog,EOG,EOG,research,上游生产,Upstream production,equity,XNYS,NYSE,USD,EOG 资源,EOG Resources,EOG Resources;EOG,,,ok,
-equity:cnq,CNQ.TO,CNQ.TO,research,上游生产,Upstream production,equity,XTSE,TSX,CAD,加拿大自然资源,Canadian Natural Resources,加拿大自然资源;Canadian Natural Resources;Canadian Natural,,CNQ,ok,Primary listing TSX in CAD; NYSE CNQ (USD) kept as alternative ticker.
-equity:cnooc,0883.HK,0883.HK,research,上游生产,Upstream production,equity,XHKG,HKEX,HKD,中国海洋石油,CNOOC Limited,中国海洋石油;中国海油;中海油;CNOOC;中國海洋石油;00883,中海油田服务;中海油服;中海油田服務;中海油田,,ok,中海油田服务 (2883.HK) is a different company.
-equity:aramco,2222.SR,2222.SR,research,上游生产,Upstream production,equity,XSAU,Saudi Exchange (Tadawul),SAR,沙特阿美,Saudi Arabian Oil Company,沙特阿美;沙特阿拉伯国家石油公司;Saudi Aramco;Aramco,,,partial,Yahoo daily from 2019-12-11; XSAU calendar differs from Yahoo on some Eid days; no free TASI benchmark found.
-equity:paa,PAA,PAA,research,管线与储存,Pipelines and storage,equity,XNYS,Nasdaq,USD,普莱恩斯全美管道,Plains All American Pipeline,Plains All American;普莱恩斯,,,ok,Nasdaq listing; NYSE (XNYS) holiday calendar used for all US listings.
-equity:dht,DHT,DHT,research,原油运输,Crude tankers,equity,XNYS,NYSE,USD,DHT 控股,DHT Holdings,DHT Holdings,,,ok,
-equity:stng,STNG,STNG,research,成品油运输,Product tankers,equity,XNYS,NYSE,USD,天蝎油轮,Scorpio Tankers,Scorpio Tankers;天蝎油轮,,,ok,
-equity:vlo,VLO,VLO,research,炼油与销售,Refining and marketing,equity,XNYS,NYSE,USD,瓦莱罗能源,Valero Energy,瓦莱罗;Valero,,,ok,
-equity:mpc,MPC,MPC,research,炼油与销售,Refining and marketing,equity,XNYS,NYSE,USD,马拉松原油,Marathon Petroleum,马拉松原油;Marathon Petroleum,,,ok,Not Marathon Oil (acquired by ConocoPhillips in 2024).
-equity:sinopec,0386.HK,0386.HK,research,炼油与销售,Refining and marketing,equity,XHKG,HKEX,HKD,中国石油化工股份,China Petroleum & Chemical Corporation,中国石化;中石化;中国石油化工;Sinopec;Sinopec Corp;中國石油化工股份,中石化冠德;中石化油服;中石化炼化工程;上海石化,,ok,0934.HK 中石化冠德、1033.HK 中石化油服 and 0338.HK 上海石化 are different companies.
-equity:slb,SLB,SLB,research,油田服务,Oilfield services,equity,XNYS,NYSE,USD,斯伦贝谢,SLB (Schlumberger),斯伦贝谢;SLB;Schlumberger,,,ok,
-equity:atd,ATD.TO,ATD.TO,research,燃油零售,Fuel retail,equity,XTSE,TSX,CAD,Alimentation Couche-Tard,Alimentation Couche-Tard,Couche-Tard;Alimentation Couche-Tard;Circle K,,,ok,Circle K is its main fuel-retail brand.
-benchmark:spy,SPY,SPY,benchmark,,US market benchmark,equity,XNYS,NYSE Arca,USD,标普500 ETF,SPDR S&P 500 ETF Trust,SPY;标普500ETF,,,ok,
-benchmark:xle,XLE,XLE,benchmark,,US energy sector benchmark,equity,XNYS,NYSE Arca,USD,能源精选行业 ETF,Energy Select Sector SPDR Fund,XLE,,,ok,
-benchmark:xiu,XIU.TO,XIU.TO,benchmark,,Canada market benchmark,equity,XTSE,TSX,CAD,iShares S&P/TSX 60 ETF,iShares S&P/TSX 60 Index ETF,XIU,,,ok,
-benchmark:gsptse,^GSPTSE,^GSPTSE,benchmark,,Canada market index,index,XTSE,TSX,CAD,标普/多伦多综合指数,S&P/TSX Composite Index,S&P/TSX Composite;TSX综合指数,,,ok,Price index.
-benchmark:tasi,^TASI.SR,^TASI.SR,benchmark,,Saudi market index,index,XSAU,Tadawul,SAR,沙特综合指数,Tadawul All Share Index,TASI;沙特综合指数,,,no_free_source,Yahoo returned only one row (2026-10-22) when tested on 2026-10-24.
+asset_id,ticker,data_ticker,role,stage_zh,stage_en,asset_type,market,exchange,currency,unit,name_zh,name_en,aliases,exclude_terms,alt_tickers,data_status,notes
+commodity:brent,BZ=F,BZ=F,research,原油价格,Crude oil price,futures,NYMEX,NYMEX (Yahoo BZ=F),USD,USD/bbl,布伦特原油,Brent crude oil,布伦特;布伦特原油;Brent;Brent crude,,ICE:B,continuous_front_month,Yahoo continuous front month; rule-based roll dates marked; prices not adjusted. BZ=F is the NYMEX Brent Last Day Financial contract on the CME Globex calendar; final settlement follows ICE Brent; ICE calendar is not used (approximation).
+commodity:wti,CL=F,CL=F,research,原油价格,Crude oil price,futures,NYMEX,NYMEX,USD,USD/bbl,西得克萨斯中质原油,West Texas Intermediate crude oil,WTI;西得克萨斯中质原油;西德克萨斯原油;WTI crude,,,continuous_front_month,Yahoo continuous front month; rule-based roll dates marked; prices not adjusted.
+commodity:rbob,RB=F,RB=F,research,成品油价格,Refined product price,futures,NYMEX,NYMEX,USD,USD/gal,RBOB 汽油,RBOB gasoline,RBOB;RBOB汽油;RBOB gasoline,,,continuous_front_month,Yahoo continuous front month; rule-based roll dates marked; prices not adjusted.
+commodity:ulsd_nyh,HO=F,HO=F,research,成品油价格,Refined product price,futures,NYMEX,NYMEX,USD,USD/gal,纽约港超低硫柴油,NY Harbor ULSD,纽约港ULSD;NY Harbor ULSD;ULSD;heating oil,,,continuous_front_month,Yahoo continuous front month; rule-based roll dates marked; prices not adjusted.
+commodity:ice_gasoil,ICE-LSGO,,research,成品油价格,Refined product price,futures,ICE_EU,ICE Futures Europe,USD,USD/t,ICE 低硫柴油,ICE Low Sulphur Gasoil,ICE低硫柴油;低硫柴油;ICE gasoil;Low Sulphur Gasoil,,ICE:G,no_free_source,No free daily series found on Yahoo (tried LGO=F G=F QS=F GO=F ULS=F); USD/tonne.
+equity:xom,XOM,XOM,research,综合油气,Integrated oil and gas,equity,XNYS,NYSE,USD,,埃克森美孚,Exxon Mobil Corporation,埃克森美孚;埃克森;ExxonMobil;Exxon Mobil;Exxon,,,ok,
+equity:shel,SHEL,SHEL,research,综合油气,Integrated oil and gas,equity,XNYS,NYSE (ADS),USD,,壳牌,Shell plc,壳牌;壳牌公司;Shell plc;Royal Dutch Shell,,SHEL.L,ok,Primary listing is London (SHEL.L in GBp); NYSE ADS used so US news timing and SPY/XLE benchmarks apply. Plain 'Shell' is not an alias (too many false hits).
+equity:eog,EOG,EOG,research,上游生产,Upstream production,equity,XNYS,NYSE,USD,,EOG 资源,EOG Resources,EOG Resources;EOG,,,ok,
+equity:cnq,CNQ.TO,CNQ.TO,research,上游生产,Upstream production,equity,XTSE,TSX,CAD,,加拿大自然资源,Canadian Natural Resources,加拿大自然资源;Canadian Natural Resources;Canadian Natural,,CNQ,ok,Primary listing TSX in CAD; NYSE CNQ (USD) kept as alternative ticker.
+equity:cnooc,0883.HK,0883.HK,research,上游生产,Upstream production,equity,XHKG,HKEX,HKD,,中国海洋石油,CNOOC Limited,中国海洋石油;中国海油;中海油;CNOOC;中國海洋石油;00883,中海油田服务;中海油服;中海油田服務;中海油田,,ok,中海油田服务 (2883.HK) is a different company.
+equity:aramco,2222.SR,2222.SR,research,上游生产,Upstream production,equity,XSAU,Saudi Exchange (Tadawul),SAR,,沙特阿美,Saudi Arabian Oil Company,沙特阿美;沙特阿拉伯国家石油公司;Saudi Aramco;Aramco,,,partial,Yahoo daily from 2019-12-11; XSAU calendar differs from Yahoo on some Eid days; no free TASI benchmark found.
+equity:paa,PAA,PAA,research,管线与储存,Pipelines and storage,equity,XNYS,Nasdaq,USD,,普莱恩斯全美管道,Plains All American Pipeline,Plains All American;普莱恩斯,,,ok,Nasdaq listing; NYSE (XNYS) holiday calendar used for all US listings.
+equity:dht,DHT,DHT,research,原油运输,Crude tankers,equity,XNYS,NYSE,USD,,DHT 控股,DHT Holdings,DHT Holdings,,,ok,
+equity:stng,STNG,STNG,research,成品油运输,Product tankers,equity,XNYS,NYSE,USD,,天蝎油轮,Scorpio Tankers,Scorpio Tankers;天蝎油轮,,,ok,
+equity:vlo,VLO,VLO,research,炼油与销售,Refining and marketing,equity,XNYS,NYSE,USD,,瓦莱罗能源,Valero Energy,瓦莱罗;Valero,,,ok,
+equity:mpc,MPC,MPC,research,炼油与销售,Refining and marketing,equity,XNYS,NYSE,USD,,马拉松原油,Marathon Petroleum,马拉松原油;Marathon Petroleum,,,ok,Not Marathon Oil (acquired by ConocoPhillips in 2024).
+equity:sinopec,0386.HK,0386.HK,research,炼油与销售,Refining and marketing,equity,XHKG,HKEX,HKD,,中国石油化工股份,China Petroleum & Chemical Corporation,中国石化;中石化;中国石油化工;Sinopec;Sinopec Corp;中國石油化工股份,中石化冠德;中石化油服;中石化炼化工程;上海石化,,ok,0934.HK 中石化冠德、1033.HK 中石化油服 and 0338.HK 上海石化 are different companies.
+equity:slb,SLB,SLB,research,油田服务,Oilfield services,equity,XNYS,NYSE,USD,,斯伦贝谢,SLB (Schlumberger),斯伦贝谢;SLB;Schlumberger,,,ok,
+equity:atd,ATD.TO,ATD.TO,research,燃油零售,Fuel retail,equity,XTSE,TSX,CAD,,Alimentation Couche-Tard,Alimentation Couche-Tard,Couche-Tard;Alimentation Couche-Tard;Circle K,,,ok,Circle K is its main fuel-retail brand.
+benchmark:spy,SPY,SPY,benchmark,,US market benchmark,equity,XNYS,NYSE Arca,USD,,标普500 ETF,SPDR S&P 500 ETF Trust,SPY;标普500ETF,,,ok,
+benchmark:xle,XLE,XLE,benchmark,,US energy sector benchmark,equity,XNYS,NYSE Arca,USD,,能源精选行业 ETF,Energy Select Sector SPDR Fund,XLE,,,ok,
+benchmark:xiu,XIU.TO,XIU.TO,benchmark,,Canada market benchmark,equity,XTSE,TSX,CAD,,iShares S&P/TSX 60 ETF,iShares S&P/TSX 60 Index ETF,XIU,,,ok,
+benchmark:gsptse,^GSPTSE,^GSPTSE,benchmark,,Canada market index,index,XTSE,TSX,CAD,,标普/多伦多综合指数,S&P/TSX Composite Index,S&P/TSX Composite;TSX综合指数,,,ok,Price index.
+benchmark:tasi,^TASI.SR,^TASI.SR,benchmark,,Saudi market index,index,XSAU,Tadawul,SAR,,沙特综合指数,Tadawul All Share Index,TASI;沙特综合指数,,,no_free_source,Yahoo returned only one row (2026-10-22) when tested on 2026-10-24.

@@ -2,7 +2,7 @@
 overrides: data/hkex_calendar.csv (XHKG) and data/calendars/<MIC>.csv.
 
 Maintenance tool only: needs `pandas_market_calendars`, which the query code
-does not import. Run: python -m news_price_query.build_calendar [XHKG XNYS XTSE XSAU]
+does not import. Run: python -m news_price_query.build_calendar [XHKG XNYS XTSE XSAU NYMEX XLON]
 """
 
 import csv
@@ -42,10 +42,16 @@ def build(start: date = START, end: date = END, market: str = "XHKG") -> list[di
     from .market_calendars import MARKETS
 
     tz, _, regular_close = MARKETS[market]
-    calendar = mcal.get_calendar(market)
-    source = f"pandas_market_calendars {mcal.__version__} {market}"
+    calendar = mcal.get_calendar("CMEGlobex_CL" if market == "NYMEX" else market)
+    source = (f"pandas_market_calendars {mcal.__version__} CMEGlobex_CL ∩ XNYS; "
+              "close = 14:30 ET settlement" if market == "NYMEX"
+              else f"pandas_market_calendars {mcal.__version__} {market}")
     schedule = calendar.schedule(start.isoformat(), end.isoformat())
     sessions = {index.date(): row for index, row in schedule.iterrows()}
+    if market == "NYMEX":
+        nyse = mcal.get_calendar("XNYS")
+        nyse_days = {stamp.date() for stamp in nyse.schedule(start.isoformat(), end.isoformat()).index}
+        sessions = {day: row for day, row in sessions.items() if day in nyse_days}
     weekmask = str(getattr(calendar, "weekmask", "Mon Tue Wed Thu Fri"))
     names = {
         stamp.date(): name for stamp, name in calendar.regular_holidays.holidays(
@@ -56,10 +62,10 @@ def build(start: date = START, end: date = END, market: str = "XHKG") -> list[di
     while day <= end:
         session = sessions.get(day)
         if session is not None:
-            close = _hhmm(session["market_close"], tz)
-            break_start = _hhmm(session.get("break_start"), tz)
-            break_end = _hhmm(session.get("break_end"), tz)
-            half = close < regular_close
+            close = "14:30" if market == "NYMEX" else _hhmm(session["market_close"], tz)
+            break_start = "" if market == "NYMEX" else _hhmm(session.get("break_start"), tz)
+            break_end = "" if market == "NYMEX" else _hhmm(session.get("break_end"), tz)
+            half = market != "NYMEX" and close < regular_close
             note = ""
             historical = _historical_break(day) if market == "XHKG" else None
             if historical and not half:
@@ -67,7 +73,7 @@ def build(start: date = START, end: date = END, market: str = "XHKG") -> list[di
                 note = f"lunch break corrected from XHKG 12:00-13:00 ({BREAK_SOURCE})"
             rows.append({
                 "date": day.isoformat(), "is_trading": "1", "half_day": "1" if half else "0",
-                "open": _hhmm(session["market_open"], tz),
+                "open": "09:00" if market == "NYMEX" else _hhmm(session["market_open"], tz),
                 "break_start": "" if half else break_start,
                 "break_end": "" if half else break_end,
                 "close": close, "closure_reason": "", "source_url": source, "note": note,
@@ -94,6 +100,8 @@ def build(start: date = START, end: date = END, market: str = "XHKG") -> list[di
     for row in rows:
         if row["date"] in overrides:
             row.update(overrides[row["date"]])
+            if market == "NYMEX" and not row["source_url"]:
+                row["source_url"] = source
     return rows
 
 

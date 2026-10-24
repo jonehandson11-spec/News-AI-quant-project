@@ -212,7 +212,8 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
             f"{config.max_gap_days} trading days before {baseline_day.isoformat()}")
     baseline_gap = int((event_time - baseline.observed_at).total_seconds())
     baseline_status = "on_date" if baseline_gap_days == 0 else "stale"
-    baseline_flag = _flag(baseline, baseline_gap_days)
+    baseline_flag = _flag(baseline, baseline_gap_days) or (
+        "nonpositive_price" if baseline.price <= 0 else None)
 
     results: list[WindowResult] = []
     for target in window_targets:
@@ -242,16 +243,18 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
             continue
         if match.basis != baseline.basis:
             raise ValueError(f"Mixed price basis for {asset.ticker}: {baseline.basis} and {match.basis}")
+        nonpositive = baseline.price <= 0 or match.price <= 0
         if target.direction == "before":
-            value = (baseline.price - match.price) / match.price * 100
+            value = None if nonpositive else (baseline.price - match.price) / match.price * 100
             status = "on_date" if gap_days == 0 else "deferred_back"
         else:
-            value = (match.price - baseline.price) / baseline.price * 100
+            value = None if nonpositive else (match.price - baseline.price) / baseline.price * 100
             status = "on_date" if gap_days == 0 else "deferred"
         delay = int((match.observed_at - target.target).total_seconds())
+        flag = _flag(match, gap_days) or ("nonpositive_price" if nonpositive else None)
         results.append(WindowResult(
             target.label, target.target, match.observed_at, match.price, value,
-            status, delay, match.source, match.basis, _flag(match, gap_days),
+            status, delay, match.source, match.basis, flag,
         ))
     return EventResult(
         asset=asset, published_at=event_time, baseline=baseline,
