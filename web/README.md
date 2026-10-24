@@ -13,4 +13,16 @@ API 只供同源本机页面使用；不要公开部署。如需团队共享，�
 
 `static/` 是原公开 GitHub Pages 的旧版 CSV 页面（由 `build_site.py` 构建），保留不动，不是组员的查询入口。
 
+## 访问码（组员公网链接）
+
+开启后所有页面和 `/api/*` 须先登录：会话 cookie 30 天（HttpOnly、Secure、SameSite=Lax），同一来源 15 分钟内输错 5 次会被限速，登录记录写本地日志。可每人一个码，也可全组共用一个码（文件里只放一条）。
+
+```bash
+python -m web.access generate --names 全组共用 --hash-file /安全目录/access_codes.json --plain-file /安全目录/access_codes.txt
+python -m web.server --access-codes /安全目录/access_codes.json   # 仍只监听 127.0.0.1
+cloudflared tunnel --url http://127.0.0.1:8765         # 免费 quick tunnel，给出 https://….trycloudflare.com 链接
+```
+
+哈希文件旁会自动生成会话密钥和访问日志（也可用 `--session-secret`、`--access-log` 或环境变量 `NEWS_PRICE_ACCESS_CODES`）。服务每次登录都重新读取哈希文件，换码不用重启；删掉的码对应的会话立即失效。访问码、哈希文件、会话密钥和日志都不要放进仓库。
+
 旧版备选：`python -m web.server --provider futu --mode minute` 仍可用富途 OpenD 分钟取价（需 `futu-api` 和已登录的 OpenD）。
