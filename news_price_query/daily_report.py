@@ -77,6 +77,21 @@ def _aligned(own, other, own_base, other_base):
     )
 
 
+CURRENCY_NAMES = {"HKD": "港元", "USD": "美元", "CAD": "加元", "SAR": "里亚尔", "GBP": "英镑"}
+UNIT_NAMES = {"USD/bbl": "美元/桶", "USD/gal": "美元/加仑", "USD/t": "美元/吨"}
+
+
+def price_unit(asset) -> str:
+    """Label printed next to every price: 'HKD 港元', '美元/桶', or '点' for an index."""
+    if asset.ticker.startswith("^"):
+        return "点"
+    unit = getattr(asset, "unit", None)
+    if unit:
+        return UNIT_NAMES.get(unit, unit)
+    code = getattr(asset, "currency", None) or "HKD"
+    return f"{code} {CURRENCY_NAMES.get(code, '')}".strip()
+
+
 def _span(label, base_at, base_price, obs_at, obs_price) -> dict:
     """Start/end of a window: before_* runs from the N-days-ago close to the baseline,
     after_* from the baseline to the t+K close. Missing prices stay None."""
@@ -251,6 +266,7 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
         "exchange_timezone": str(local_tz),
         "currency": getattr(asset, "currency", "HKD"),
         "unit": asset.unit,
+        "price_unit": price_unit(asset),
         "asset_type": asset.asset_type,
         "stage": getattr(asset, "stage", None),
         "fx": None,  # interface only: see fx.py; returns are in local currency
@@ -328,6 +344,8 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
                     other_adj.price if other_adj else None).items()},
             }
         comparisons[bench_asset.ticker] = {
+            "currency": getattr(bench_asset, "currency", None) or "HKD",
+            "price_unit": price_unit(bench_asset),
             "baseline": {"observed_at": b_raw.baseline.observed_at.isoformat(),
                          "price": b_raw.baseline.price, "source": b_raw.baseline.source},
             "adj_error": b_adj_error,

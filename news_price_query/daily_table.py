@@ -21,32 +21,34 @@ def _day(value) -> str:
     return value[:10] if value else MISSING
 
 
-def _leg(row: dict, prefix: str = "") -> str:
+def _leg(row: dict, prefix: str = "", unit: str = "") -> str:
     start, end = row.get(f"{prefix}start_price"), row.get(f"{prefix}end_price")
+    suffix = f" {unit}" if unit else ""
     if row.get("status") in ("pending", "expired") and end is None:
         end_text = "未到期" if row.get("status") == "pending" else "合约已到期"
-        return f"{_day(row.get(f'{prefix}start_at'))} {_price(start)} → {end_text}"
-    return (f"{_day(row.get(f'{prefix}start_at'))} {_price(start)} → "
-            f"{_day(row.get(f'{prefix}end_at'))} {_price(end)}")
+        return f"{_day(row.get(f'{prefix}start_at'))} {_price(start)}{suffix} → {end_text}"
+    return (f"{_day(row.get(f'{prefix}start_at'))} {_price(start)}{suffix} → "
+            f"{_day(row.get(f'{prefix}end_at'))} {_price(end)}{suffix}")
 
 
 def format_daily_table(report: dict) -> str:
-    lines = [f"{report.get('ticker', '')}  发布 {report.get('published_at_local', '')}  "
-             f"{report.get('currency', '')}" + (f" {report['unit']}" if report.get("unit") else "")]
+    unit = report.get("price_unit") or ""
+    lines = [f"{report.get('ticker', '')}  发布 {report.get('published_at_local', '')}  价格单位：{unit or '未知'}"]
+    base = report.get("baseline") or {}
+    lines.append(f"基准价 {_day(base.get('observed_at'))} {_price(base.get('price'))} {unit}".rstrip())
     contract = report.get("contract") or {}
     if contract.get("ticker"):
         lines.append(f"固定合约 {contract['ticker']}" + (f"（{contract['note']}）" if contract.get("note") else ""))
     for label, row in (report.get("windows") or {}).items():
-        lines.append(f"{label:<11} {_leg(row)}  原始 {_pct(row.get('return_pct'))}"
-                     f"  复权 {_leg(row, 'adj_')} {_pct(row.get('adj_return_pct'))}  [{row.get('status', '')}]")
-        cont = row.get("continuous")
-        if cont:
-            roll = " 跨换月" if cont.get("crosses_roll") else ""
-            lines.append(f"{'':<11}   连续合约 {_leg(cont)} {_pct(cont.get('return_pct'))}{roll}")
+        adj = ("" if contract.get("ticker") else
+               f"  复权 {_leg(row, 'adj_', unit)} {_pct(row.get('adj_return_pct'))}")
+        lines.append(f"{label:<11} {_leg(row, unit=unit)}  原始 {_pct(row.get('return_pct'))}"
+                     f"{adj}  [{row.get('status', '')}]")
+        # continuous-contract reference is kept in JSON/CSV only (not shown here)
         for code, bench in (report.get("benchmarks") or {}).items():
             other = (bench.get("windows") or {}).get(label)
             if other:
-                lines.append(f"{'':<11}   {code} {_leg(other)} {_pct(other.get('return_pct'))}"
+                lines.append(f"{'':<11}   {code} {_leg(other, unit=bench.get('price_unit', ''))} {_pct(other.get('return_pct'))}"
                              f"  超额 {_pct(other.get('excess_return_pct'))}"
                              f"  复权超额 {_pct(other.get('adj_excess_return_pct'))}")
     return "\n".join(lines) + "\n"
