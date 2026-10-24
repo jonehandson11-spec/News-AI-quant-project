@@ -12,7 +12,8 @@ from pathlib import Path
 
 from news_price_query.assets import ASSETS, resolve_asset
 from news_price_query.cli import _result_dict
-from news_price_query.daily_report import DEFAULT_BENCHMARKS, daily_report
+from news_price_query.assets import RESEARCH_ASSETS
+from news_price_query.daily_report import benchmarks_for, daily_report
 from news_price_query.news import find_direct_match, parse_news, read_news
 from news_price_query.query import query_event
 
@@ -99,8 +100,16 @@ class QueryService:
     def _allowed(self):
         allowed = dict(ALLOWED)
         if self.instruments is not None:
+            for item in RESEARCH_ASSETS:
+                if item.role in ("equity", "futures"):
+                    allowed.setdefault(item.ticker, item)
             for item in self.instruments():
-                if item.ticker in allowed or item.role != "equity":
+                if item.role != "equity":
+                    continue
+                if item.ticker in allowed:
+                    base = allowed[item.ticker]
+                    extra = tuple(a for a in (item.name, *item.aliases) if a and a not in base.aliases)
+                    allowed[item.ticker] = replace(base, aliases=base.aliases + extra)
                     continue
                 base = resolve_asset(item.ticker)
                 names = tuple(name for name in (item.name, *item.aliases) if name)
@@ -124,8 +133,15 @@ class QueryService:
         return allowed[asset.ticker]
 
     def catalog(self):
-        return [{"ticker": asset.ticker, "name": asset.aliases[0], "role": asset.role}
-                for asset in self._allowed().values()]
+        rows = []
+        for asset in self._allowed().values():
+            row = {"ticker": asset.ticker, "name": asset.aliases[0], "role": asset.role}
+            if self.instruments is not None:
+                row.update({"stage": asset.stage, "market": asset.market, "currency": asset.currency,
+                            "asset_type": asset.asset_type, "queryable": asset.queryable,
+                            "data_status": asset.data_status})
+            rows.append(row)
+        return rows
 
     def source_info(self):
         return {"price_source": self.price_source, "mode": self.mode,
@@ -164,6 +180,8 @@ class QueryService:
 
     def query(self, asset_name, published_at, *, benchmarks=()):
         asset = self._asset(asset_name)
+        if not asset.queryable:
+            raise ValueError(f"{asset.ticker}（{asset.asset_type}）已登记，但价格查询将在下一块实现：{asset.notes or ''}")
         if not isinstance(published_at, str):
             raise ValueError("新闻发布时间必须包含时区")
         event_time = datetime.fromisoformat(published_at)
@@ -173,8 +191,9 @@ class QueryService:
             raise ValueError("benchmarks 必须是标的代码列表")
         selected = list(dict.fromkeys(benchmarks))
         if self.mode == "daily":
-            if any(code not in BENCHMARKS | {"^HSI"} for code in selected):
-                raise ValueError("对照标的只支持 2800.HK、3033.HK 和 ^HSI")
+            allowed_benchmarks = BENCHMARKS | {"^HSI"} | {a.ticker for a in RESEARCH_ASSETS if a.role == "benchmark"}
+            if any(code not in allowed_benchmarks for code in selected):
+                raise ValueError("对照标的只支持已登记的对照 ETF 或指数")
         elif any(code not in BENCHMARKS for code in selected):
             raise ValueError("对照标的只支持 2800.HK 和 3033.HK")
         as_of = self.now()
@@ -182,7 +201,7 @@ class QueryService:
         if self.mode == "daily":
             try:
                 return daily_report(provider, asset, event_time, as_of=as_of,
-                                    benchmarks=(*DEFAULT_BENCHMARKS, *selected))
+                                    benchmarks=(*benchmarks_for(asset), *selected))
             finally:
                 close = getattr(provider, "close", None)
                 if close:

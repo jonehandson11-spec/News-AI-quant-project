@@ -147,13 +147,13 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
     to config.max_gap_days neighbouring trading days (deferred/deferred_back);
     otherwise the window is missing. Missing values are never treated as zero.
     """
-    from .hkex_calendar import default_calendar
+    from .market_calendars import calendar_for
 
     if published_at.tzinfo is None or published_at.utcoffset() is None:
         raise ValueError("News timestamp requires a timezone")
     if as_of.tzinfo is None or as_of.utcoffset() is None:
         raise ValueError("as_of requires a timezone")
-    calendar = calendar or default_calendar()
+    calendar = calendar or calendar_for(getattr(asset, "market", "XHKG"))
     event_time = published_at.astimezone(HK)
     as_of = as_of.astimezone(HK)
     if event_time > as_of:
@@ -169,7 +169,8 @@ def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: 
 
     closes: dict = {}
     for bar in provider.bars(asset.ticker, fetch_start, fetch_end, "day"):
-        day = bar.timestamp.astimezone(HK).date()
+        # Daily bars are date-only; providers stamp them on their trading date.
+        day = bar.timestamp.date()
         try:
             info = calendar.day(day)
         except ValueError:

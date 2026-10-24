@@ -105,12 +105,13 @@ class PriceStoreTests(unittest.TestCase):
         row = self.store.rows("0883.HK", "2023-08-31", "2023-08-31")[0]
         self.assertAlmostEqual(row.adj_close, 9.9 * 0.95)
 
-    def test_non_hk_ticker_is_reported_not_guessed(self):
-        result = update_prices(self.store, [UniverseEntry("XOM")], fake_downloader(self.tables),
-                               now=self.now, start="2023-08-01")
+    def test_futures_and_unknown_markets_are_skipped_not_guessed(self):
+        result = update_prices(self.store, [UniverseEntry("CL=F"), UniverseEntry("SHEL.L")],
+                               fake_downloader(self.tables), now=self.now, start="2023-08-01")
         summary = {t.ticker: t for t in result["tickers"]}
-        self.assertIn("only Hong Kong", summary["XOM"].error)
-        self.assertEqual(result["status"], "partial")
+        self.assertIn("next block", summary["CL=F"].skipped)
+        self.assertIn("unknown market", summary["SHEL.L"].skipped)
+        self.assertEqual(self.store.rows("CL=F", "2000-01-01", "2030-01-01"), [])
 
     def test_provider_raw_adj_and_minute(self):
         raw = LocalDbPriceProvider(self.db)

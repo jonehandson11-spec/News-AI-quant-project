@@ -7,7 +7,11 @@ const statusText = {
   deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情",
 };
 const flagText = { missing_data: "该交易日无行情（停牌或缺数据，无法区分）", zero_volume: "成交量为 0（零成交，或数据源缺成交量）" };
-const benchmarkName = { "2800.HK": "盈富 2800", "^HSI": "恒指", "3033.HK": "恒科 3033" };
+const benchmarkName = {
+  "2800.HK": "盈富 2800", "^HSI": "恒指", "3033.HK": "恒科 3033",
+  SPY: "标普500 ETF SPY", XLE: "能源板块 ETF XLE", "XIU.TO": "TSX 60 ETF XIU", "^GSPTSE": "多伦多综指",
+};
+const marketText = { XHKG: "港交所", XNYS: "美股（纽交所日历）", XTSE: "多伦多交易所", XSAU: "沙特交易所", NYMEX: "纽约商品交易所", ICE_EU: "ICE 欧洲" };
 const showTime = (value) => value ? value.slice(0, 19).replace("T", " ") : "—";
 const showPrice = (value) => value === null || value === undefined ? "—" : Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 4 });
 const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;
@@ -95,7 +99,8 @@ function renderDaily(result) {
   byId("baselinePrice").textContent = showPrice(result.baseline.price);
   const adj = result.baseline.adj_price === null || result.baseline.adj_price === undefined ? "" : ` · 复权 ${showPrice(result.baseline.adj_price)}`;
   const flag = result.baseline.flag ? ` · ${flagText[result.baseline.flag] || result.baseline.flag}` : "";
-  byId("baselineDetail").textContent = `${showTime(result.baseline.observed_at)} 收盘${adj} · 事件日 t0 = ${result.t0} · 发布时段 ${sessionText[result.session] || result.session}${flag}`;
+  const localNote = result.market && result.market !== "XHKG" ? "（当地时间）" : "";
+  byId("baselineDetail").textContent = `${showTime(result.baseline.observed_at)}${localNote} 收盘${adj} · 事件日 t0 = ${result.t0} · 发布时段 ${sessionText[result.session] || result.session}${flag}`;
   setHead(["窗口", "目标交易日收盘", "实际取价", "价格", "涨跌幅（原始）", "涨跌幅（复权）",
     ...codes.map((code) => `超额 vs ${benchmarkName[code] || code}（原始 / 复权）`), "状态"]);
   const body = byId("resultRows");
@@ -119,10 +124,14 @@ function renderDaily(result) {
     body.append(tr);
   }
   const version = result.data_version ? ` · 数据版本 ${result.data_version.run_id}` : "";
-  byId("resultSubtitle").textContent = `${result.ticker} · 新闻发布 ${showTime(result.published_at)} 香港时间 · ${result.baseline.source}${version}`;
+  const local = result.market && result.market !== "XHKG"
+    ? ` = ${showTime(result.published_at_local)} 交易所当地时间（${result.exchange_timezone}）` : "";
+  const currency = result.currency ? ` · 价格与涨跌幅以 ${result.currency} 计` : "";
+  const noBench = codes.length === 0 ? " · 该市场暂无免费对照指数" : "";
+  byId("resultSubtitle").textContent = `${result.ticker} · ${marketText[result.market] || result.market || "港交所"} · 新闻发布 ${showTime(result.published_at)} 香港时间${local}${currency}${noBench} · ${result.baseline.source}${version}`;
 }
 
-const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: "午休", afternoon: "下午盘", after_close: "收盘后", non_trading_day: "非交易日" };
+const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: "午休", afternoon: "下午盘", after_close: "收盘后", non_trading_day: "非交易日", regular_session: "交易时段内" };
 
 function renderResult(result) {
   state.result = result;
@@ -235,22 +244,47 @@ async function loadNews() {
   }
 }
 
+function syncBenchmarkOptions() {
+  const asset = (state.assets || []).find((item) => item.ticker === byId("asset").value);
+  const hk = !asset || !asset.market || asset.market === "XHKG";
+  for (const node of document.querySelectorAll(".hk-only")) node.hidden = !hk;
+}
+
+function fillAssets() {
+  const select = byId("asset"), selected = select.value, stage = byId("stageFilter").value;
+  select.replaceChildren();
+  for (const asset of state.assets || []) {
+    if (stage && asset.stage !== stage) continue;
+    const option = document.createElement("option");
+    option.value = asset.ticker;
+    const extra = [asset.stage, asset.currency].filter(Boolean).join(" · ");
+    const pending = asset.queryable === false ? "（期货：已登记，下一块接入行情）" : "";
+    option.textContent = `${asset.name} · ${asset.ticker}${extra ? ` · ${extra}` : ""}${pending}`;
+    option.disabled = asset.queryable === false;
+    select.append(option);
+  }
+  const enabled = [...select.options].filter((option) => !option.disabled);
+  if (enabled.some((option) => option.value === selected)) select.value = selected;
+  else if (enabled.length) select.value = enabled[0].value;
+  syncBenchmarkOptions();
+}
+
 async function loadCatalog() {
   try {
     const data = await fetchJson("./api/assets", { cache: "no-store" });
-    const select = byId("asset"), selected = select.value;
-    select.replaceChildren();
-    for (const asset of data.assets) {
-      const option = document.createElement("option");
-      option.value = asset.ticker;
-      option.textContent = `${asset.name} · ${asset.ticker}`;
-      select.append(option);
-    }
-    if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+    state.assets = data.assets;
+    const stages = [...new Set(data.assets.map((asset) => asset.stage).filter(Boolean))];
+    const stageSelect = byId("stageFilter");
+    stageSelect.hidden = byId("stageLabel").hidden = stages.length === 0;
+    const chosenStage = stageSelect.value;
+    stageSelect.replaceChildren(new Option("全部环节", ""));
+    for (const stage of stages) stageSelect.append(new Option(stage, stage));
+    if (stages.includes(chosenStage)) stageSelect.value = chosenStage;
+    fillAssets();
     state.mode = data.mode || "minute";
     byId("priceStatus").textContent = state.mode === "daily" ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
     byId("sourceHelp").textContent = state.mode === "daily"
-      ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按港交所交易日计算，同时给出原始与复权涨跌幅，以及相对盈富基金 2800.HK 和恒生指数的超额收益。"
+      ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按标的所在交易所的交易日计算（港股港交所、美股纽交所、加股多伦多、沙特 Tadawul），涨跌幅以当地货币计，同时给出原始与复权涨跌幅和同市场对照（港股 2800.HK/恒指，美股 SPY/XLE，加股 XIU.TO/多伦多综指）的超额收益。"
       : "查询时由内部服务连接富途 OpenD。需要运行服务的电脑已登录富途并具备历史行情权限；网页无需选择价格文件。";
   } catch (error) {
     byId("priceStatus").textContent = "内部查询服务不可用";
@@ -259,7 +293,8 @@ async function loadCatalog() {
   await loadNews();
 }
 
-byId("asset").addEventListener("change", loadNews);
+byId("asset").addEventListener("change", () => { syncBenchmarkOptions(); loadNews(); });
+byId("stageFilter").addEventListener("change", () => { fillAssets(); loadNews(); });
 byId("newsFilter").addEventListener("submit", (event) => { event.preventDefault(); loadNews(); });
 byId("publishedAt").addEventListener("input", clearTimePreset);
 for (const button of timePresetButtons) {
