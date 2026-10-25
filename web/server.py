@@ -230,8 +230,8 @@ def main():
     parser.add_argument("--provider", choices=("local", "futu"), default="local",
                         help="local：本地价格库（默认，免 OpenD）；futu：富途 OpenD")
     parser.add_argument("--db", default=None, help="本地价格库路径，默认 ~/.news_price_query/prices.sqlite3 或 NEWS_PRICE_DB")
-    parser.add_argument("--mode", choices=("daily", "minute"), default="daily",
-                        help="daily：交易日窗口（默认）；minute：旧版九个自然时间窗口，需要分钟线")
+    parser.add_argument("--mode", choices=("hourly", "daily", "minute"), default="hourly",
+                        help="hourly：交易小时窗口（默认）；daily：交易日窗口；minute：旧版自然时间窗口")
     parser.add_argument("--news-csv", default=None, help="新闻 CSV；默认仓库 data/news.csv，不存在时读团队公开源")
     parser.add_argument("--futu-host", default="127.0.0.1")
     parser.add_argument("--futu-port", type=int, default=11111)
@@ -242,7 +242,7 @@ def main():
     parser.add_argument("--access-log", default=None, help="访问日志文件；默认与访问码文件同目录")
     args = parser.parse_args()
     if args.provider == "local" and args.mode == "minute":
-        parser.error("本地价格库只有日线，请用 --mode daily 或 --provider futu")
+        parser.error("本地价格库没有分钟线，请用 --mode hourly/daily 或 --provider futu")
     try:
         service = build_service(args)
     except FileNotFoundError as exc:

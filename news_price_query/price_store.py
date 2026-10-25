@@ -312,7 +312,10 @@ class PriceStore:
 class LocalDbPriceProvider:
     """Daily bars from the local store. basis='raw' uses close (split-adjusted
     only, as delivered by yfinance); basis='adj' uses adj_close (dividends and
-    splits). Minute bars are not stored: minute requests return no bars."""
+    splits). For hourly bars, adj basis applies the exchange-local trading date's
+    daily adj_close/close factor to the hourly close because yfinance intraday
+    adj_close is not dividend-adjusted; bars without that daily factor are skipped.
+    Minute bars are not stored: minute requests return no bars."""
 
     def __init__(self, path: str | Path | None = None, *, basis: str = "raw", store: PriceStore | None = None):
         if basis not in ("raw", "adj"):
@@ -331,6 +334,32 @@ class LocalDbPriceProvider:
                 "source": run["source"], "db": str(self.store.path)}
 
     def bars(self, ticker: str, start: datetime, end: datetime, interval: str) -> list[PriceBar]:
+        if interval == "hour":
+            output = []
+            utc = ZoneInfo("UTC")
+            start_utc = start.astimezone(utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            end_utc = end.astimezone(utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            rows = self.store.hourly_rows(ticker.upper(), start_utc, end_utc)
+            daily_factors = {}
+            if self.basis == "adj" and rows:
+                dates = [datetime.fromisoformat(row.bar_start_local).date().isoformat() for row in rows]
+                for daily in self.store.rows(ticker.upper(), min(dates), max(dates)):
+                    if daily.adj_close is not None and daily.close:
+                        daily_factors[daily.date] = daily.adj_close / daily.close
+            for row in rows:
+                if self.basis == "raw":
+                    value = row.close
+                else:
+                    local_date = datetime.fromisoformat(row.bar_start_local).date().isoformat()
+                    factor = daily_factors.get(local_date)
+                    value = row.close * factor if factor is not None else None
+                if value is None:
+                    continue
+                timestamp = datetime.fromisoformat(row.bar_start_local)
+                output.append(PriceBar(ticker=row.ticker, interval="hour", timestamp=timestamp,
+                                       close=value, source=f"local-db:{row.source}", basis=self.basis,
+                                       volume=row.volume))
+            return output
         if interval != "day":
             return []
         first = start.astimezone(HK).date().isoformat()

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="按新闻发布时间查询港股前后各交易日窗口的价格，并保留实际取价时间和数据来源。">
+  <meta name="description" content="按新闻发布时间查询港股前后各交易小时窗口的价格，并保留实际取价时间和数据来源。">
   <title>新闻 × 港股价格查询</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
@@ -18,7 +18,7 @@
     <section class="intro">
       <p class="eyebrow">NEWS / PRICE / TIME</p>
       <h1>新闻发布前后，<br><em>价格实际到了哪里？</em></h1>
-      <p class="lede">输入港股与新闻发布时间，按港交所交易日查询发布前约 1 周、1 个月、1 季度、半年，以及发布后第 1、3、5 个交易日的涨跌（原始与复权），并与盈富基金、恒生指数对照。每个结果都保留目标日期、实际取价日期和行情来源。</p>
+      <p class="lede">输入标的与新闻发布时间，查询新闻前后 1、3、6 个交易小时的涨跌（原始与复权），并与同市场对照。交易小时只算交易时段，午休、收盘后、周末和假期不计；小时线约覆盖最近两年，更早新闻显示缺数据。</p>
       <div class="data-strip">
         <div><span class="strip-label">新闻索引</span><strong id="newsStatus">载入中…</strong></div>
         <div><span class="strip-label">自动行情</span><strong id="priceStatus">检查服务中…</strong></div>
@@ -87,7 +87,7 @@
       <div class="results-head"><div><p class="eyebrow">RESULTS</p><h2 id="resultsHeading">价格窗口</h2><p id="resultSubtitle"></p></div><div class="download-actions"><label class="detail-toggle" title="期货无复权/超额列"><input id="detailToggle" type="checkbox" disabled>显示复权和超额</label><button id="downloadJson" type="button">下载 JSON</button><button id="downloadCsv" type="button">下载 CSV</button></div></div>
       <div class="baseline-card"><span id="baselineLabel">发布前基准价</span><strong id="baselinePrice">—</strong><small id="baselineDetail"></small></div>
       <div class="table-scroll"><table><thead><tr id="resultHead"><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>差价</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
-      <p class="result-note" id="resultNote">日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。缺数据不按零处理。新闻与价格同时变化不代表因果关系。</p>
+      <p class="result-note" id="resultNote">交易小时：只算交易时段，午休、收盘后、周末和假期不算。缺数据不按零处理。</p>
     </section>
   </main>
   <footer><span>新闻 × 港股价格查询 · 数据来源与时间始终随结果保留</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">查看源代码与使用说明 ↗</a></footer>

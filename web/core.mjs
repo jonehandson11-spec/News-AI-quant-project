@@ -204,7 +204,7 @@ const DETAIL_BENCHMARK_NAMES = {
 };
 
 export function detailToggleAvailable(result) {
-  return result?.mode === "daily" && !result.contract;
+  return (result?.mode === "daily" || result?.mode === "hourly") && !result.contract;
 }
 
 export function dailyColumns(result, { showDetail = false } = {}) {

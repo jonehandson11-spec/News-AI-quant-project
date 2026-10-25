@@ -6,7 +6,9 @@ from zoneinfo import ZoneInfo
 
 from .assets import Asset
 from .prices import PriceBar
-from .windows import DEFAULT_TRADING_WINDOWS, TradingWindowConfig, targets, trading_day_targets
+from .windows import (DEFAULT_TRADING_WINDOWS, TradingWindowConfig, targets, trading_day_targets,
+                      HOURLY_OFFSETS, hourly_label, hourly_bar_end, shift_trading_hours,
+                      trading_seconds_between)
 
 
 HK = ZoneInfo("Asia/Hong_Kong")
@@ -64,6 +66,8 @@ def query_event(provider, asset: Asset, published_at: datetime, *, as_of: dateti
     if mode == "daily":
         return query_event_daily(provider, asset, published_at, as_of=as_of,
                                  calendar=calendar, config=config)
+    if mode == "hourly":
+        return query_event_hourly(provider, asset, published_at, as_of=as_of, calendar=calendar)
     if mode != "minute":
         raise ValueError(f"Unknown query mode: {mode}")
     if published_at.tzinfo is None or published_at.utcoffset() is None:
@@ -133,6 +137,106 @@ def query_event(provider, asset: Asset, published_at: datetime, *, as_of: dateti
         baseline_gap_seconds=baseline_gap, baseline_status=baseline_status,
         windows=tuple(results),
     )
+
+
+def query_event_hourly(provider, asset: Asset, published_at: datetime, *, as_of: datetime,
+                       calendar=None) -> EventResult:
+    """Trading-hour windows using exchange session time and local hourly bars."""
+    from .market_calendars import calendar_for
+    from .windows import hourly_label_zh
+    if published_at.tzinfo is None or as_of.tzinfo is None:
+        raise ValueError("News timestamp and as_of require timezones")
+    calendar = calendar or calendar_for(getattr(asset, "market", "XHKG"))
+    event = published_at.astimezone(calendar.tz)
+    cutoff = as_of.astimezone(calendar.tz)
+    if event > cutoff:
+        raise ValueError("News publication time is after as_of")
+    # Two-year feed coverage is supplied by Yahoo; query a broad calendar range and
+    # report a uniform missing result when there is no usable baseline.
+    try:
+        bars = provider.bars(asset.ticker, event - timedelta(days=760), cutoff, "hour")
+    except (ValueError, RuntimeError):
+        bars = []
+    eligible = []
+    for bar in bars:
+        end = hourly_bar_end(bar, calendar)
+        if end is not None and end <= cutoff:
+            eligible.append((end, bar))
+    eligible.sort(key=lambda pair: pair[0])
+    base = next(((end, bar) for end, bar in reversed(eligible) if end <= event), None)
+    if base is None:
+        empty = tuple(WindowResult(hourly_label(h, d), None, None, None, None,
+                                   "missing", None, None, None, "missing_data")
+                      for d, values in (("before", (6, 3, 1)), ("after", (1, 3, 6))) for h in values)
+        baseline = Observation(event, None, "", "raw")
+        return EventResult(asset, event, baseline, 0, "missing", empty, mode="hourly",
+                           session=calendar.session_of(event), baseline_flag="missing_data")
+    base_end, base_bar = base
+    if trading_seconds_between(base_end, event, calendar) > 2 * 3600:
+        base = None  # stale baseline (data gap or suspension): report missing, never a stale price
+    if base is None:
+        empty = tuple(WindowResult(hourly_label(h, d), None, None, None, None,
+                                   "missing", None, None, None, "missing_data")
+                      for d, values in (("before", (6, 3, 1)), ("after", (1, 3, 6))) for h in values)
+        return EventResult(asset, event, Observation(event, None, "", "raw"), 0, "missing", empty,
+                           mode="hourly", session=calendar.session_of(event), baseline_flag="missing_data")
+    baseline = Observation(base_end, base_bar.close, base_bar.source, base_bar.basis, base_bar.volume)
+    windows = []
+    for direction, values in (("before", (6, 3, 1)), ("after", (1, 3, 6))):
+        for hours in values:
+            label = hourly_label(hours, direction)
+            target = shift_trading_hours(base_end, -hours if direction == "before" else hours, calendar)
+            if direction == "after" and target > cutoff:
+                windows.append(WindowResult(label, target, None, None, None, "pending", None, None, None))
+                continue
+            found = next(((end, bar) for end, bar in reversed(eligible) if end <= target), None)
+            if found is None:
+                windows.append(WindowResult(label, target, None, None, None, "missing", None, None, None,
+                                            "missing_data"))
+                continue
+            end, bar = found
+            gap = trading_seconds_between(end, target, calendar) if end <= target else 0
+            if gap > 2 * 3600:
+                windows.append(WindowResult(label, target, None, None, None, "missing", None, None, None,
+                                            "missing_data"))
+                continue
+            status = ("on_time" if gap < 3600 else
+                      ("deferred_back" if direction == "before" else "deferred"))
+            value = ((baseline.price / bar.close - 1) if direction == "before"
+                     else (bar.close / baseline.price - 1)) * 100
+            flag = "zero_volume" if _hourly_zero_volume(asset, bar, end, calendar) else None
+            windows.append(WindowResult(label, target, end, bar.close, value, status,
+                                        int((end-target).total_seconds()), bar.source, bar.basis, flag))
+    session = calendar.session_of(event)
+    if calendar.market == "NYMEX":
+        # Hourly futures use the Globex session, not the 14:30 settlement close.
+        session = ("regular_session" if trading_seconds_between(event, event + timedelta(seconds=1), calendar)
+                   else "after_close")
+    return EventResult(asset, event, baseline, int((event-base_end).total_seconds()), "on_time",
+                       tuple(windows), mode="hourly", session=session,
+                       baseline_flag=("zero_volume" if _hourly_zero_volume(asset, base_bar, base_end, calendar) else None))
+
+
+def _hourly_zero_volume(asset: Asset, bar: PriceBar, end: datetime, calendar) -> bool:
+    """Zero-volume flag for an hourly bar, skipping known Yahoo artifacts.
+
+    Indices have no volume. Yahoo's HK 15:30 bar (ends 16:00) and the NYMEX
+    Globex reopen bar (18:00 ET stamp, ends 19:00) often report volume 0 even
+    on normal days, so those bars are not flagged; half days are skipped too.
+    """
+    if bar.volume != 0 or asset.ticker.startswith("^"):
+        return False
+    try:
+        if calendar.day(end.astimezone(calendar.tz).date()).half_day:
+            return False
+    except ValueError:
+        pass
+    local_end = end.astimezone(calendar.tz)
+    if calendar.market == "XHKG" and (local_end.hour, local_end.minute) == (16, 0):
+        return False
+    if calendar.market == "NYMEX" and bar.timestamp.astimezone(calendar.tz).hour == 18:
+        return False
+    return True
 
 
 def query_event_daily(provider, asset: Asset, published_at: datetime, *, as_of: datetime,

@@ -48,6 +48,8 @@ def _days(value: str) -> tuple[int, ...]:
 
 
 def _query_options(args) -> dict:
+    if args.mode == "hourly":
+        return {"mode": "hourly"}
     if args.mode != "daily":
         return {}
     config = TradingWindowConfig(before_days=_days(args.before_days), after_days=_days(args.after_days))
@@ -132,8 +134,8 @@ def _result_dict(result, *, news=None, match=None, benchmark=None) -> dict:
 
 def _add_common(parser):
     parser.add_argument("--asset", required=True, help="Asset name or HK ticker")
-    parser.add_argument("--provider", choices=("csv", "futu", "local"), default="csv",
-                        help="local = SQLite price store filled by scripts/update_prices.py (daily only)")
+    parser.add_argument("--provider", choices=("csv", "futu", "local"), default="local",
+                        help="local = SQLite price store filled by scripts/update_prices.py")
     parser.add_argument("--db", help="Local price store path (default ~/.news_price_query/prices.sqlite3)")
     parser.add_argument("--prices", help="CSV with ticker,interval,timestamp,close")
     parser.add_argument("--as-of", help="Reproducible cutoff, ISO 8601 with offset")
@@ -141,9 +143,8 @@ def _add_common(parser):
     parser.add_argument("--futu-host", default="127.0.0.1")
     parser.add_argument("--futu-port", type=int, default=11111)
     parser.add_argument("--benchmark", help="Optional benchmark ETF, such as 2800.HK")
-    parser.add_argument("--mode", choices=("minute", "daily"), default="minute",
-                        help="minute: original clock-time windows (needs minute bars); "
-                             "daily: HKEX trading-day windows from daily closes")
+    parser.add_argument("--mode", choices=("hourly", "minute", "daily"), default="hourly",
+                        help="hourly: trading-hour windows; minute: legacy clock-time windows; daily: trading-day windows")
     parser.add_argument("--before-days", default="5,21,63,126",
                         help="Daily mode: trading days before the baseline day")
     parser.add_argument("--after-days", default="1,3,5",
@@ -173,13 +174,14 @@ def _parser():
 
 
 _CSV_COLUMNS = (
-    "article_id", "source", "title", "url", "ticker", "match_type", "match_evidence",
-    "published_at", "baseline_at", "baseline_price", "baseline_gap_seconds",
+    "article_id", "source", "title", "url", "ticker", "mode", "price_unit", "currency", "match_type", "match_evidence",
+    "published_at", "baseline_at", "baseline_price", "baseline_adj_price", "baseline_gap_seconds",
     "baseline_status", "window", "target_at",
-    "observed_at", "price", "return_pct", "status", "delay_seconds",
-    "price_source", "price_basis", "benchmark_ticker", "benchmark_baseline_at",
+    "window_label_zh", "observed_at", "price", "adj_price", "start_at", "start_price", "end_at", "end_price",
+    "return_pct", "adj_return_pct", "price_change", "status", "flag", "delay_seconds",
+    "price_source", "source_detail", "price_basis", "benchmark_ticker", "benchmark_baseline_at",
     "benchmark_baseline_price", "benchmark_baseline_status", "benchmark_return_pct",
-    "excess_return_pct", "error",
+    "excess_return_pct", "adj_excess_return_pct", "benchmarks_json", "error",
 )
 
 
@@ -191,11 +193,13 @@ def _write_csv(rows: list[dict], handle):
             "article_id": item.get("article_id"), "source": item.get("source"),
             "title": item.get("title"), "url": item.get("url"),
             "ticker": item.get("ticker"),
+            "mode": item.get("mode"), "price_unit": item.get("price_unit"), "currency": item.get("currency"),
             "match_type": (item.get("match") or {}).get("kind"),
             "match_evidence": (item.get("match") or {}).get("evidence"),
             "published_at": item.get("published_at"),
             "baseline_at": (item.get("baseline") or {}).get("observed_at"),
             "baseline_price": (item.get("baseline") or {}).get("price"),
+            "baseline_adj_price": (item.get("baseline") or {}).get("adj_price"),
             "baseline_gap_seconds": (item.get("baseline") or {}).get("gap_seconds"),
             "baseline_status": (item.get("baseline") or {}).get("status"),
             "benchmark_ticker": item.get("benchmark_ticker"),
@@ -208,12 +212,19 @@ def _write_csv(rows: list[dict], handle):
         for label, window in windows.items():
             writer.writerow({
                 **common, "window": label, "target_at": window.get("target_at"),
+                "window_label_zh": window.get("label_zh"), "start_at": window.get("start_at"),
+                "start_price": window.get("start_price"), "end_at": window.get("end_at"),
+                "end_price": window.get("end_price"), "adj_price": window.get("adj_price"),
                 "observed_at": window.get("observed_at"), "price": window.get("price"),
-                "return_pct": window.get("return_pct"), "status": window.get("status"),
+                "return_pct": window.get("return_pct"), "adj_return_pct": window.get("adj_return_pct"),
+                "price_change": window.get("price_change"), "flag": window.get("flag"), "status": window.get("status"),
                 "delay_seconds": window.get("delay_seconds"),
-                "price_source": window.get("source"), "price_basis": window.get("basis"),
+                "price_source": window.get("source"), "source_detail": window.get("source_detail"), "price_basis": window.get("basis"),
                 "benchmark_return_pct": window.get("benchmark_return_pct"),
                 "excess_return_pct": window.get("excess_return_pct"),
+                "adj_excess_return_pct": window.get("adj_excess_return_pct"),
+                "benchmarks_json": json.dumps({code: (benchmark.get("windows") or {}).get(label)
+                    for code, benchmark in (item.get("benchmarks") or {}).items()}, ensure_ascii=False),
             })
 
 
@@ -257,8 +268,8 @@ def main(argv=None) -> int:
         as_of = _time(args.as_of, args.timezone) if args.as_of else datetime.now(HK)
         event_time = _time(args.time, args.timezone) if args.command == "query" else None
         benchmark_asset = resolve_asset(args.benchmark) if args.benchmark else None
-        if args.provider == "local" and args.mode != "daily":
-            raise ValueError("--provider local only has daily bars; add --mode daily")
+        if args.provider == "local" and args.mode == "minute":
+            raise ValueError("--provider local has no minute bars; select hourly or daily")
         if benchmark_asset is not None and benchmark_asset.role != "benchmark":
             raise ValueError("--benchmark must be a registered benchmark ETF")
         provider = _provider(args)
@@ -275,6 +286,12 @@ def main(argv=None) -> int:
             else:
                 print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
+        if args.command == "query" and args.mode == "hourly" and args.provider == "local":
+            from .daily_report import benchmarks_for, hourly_report
+            report = hourly_report(provider, asset, event_time, as_of=as_of,
+                                   benchmarks=(*benchmarks_for(asset), *([benchmark_asset.ticker] if benchmark_asset else [])))
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0
         if args.command == "query":
             result = query_event(provider, asset, event_time, as_of=as_of, **options)
             comparison = query_event(provider, benchmark_asset, event_time, as_of=as_of, **options) if benchmark_asset else None
@@ -286,6 +303,14 @@ def main(argv=None) -> int:
         failures = 0
         for item, match in matched:
             try:
+                if args.mode == "hourly" and args.provider == "local":
+                    from .daily_report import benchmarks_for, hourly_report
+                    row = hourly_report(provider, asset, item.published_at, as_of=as_of,
+                        benchmarks=(*benchmarks_for(asset), *([benchmark_asset.ticker] if benchmark_asset else [])))
+                    row.update({"article_id": item.article_id, "title": item.title, "source": item.source,
+                                "url": item.url, "match": asdict(match)})
+                    output.append(row)
+                    continue
                 result = query_event(provider, asset, item.published_at, as_of=as_of, **options)
                 comparison = query_event(provider, benchmark_asset, item.published_at, as_of=as_of, **options) if benchmark_asset else None
                 output.append(_result_dict(result, news=item, match=match, benchmark=comparison))

@@ -1,6 +1,6 @@
 # 本地价格库（日线与小时线）
 
-查询网页和命令行默认从本地 SQLite 价格库取日线：不用导入 CSV，也不用登录富途 OpenD。富途和 CSV 仍可作备选。
+查询网页默认从本地 SQLite 价格库取小时线；命令行默认窗口为交易小时：不用导入 CSV，也不用登录富途 OpenD。富途和 CSV 仍可作备选。
 
 - 代码：`news_price_query/price_store.py`（库和 `LocalDbPriceProvider`）、`news_price_query/price_update.py`（增量更新）、`scripts/update_prices.py`（命令）
 - 库文件位置：默认 `~/.news_price_query/prices.sqlite3`；可用环境变量 `NEWS_PRICE_DB` 或 `--db` 改。库文件**不进仓库**（已加 .gitignore）
@@ -40,7 +40,7 @@ cd /path/to/News-AI-quant-project && python scripts/update_prices.py --universe 
 ## 查询
 
 ```sh
-python -m web.server            # 默认：本地价格库 + 交易日窗口，仅 127.0.0.1:8765
+python -m web.server            # 默认：本地价格库 + 交易小时窗口，仅 127.0.0.1:8765
 python -m web.server --provider futu --mode minute   # 旧版：富途 OpenD + 分钟窗口
 python -m news_price_query query --asset 0883.HK --time 2026-09-28T11:17:42+08:00 --provider local --mode daily
 ```
@@ -143,3 +143,10 @@ USD/t. ICE gasoil has no free daily source and remains unavailable for queries.
   used and the result says 「临近到期，改用 XXX」 (`contract.switched`, `contract.note`,
   `contract.front_days_to_expiry`). Example: BZX26 on baseline 2026-09-29 has N = 1
   (only 09-30) -> BZZ26. CLX26 on baseline 2026-10-05 has N = 11 -> kept.
+
+
+## 交易小时窗口
+
+默认窗口是新闻前 6、3、1 个交易小时和新闻后 1、3、6 个交易小时。只累计日历开市时段，休市、午休、周末、节假日及天气停市均跳过。小时线约覆盖最近 729 天，超出覆盖范围的结果显示缺数据，不填零；`--mode daily` 保留原交易日窗口和日线更新。
+
+Yahoo 港股小时线时间戳为 09:30、10:30、11:30、12:30、13:30、14:30、15:30。12:30 bar 是午休后 13:00–13:30 的短 bar；15:30 bar 的结束时间是 16:00。样本中该 bar 收盘价与日线收盘通常一致，但成交量经常为零，因此这个 15:30 零量不标为「零成交」。NYMEX 小时模式按 Yahoo Globex 近似时段：交易日 D 前一日 18:00 至 D 日 17:00 美东时间；日线继续使用 CSV 的 14:30 结算时刻。

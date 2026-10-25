@@ -63,14 +63,14 @@ class NewsCliTests(unittest.TestCase):
     def test_query_cli_rejects_naive_time_without_timezone(self):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
-            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00", "--provider", "csv", "--prices", str(self.prices)])
+            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00", "--provider", "csv", "--mode", "minute", "--prices", str(self.prices)])
         self.assertEqual(code, 2)
         self.assertIn("--timezone", err.getvalue())
 
     def test_query_cli_emits_price_and_provenance(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00+08:00", "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--prices", str(self.prices)])
+            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00+08:00", "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--mode", "minute", "--prices", str(self.prices)])
         self.assertEqual(code, 0)
         result = json.loads(out.getvalue())
         self.assertEqual(result["ticker"], "1211.HK")
@@ -87,7 +87,7 @@ class NewsCliTests(unittest.TestCase):
             writer.writerow(("two", "新浪财经", "锂电池价格", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/two", "zh-CN"))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = main(["batch", "--asset", "BYD", "--news", str(path), "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--prices", str(self.prices)])
+            code = main(["batch", "--asset", "BYD", "--news", str(path), "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--mode", "minute", "--prices", str(self.prices)])
         self.assertEqual(code, 0)
         results = [json.loads(line) for line in out.getvalue().splitlines()]
         self.assertEqual([item["article_id"] for item in results], ["one"])
@@ -101,7 +101,7 @@ class NewsCliTests(unittest.TestCase):
             writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
             writer.writerow(("one", "新浪财经", "比亚迪新车", "正文", "2026-09-25T10:00:00+08:00", "2026-09-25T11:00:00+08:00", "https://example.test/one", "zh-CN"))
         with contextlib.redirect_stderr(io.StringIO()):
-            code = main(["batch", "--asset", "BYD", "--news", str(news), "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--prices", str(self.prices), "--format", "csv", "--output", str(output)])
+            code = main(["batch", "--asset", "BYD", "--news", str(news), "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--mode", "minute", "--prices", str(self.prices), "--format", "csv", "--output", str(output)])
         self.assertEqual(code, 0)
         with output.open("r", encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.DictReader(handle))
@@ -148,7 +148,7 @@ class NewsCliTests(unittest.TestCase):
             ])
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00+08:00", "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--prices", str(self.prices), "--benchmark", "2800.HK"])
+            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00+08:00", "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--mode", "minute", "--prices", str(self.prices), "--benchmark", "2800.HK"])
         self.assertEqual(code, 0)
         result = json.loads(out.getvalue())
         self.assertEqual(result["benchmark_ticker"], "2800.HK")
@@ -164,7 +164,7 @@ class NewsCliTests(unittest.TestCase):
             ])
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00+08:00", "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--prices", str(self.prices), "--benchmark", "2800.HK"])
+            code = main(["query", "--asset", "BYD", "--time", "2026-09-25T10:00:00+08:00", "--as-of", "2026-09-25T12:00:00+08:00", "--provider", "csv", "--mode", "minute", "--prices", str(self.prices), "--benchmark", "2800.HK"])
         self.assertEqual(code, 0)
         result = json.loads(out.getvalue())
         self.assertIsNone(result["windows"]["after_1h"]["excess_return_pct"])

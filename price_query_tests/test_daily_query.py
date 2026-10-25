@@ -121,8 +121,8 @@ class DailyQueryTests(unittest.TestCase):
             self.run_query(hk(2024, 6, 3, 10, 0), hk(2024, 7, 1, 12, 0))
 
     def test_minute_mode_is_default(self):
-        with self.assertRaises(ValueError):
-            query_event(self.provider, self.byd, hk(2023, 8, 31, 17, 0), as_of=hk(2023, 9, 20), mode="hourly")
+        hourly = query_event(self.provider, self.byd, hk(2023, 8, 31, 17, 0), as_of=hk(2023, 9, 20), mode="hourly")
+        self.assertEqual(hourly.mode, "hourly")
         result = query_event(self.provider, self.byd, hk(2023, 8, 31, 16, 0), as_of=hk(2023, 9, 20))
         self.assertEqual(result.mode, "minute")
         self.assertEqual(result.windows[0].label, "before_1m")
@@ -132,7 +132,7 @@ class DailyQueryTests(unittest.TestCase):
         with redirect_stdout(out):
             code = main(["query", "--asset", "BYD", "--time", "2023-08-31T17:00:00+08:00",
                          "--as-of", "2023-09-20T12:00:00+08:00", "--prices", str(self.path),
-                         "--mode", "daily", "--before-days", "1", "--after-days", "1",
+                         "--provider", "csv", "--mode", "daily", "--before-days", "1", "--after-days", "1",
                          "--benchmark", "2800.HK"])
         self.assertEqual(code, 0)
         payload = json.loads(out.getvalue())

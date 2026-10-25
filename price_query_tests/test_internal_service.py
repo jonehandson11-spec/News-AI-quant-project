@@ -46,7 +46,7 @@ class InternalServiceTests(unittest.TestCase):
             return provider
 
         self.service = QueryService(make_provider, news_source=lambda: [],
-                                    now=lambda: datetime(2026, 9, 28, 12, tzinfo=HK))
+                                    now=lambda: datetime(2026, 9, 28, 12, tzinfo=HK), mode="minute")
 
     def test_catalog_and_queries_are_limited_to_seven_assets(self):
         self.assertEqual([item["ticker"] for item in self.service.catalog()], [
@@ -72,7 +72,7 @@ class InternalServiceTests(unittest.TestCase):
                 return super().bars(ticker, start, end, interval)
 
         service = QueryService(lambda: LimitedProvider(self.bars), news_source=lambda: [],
-                               now=lambda: datetime(2026, 9, 28, 12, tzinfo=HK))
+                               now=lambda: datetime(2026, 9, 28, 12, tzinfo=HK), mode="minute")
         result = service.query("腾讯", "2026-09-28T10:00:00+08:00",
                                benchmarks=["2800.HK", "3033.HK"])
         self.assertEqual(result["windows"]["after_1h"]["price"], 102)
