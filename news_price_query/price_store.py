@@ -1,4 +1,4 @@
-"""Local SQLite daily-price store and its query provider.
+"""Local SQLite daily/hourly price store and daily query provider.
 
 The database file lives outside the repository (default
 ~/.news_price_query/prices.sqlite3, override with NEWS_PRICE_DB or --db).
@@ -63,6 +63,25 @@ CREATE TABLE IF NOT EXISTS daily_prices (
     run_id TEXT NOT NULL REFERENCES update_runs(run_id),
     PRIMARY KEY (ticker, date)
 );
+CREATE TABLE IF NOT EXISTS hourly_prices (
+    ticker TEXT NOT NULL,
+    market TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    interval TEXT NOT NULL DEFAULT '1h',
+    bar_start_utc TEXT NOT NULL,
+    exchange_tz TEXT NOT NULL,
+    bar_start_local TEXT NOT NULL,
+    open REAL NOT NULL,
+    high REAL NOT NULL,
+    low REAL NOT NULL,
+    close REAL NOT NULL,
+    adj_close REAL,
+    volume REAL,
+    source TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    run_id TEXT NOT NULL REFERENCES update_runs(run_id),
+    PRIMARY KEY (ticker, interval, bar_start_utc)
+);
 CREATE TABLE IF NOT EXISTS futures_rolls (
     ticker TEXT NOT NULL,
     roll_date TEXT NOT NULL,
@@ -82,6 +101,26 @@ class DailyRow:
     market: str
     currency: str
     date: str
+    close: float
+    adj_close: float | None
+    volume: float | None
+    source: str
+    fetched_at: str
+    run_id: str
+
+
+@dataclass(frozen=True)
+class HourlyRow:
+    ticker: str
+    market: str
+    currency: str
+    interval: str
+    bar_start_utc: str
+    exchange_tz: str
+    bar_start_local: str
+    open: float
+    high: float
+    low: float
     close: float
     adj_close: float | None
     volume: float | None
@@ -166,6 +205,21 @@ class PriceStore:
                   r.source, r.fetched_at, r.run_id) for r in rows])
         return len(rows)
 
+    def upsert_hourly_rows(self, rows: list[HourlyRow]) -> int:
+        with closing(self._connect()) as conn, conn:
+            conn.executemany(
+                "INSERT INTO hourly_prices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(ticker, interval, bar_start_utc) DO UPDATE SET "
+                "market=excluded.market, currency=excluded.currency, exchange_tz=excluded.exchange_tz, "
+                "bar_start_local=excluded.bar_start_local, open=excluded.open, high=excluded.high, "
+                "low=excluded.low, close=excluded.close, adj_close=excluded.adj_close, "
+                "volume=excluded.volume, source=excluded.source, fetched_at=excluded.fetched_at, "
+                "run_id=excluded.run_id",
+                [(r.ticker, r.market, r.currency, r.interval, r.bar_start_utc, r.exchange_tz,
+                  r.bar_start_local, r.open, r.high, r.low, r.close, r.adj_close, r.volume,
+                  r.source, r.fetched_at, r.run_id) for r in rows])
+        return len(rows)
+
     def delete_ticker(self, ticker: str) -> None:
         with closing(self._connect()) as conn, conn:
             conn.execute("DELETE FROM daily_prices WHERE ticker=?", (ticker,))
@@ -211,6 +265,31 @@ class PriceStore:
         with closing(self._connect()) as conn:
             row = conn.execute("SELECT MAX(date) FROM daily_prices WHERE ticker=?", (ticker,)).fetchone()
         return row[0]
+
+    def hourly_rows(self, ticker: str, start_utc: str | None = None,
+                    end_utc: str | None = None) -> list[HourlyRow]:
+        query = "SELECT * FROM hourly_prices WHERE ticker=? AND interval='1h'"
+        params: list = [ticker]
+        if start_utc:
+            query += " AND bar_start_utc>=?"
+            params.append(start_utc)
+        if end_utc:
+            query += " AND bar_start_utc<=?"
+            params.append(end_utc)
+        with closing(self._connect()) as conn:
+            return [HourlyRow(**dict(row)) for row in conn.execute(query + " ORDER BY bar_start_utc", params)]
+
+    def last_hourly_bar(self, ticker: str) -> str | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute("SELECT MAX(bar_start_utc) FROM hourly_prices WHERE ticker=? AND interval='1h'",
+                               (ticker,)).fetchone()
+        return row[0]
+
+    def hourly_coverage(self, ticker: str) -> dict:
+        with closing(self._connect()) as conn:
+            row = conn.execute("SELECT COUNT(*), MIN(bar_start_utc), MAX(bar_start_utc) "
+                               "FROM hourly_prices WHERE ticker=? AND interval='1h'", (ticker,)).fetchone()
+        return {"stored_rows": row[0], "earliest_bar": row[1], "latest_bar": row[2]}
 
     def instruments(self) -> list[Instrument]:
         with closing(self._connect()) as conn:

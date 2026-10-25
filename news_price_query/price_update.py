@@ -6,7 +6,7 @@ from the asset registry or ticker suffix; calendar_for(market) picks the calenda
 
 import csv
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from math import isfinite
 from pathlib import Path
 import re
@@ -17,7 +17,7 @@ from .daily_report import BENCHMARKS_BY_MARKET
 from .futures import (METHOD as FUTURES_METHOD, contract_ticker, front_contract,
                       is_contract_ticker, next_contract, roll_dates, root_for_ticker)
 from .market_calendars import calendar_for
-from .price_store import DailyRow, FuturesRollRow, Instrument, PriceStore
+from .price_store import DailyRow, FuturesRollRow, HourlyRow, Instrument, PriceStore
 
 
 HK = ZoneInfo("Asia/Hong_Kong")
@@ -58,6 +58,16 @@ class TickerSummary:
     derived_contract_rows: int = 0
     error: str | None = None
     skipped: str | None = None
+
+
+@dataclass
+class HourlyTickerSummary:
+    ticker: str
+    rows_written: int = 0
+    stored_rows: int = 0
+    earliest_bar: str | None = None
+    latest_bar: str | None = None
+    error: str | None = None
 
 
 def market_of(ticker: str) -> tuple[str, str]:
@@ -140,9 +150,10 @@ def _rebased(store: PriceStore, ticker: str, rows: list[dict]) -> bool:
     return False
 
 
-def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, *, now: datetime,
+def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader=None, *, now: datetime,
                   start: str = "2000-01-01", overlap_days: int = 10, source: str = "yfinance",
-                  universe_label: str | None = None, refetch=()) -> dict:
+                  universe_label: str | None = None, refetch=(), hourly_downloader=None,
+                  update_daily: bool = True) -> dict:
     """downloader(ticker, start_date_iso, end_date_iso_exclusive) -> list of
     {date, close, adj_close, volume}."""
     entries = list(universe)
@@ -190,7 +201,7 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
     fetched_at = now.isoformat()
     summaries = []
     written = 0
-    for entry in entries:
+    for entry in entries if update_daily else ():
         summary = TickerSummary(entry.ticker)
         summaries.append(summary)
         try:
@@ -260,11 +271,60 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader, 
                                                                   fetched_at, run_id)
             written += summary.derived_contract_rows
     failures = [s for s in summaries if s.error]
-    status = "ok" if not failures else ("partial" if len(failures) < len(summaries) else "failed")
+    daily_status = "ok" if not failures else ("partial" if len(failures) < len(summaries) else "failed")
+    hourly_summaries = []
+    if hourly_downloader is not None:
+        for entry in entries:
+            hourly = HourlyTickerSummary(entry.ticker)
+            hourly_summaries.append(hourly)
+            try:
+                market, currency = market_of(entry.ticker)
+                calendar = calendar_for(market)
+                last = store.last_hourly_bar(entry.ticker)
+                fetch_from = (datetime.fromisoformat(last).astimezone(timezone.utc) - timedelta(days=5)
+                              if last else now.astimezone(timezone.utc) - timedelta(days=729))
+                fetch_to = now.astimezone(timezone.utc)
+                raw = hourly_downloader(entry.ticker, fetch_from.date().isoformat(),
+                                        (fetch_to + timedelta(days=1)).date().isoformat())
+                if not raw:
+                    raise RuntimeError("no hourly data returned")
+                rows = []
+                for item in raw:
+                    stamp = item["timestamp"]
+                    if hasattr(stamp, "to_pydatetime"):
+                        stamp = stamp.to_pydatetime()
+                    if stamp.tzinfo is None:
+                        stamp = stamp.replace(tzinfo=calendar.tz)
+                    local = stamp.astimezone(calendar.tz)
+                    utc = local.astimezone(timezone.utc)
+                    if utc + timedelta(hours=1) > fetch_to:
+                        continue
+                    values = {key: item.get(key) for key in ("open", "high", "low", "close", "adj_close", "volume")}
+                    if any(values[k] is None or not isfinite(float(values[k])) for k in ("open", "high", "low", "close")):
+                        continue
+                    rows.append(HourlyRow(
+                        entry.ticker, market, currency, "1h", utc.isoformat().replace("+00:00", "Z"),
+                        calendar.tz.key, local.isoformat(), *(round(float(values[k]), 4)
+                        for k in ("open", "high", "low", "close")),
+                        round(float(values["adj_close"]), 6) if values["adj_close"] is not None else None,
+                        float(values["volume"]) if values["volume"] is not None and isfinite(float(values["volume"])) else None,
+                        source, fetched_at, run_id))
+                hourly.rows_written = store.upsert_hourly_rows(rows)
+                coverage = store.hourly_coverage(entry.ticker)
+                hourly.stored_rows = coverage["stored_rows"]
+                hourly.earliest_bar, hourly.latest_bar = coverage["earliest_bar"], coverage["latest_bar"]
+            except Exception as exc:
+                hourly.error = str(exc)
+    hourly_failures = [s for s in hourly_summaries if s.error]
+    status = ("partial" if daily_status == "ok" and hourly_summaries
+              and len(hourly_failures) == len(hourly_summaries) else daily_status)
     store.finish_run(run_id, datetime.now(HK), written, status,
-                     f"{len(failures)} ticker(s) failed" if failures else None)
+                     f"{len(failures)} daily ticker(s) failed" if failures else
+                     f"all {len(hourly_failures)} hourly fetches failed"
+                     if daily_status == "ok" and hourly_summaries
+                     and len(hourly_failures) == len(hourly_summaries) else None)
     return {"run_id": run_id, "status": status, "rows_written": written,
-            "db": str(store.path), "tickers": summaries}
+            "db": str(store.path), "tickers": summaries, "hourly_tickers": hourly_summaries}
 
 
 def _derive_contract_rows(store: PriceStore, ticker: str, root: str, fetched_at: str, run_id: str) -> int:
@@ -308,6 +368,26 @@ def yfinance_downloader(ticker: str, start: str, end: str) -> list[dict]:
             "date": stamp.date().isoformat(),
             # yfinance returns float32-like noise (23.399999618); HK prices have <= 3 decimals.
             "close": round(float(row["Close"]), 4),
+            "adj_close": round(float(row["Adj Close"]), 6) if "Adj Close" in row else None,
+            "volume": float(row["Volume"]) if "Volume" in row else None,
+        })
+    return output
+
+
+def yfinance_hourly_downloader(ticker: str, start: str, end: str) -> list[dict]:
+    """Fetch raw yfinance one-hour OHLCV rows. `end` is exclusive."""
+    import yfinance as yf
+
+    frame = yf.download(ticker, start=start, end=end, interval="1h", auto_adjust=False,
+                        actions=False, progress=False, multi_level_index=False, threads=False)
+    if frame is None or frame.empty:
+        return []
+    output = []
+    for stamp, row in frame.iterrows():
+        output.append({
+            "timestamp": stamp.to_pydatetime() if hasattr(stamp, "to_pydatetime") else stamp,
+            "open": round(float(row["Open"]), 4), "high": round(float(row["High"]), 4),
+            "low": round(float(row["Low"]), 4), "close": round(float(row["Close"]), 4),
             "adj_close": round(float(row["Adj Close"]), 6) if "Adj Close" in row else None,
             "volume": float(row["Volume"]) if "Volume" in row else None,
         })
