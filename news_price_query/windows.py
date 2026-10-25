@@ -97,6 +97,9 @@ def window_label_zh(label: str) -> str:
     }
     if label in legacy:
         return legacy[label]
+    if label.startswith(("before_", "after_")) and label.endswith("th"):
+        direction, value = label.split("_", 1)
+        return f"新闻{'前' if direction == 'before' else '后'} {value[:-2]} 个交易小时"
     named = {5: "约 1 周", 21: "约 1 个月", 63: "约 1 季度", 126: "约半年"}
     if label.startswith("before_") and label.endswith("td"):
         days = int(label[len("before_"):-2])
@@ -134,3 +137,131 @@ def trading_day_targets(published_at: datetime, calendar,
             day, target = None, None
         output.append(TradingWindowTarget(after_label(days), "after", days, day, target))
     return t0, baseline_day, output
+
+
+HOURLY_OFFSETS = (6, 3, 1, 1, 3, 6)
+
+
+def hourly_label(hours: int, direction: str) -> str:
+    return f"{direction}_{hours}th"
+
+
+def hourly_label_zh(label: str) -> str:
+    direction, value = label.split("_", 1)
+    hours = value[:-2]
+    return f"新闻{'前' if direction == 'before' else '后'} {hours} 个交易小时"
+
+
+def _hourly_intervals(day, calendar):
+    """Return (start,end) session segments; NYMEX uses the Globex session approximation.
+
+    Yahoo hourly futures bars span 18:00 ET on the prior calendar date through
+    17:00 ET on the NYMEX trading date; the CSV 14:30 close remains daily settlement.
+    """
+    from datetime import time
+    from datetime import timedelta
+    from .market_calendars import MARKETS
+
+    info = calendar.day(day)
+    if not info.is_trading:
+        return []
+    if calendar.market == "NYMEX":
+        start = datetime.combine(day - timedelta(days=1), time(18), calendar.tz)
+        end = datetime.combine(day, time(17), calendar.tz)
+        return [(start, end)]
+    segments = []
+    if info.break_start and info.break_end:
+        segments = [(info.open, info.break_start), (info.break_end, info.close)]
+    else:
+        segments = [(info.open, info.close)]
+    return [(datetime.combine(day, a, calendar.tz), datetime.combine(day, b, calendar.tz))
+            for a, b in segments]
+
+
+def hourly_bar_end(bar, calendar):
+    """Map Yahoo's HK 12:30 stamp to 13:00 effective start; cap at segment close."""
+    from datetime import timedelta, time
+    stamp = bar.timestamp.astimezone(calendar.tz)
+    if calendar.market == "XHKG" and stamp.timetz().replace(tzinfo=None) == time(12, 30):
+        # Yahoo labels the short first-afternoon bar 12:30 although it trades 13:00–13:30.
+        return stamp.replace(hour=13, minute=30)
+    # Select session segment containing the bar start. HK post-lunch stamp aligns at 13:00.
+    for start, end in _hourly_intervals(stamp.date(), calendar):
+        if start <= stamp < end:
+            return min(stamp + timedelta(hours=1), end)
+    # NYMEX session can begin the previous date.
+    if calendar.market == "NYMEX":
+        for start, end in _hourly_intervals(stamp.date() + timedelta(days=1), calendar):
+            if start <= stamp < end:
+                return min(stamp + timedelta(hours=1), end)
+    return None
+
+
+def shift_trading_hours(value: datetime, hours: int, calendar) -> datetime:
+    """Move on the exchange's in-session timeline, skipping breaks and closures."""
+    from datetime import timedelta
+    if hours == 0:
+        return value
+    direction = 1 if hours > 0 else -1
+    requested = abs(hours) * 3600
+    local = value.astimezone(calendar.tz)
+    margin = 10
+    while True:
+        remaining = requested
+        first, last = local.date() - timedelta(days=margin), local.date() + timedelta(days=margin)
+        covered_all = first <= calendar.first and last >= calendar.last
+        segments = []
+        day = first
+        while day <= last:
+            try:
+                segments.extend(_hourly_intervals(day, calendar))
+            except ValueError:  # CalendarRangeError at either coverage edge.
+                pass
+            day += timedelta(days=1)
+        segments.sort()
+        merged = []
+        for start, end in segments:
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+        walk = reversed(merged) if direction < 0 else iter(merged)
+        for start, end in walk:
+            if direction > 0:
+                cursor = max(local, start)
+                available = max(0, int((end - cursor).total_seconds()))
+                if remaining <= available:
+                    return cursor + timedelta(seconds=remaining)
+            else:
+                cursor = min(local, end)
+                available = max(0, int((cursor - start).total_seconds()))
+                if remaining <= available:
+                    return cursor - timedelta(seconds=remaining)
+            remaining -= available
+        if covered_all:
+            raise ValueError("Trading-hour shift exceeds calendar coverage")
+        margin += 10
+
+
+def trading_seconds_between(a: datetime, b: datetime, calendar) -> int:
+    """Count exchange in-session seconds in [a, b], with a <= b."""
+    from datetime import timedelta
+    if a.tzinfo is None or a.utcoffset() is None or b.tzinfo is None or b.utcoffset() is None:
+        raise ValueError("Trading-time endpoints require timezones")
+    if b < a:
+        raise ValueError("a must be no later than b")
+    start_at, end_at = a.astimezone(calendar.tz), b.astimezone(calendar.tz)
+    total = 0
+    day = start_at.date() - timedelta(days=2)
+    last = end_at.date() + timedelta(days=2)
+    while day <= last:
+        try:
+            intervals = _hourly_intervals(day, calendar)
+        except ValueError:
+            intervals = []
+        for start, end in intervals:
+            left, right = max(start, start_at), min(end, end_at)
+            if right > left:
+                total += int((right - left).total_seconds())
+        day += timedelta(days=1)
+    return total

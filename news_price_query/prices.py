@@ -46,7 +46,7 @@ class CsvPriceProvider:
                 raise ValueError(f"Price CSV needs columns: {', '.join(sorted(required))}")
             for row in reader:
                 interval = row["interval"].strip().lower()
-                if interval not in {"minute", "day"}:
+                if interval not in {"minute", "day", "hour"}:
                     raise ValueError(f"Unsupported price interval: {interval}")
                 close = float(row["close"])
                 if not isfinite(close) or close <= 0:

@@ -161,7 +161,7 @@ class PriceStoreTests(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 status = update_main(["--db", str(self.db), "--universe", str(universe),
                                       "--start", "2023-08-01", "--refetch", "0883.HK",
-                                      "--refetch", "^HSI"])
+                                      "--refetch", "^HSI", "--no-hourly"])
         self.assertEqual(status, 0)
         self.assertEqual(self.store.rows("0883.HK", "2023-08-29", "2023-08-29"), [])
         self.assertEqual(self.store.rows("^HSI", "2023-08-31", "2023-08-31"), [])

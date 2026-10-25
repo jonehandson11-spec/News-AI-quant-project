@@ -13,7 +13,7 @@ from pathlib import Path
 from news_price_query.assets import ASSETS, resolve_asset
 from news_price_query.cli import _result_dict
 from news_price_query.assets import RESEARCH_ASSETS
-from news_price_query.daily_report import benchmarks_for, daily_report
+from news_price_query.daily_report import benchmarks_for, daily_report, hourly_report
 from news_price_query.news import find_direct_match, parse_news, read_news
 from news_price_query.query import query_event
 
@@ -83,11 +83,11 @@ class LocalNewsStore:
 
 
 class QueryService:
-    def __init__(self, provider_factory, *, news_source=None, now=None, mode="minute",
+    def __init__(self, provider_factory, *, news_source=None, now=None, mode="hourly",
                  instruments=None, price_source="富途 OpenD", data_version=None):
         """instruments: optional callable returning price_store.Instrument rows
         (local price database); they are added to the seven registered assets."""
-        if mode not in ("minute", "daily"):
+        if mode not in ("minute", "daily", "hourly"):
             raise ValueError(f"Unknown query mode: {mode}")
         self.mode = mode
         self.provider_factory = provider_factory
@@ -190,7 +190,7 @@ class QueryService:
         if not isinstance(benchmarks, (list, tuple)):
             raise ValueError("benchmarks 必须是标的代码列表")
         selected = list(dict.fromkeys(benchmarks))
-        if self.mode == "daily":
+        if self.mode in ("daily", "hourly"):
             allowed_benchmarks = BENCHMARKS | {"^HSI"} | {a.ticker for a in RESEARCH_ASSETS if a.role == "benchmark"}
             if any(code not in allowed_benchmarks for code in selected):
                 raise ValueError("对照标的只支持已登记的对照 ETF 或指数")
@@ -198,6 +198,13 @@ class QueryService:
             raise ValueError("对照标的只支持 2800.HK 和 3033.HK")
         as_of = self.now()
         provider = self.provider_factory()
+        if self.mode == "hourly":
+            try:
+                return hourly_report(provider, asset, event_time, as_of=as_of,
+                                     benchmarks=(*benchmarks_for(asset), *selected))
+            finally:
+                close = getattr(provider, "close", None)
+                if close: close()
         if self.mode == "daily":
             try:
                 return daily_report(provider, asset, event_time, as_of=as_of,

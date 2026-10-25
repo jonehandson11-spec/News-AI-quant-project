@@ -5,9 +5,10 @@ const state = { news: [], result: null, newsRequest: 0,
   showDetail: detailPreference(window.location.search, localStorage.getItem("pq.showAdjExcess")) };
 const fullResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。原始＝未除权收盘价（仅拆股调整），复权＝含分红调整。超额＝个股涨跌幅－同市场对照涨跌幅（简单差值，不是市场模型）；恒生指数、多伦多综指为价格指数，复权与原始相同。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
 const shortResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
+const hourlyResultNote = "小时模式：基准＝新闻发布前最后一根已结束小时线的收盘价；新闻前 N 小时＝从 N 个交易小时前到基准的涨跌，新闻后 N 小时＝从基准到 N 个交易小时后的涨跌，各取该时刻前最后一根已结束小时线。交易小时只算交易时段，午休、收盘后、周末和假期不算；期货按 Globex 时段（美东前一日 18:00 至当日 17:00）。时间为交易所当地时间。小时线约覆盖最近两年，更早的新闻显示缺数据，缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
 const statusText = {
-  on_date: "目标日期", deferred_back: "前一交易日", on_time: "准时",
-  deferred: "休市顺延", pending: "尚未到期", missing: "缺少行情", expired: "合约已到期",
+  on_date: "目标日期", deferred_back: "向前顺延", on_time: "准时",
+  deferred: "顺延取价", pending: "未到期", missing: "缺数据", suspended: "停牌", expired: "合约已到期",
 };
 const flagText = { missing_data: "该交易日无行情（停牌或缺数据，无法区分）", zero_volume: "成交量为 0（零成交，或数据源缺成交量）", nonpositive_price: "价格≤0（如 2020-04-20 WTI 负结算价），收益率无意义" };
 const benchmarkName = {
@@ -17,6 +18,10 @@ const benchmarkName = {
 const marketText = { XHKG: "港交所", XNYS: "美股（纽交所日历）", XTSE: "多伦多交易所", XSAU: "沙特交易所", NYMEX: "纽约商品交易所", ICE_EU: "ICE 欧洲" };
 const showTime = (value) => value ? value.slice(0, 19).replace("T", " ") : "—";
 const showDate = (value) => value ? String(value).slice(0, 10) : "缺失";
+// 小时模式显示到分钟（交易所当地时间），日线模式只显示日期。
+const showEndpoint = (value) => value && state.result?.mode === "hourly" ? String(value).slice(0, 16).replace("T", " ") : showDate(value);
+const hourlyFlagText = { missing_data: "没有可用的小时线（超出约两年覆盖、停牌或缺数据）" };
+const flagLabel = (flag) => (state.result?.mode === "hourly" && hourlyFlagText[flag]) || flagText[flag] || flag;
 const showPrice = (value) => value === null || value === undefined ? "缺失" : Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;
 const showReturn = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -115,7 +120,7 @@ function returnCell(tr, value) {
 
 function endpointCell(tr, date, price, unit) {
   const cell = document.createElement("td");
-  addText(cell, "span", showDate(date), "endpoint-date");
+  addText(cell, "span", showEndpoint(date), "endpoint-date");
   addPrice(cell, price, unit);
   tr.append(cell);
 }
@@ -133,7 +138,7 @@ function adjustedReturnCell(tr, item, unit) {
 function statusCell(tr, item) {
   const cell = document.createElement("td");
   addText(cell, "span", statusText[item.status] || item.status, `status ${item.status}`);
-  if (item.flag) addText(cell, "small", flagText[item.flag] || item.flag, "comparison-note");
+  if (item.flag) addText(cell, "small", flagLabel(item.flag), "comparison-note");
   tr.append(cell);
 }
 
@@ -142,12 +147,14 @@ function renderDaily(result) {
   const contract = result.contract;
   const unit = priceUnit(result);
   byId("baselineLabel").textContent = contract
-    ? `发布前最后一个结算价（固定合约 ${contract.contract}${contract.switched ? "，临近到期改用" : ""}）` : "发布前最后一个收盘价（基准）";
+    ? `${result.mode === "hourly" ? "发布前最后一根小时线的收盘价" : "发布前最后一个结算价"}（固定合约 ${contract.contract}${contract.switched ? "，临近到期改用" : ""}）` : result.mode === "hourly" ? "发布前最后一根小时线的收盘价（基准）" : "发布前最后一个收盘价（基准）";
   setBaselinePrice(result.baseline.price, unit);
   const adj = result.baseline.adj_price === null || result.baseline.adj_price === undefined ? "" : ` · 复权 ${priceWithUnit(result.baseline.adj_price, unit)}`;
-  const flag = result.baseline.flag ? ` · ${flagText[result.baseline.flag] || result.baseline.flag}` : "";
+  const flag = result.baseline.flag ? ` · ${flagLabel(result.baseline.flag)}` : "";
   const localNote = result.market && result.market !== "XHKG" ? "（当地时间）" : "";
-  byId("baselineDetail").textContent = `${showTime(result.baseline.observed_at)}${localNote} 收盘${adj} · 事件日 t0 = ${result.t0} · 发布时段 ${sessionText[result.session] || result.session}${flag}`;
+  byId("baselineDetail").textContent = result.mode === "hourly"
+    ? `${showTime(result.baseline.observed_at)}${localNote} 小时线结束时间${adj} · 发布时段 ${sessionText[result.session] || result.session}${flag}`
+    : `${showTime(result.baseline.observed_at)}${localNote} 收盘${adj} · 事件日 t0 = ${result.t0} · 发布时段 ${sessionText[result.session] || result.session}${flag}`;
   if (contract) {
     renderFutures(result, contract);
     return;
@@ -182,7 +189,9 @@ function renderDaily(result) {
     body.append(tr);
   }
   renderSubtitle(result, codes);
-  byId("resultNote").textContent = state.showDetail ? fullResultNote : shortResultNote;
+  byId("resultNote").textContent = result.mode === "hourly"
+    ? hourlyResultNote
+    : state.showDetail ? fullResultNote : shortResultNote;
 }
 
 function renderFutures(result, contract) {
@@ -202,7 +211,7 @@ function renderFutures(result, contract) {
   }
   if (contract.error) byId("baselineDetail").textContent = `固定合约 ${contract.contract} 无基准价格（雅虎不提供已到期合约，且本地库未存到该日）：${contract.error}`;
   renderSubtitle(result, []);
-  byId("resultNote").textContent = shortResultNote;
+  byId("resultNote").textContent = result.mode === "hourly" ? hourlyResultNote : shortResultNote;
 }
 
 function renderSubtitle(result, codes) {
@@ -227,7 +236,7 @@ function renderResult(result) {
   toggle.disabled = !available;
   toggle.title = available ? "" : "期货无复权/超额列";
   toggle.checked = state.showDetail;
-  if (result.mode === "daily") {
+  if (result.mode === "daily" || result.mode === "hourly") {
     renderDaily(result);
     byId("results").scrollIntoView({ behavior: "smooth", block: "start" });
     return;
@@ -280,7 +289,7 @@ function downloadCsv() {
   const result = state.result;
   if (!result) return;
   const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-  if (result.mode === "daily") {
+  if (result.mode === "daily" || result.mode === "hourly") {
     const codes = Object.keys(result.benchmarks || {});
     const headers = ["ticker", "price_unit", "currency", "published_at", "session", "t0", "baseline_at", "baseline_price", "baseline_adj_price",
       "window", "target_at", "observed_at", "price", "adj_price", "start_at", "start_price", "end_at", "end_price", "adj_start_price", "adj_end_price", "return_pct", "adj_return_pct", "status", "flag", "contract", "continuous_price", "continuous_return_pct", "continuous_start_price", "continuous_end_price", "continuous_crosses_roll", "continuous_rolls", "source",
@@ -376,12 +385,14 @@ async function loadCatalog() {
     for (const stage of stages) stageSelect.append(new Option(stage, stage));
     if (stages.includes(chosenStage)) stageSelect.value = chosenStage;
     fillAssets();
-    state.mode = data.mode || "minute";
-    byId("detailToggle").disabled = state.mode !== "daily";
-    byId("detailToggle").title = state.mode === "daily" ? "" : "期货无复权/超额列";
-    byId("priceStatus").textContent = state.mode === "daily" ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
-    byId("sourceHelp").textContent = state.mode === "daily"
-      ? "价格来自本机价格库（每天由 update_prices.py 更新的日线），无需导入 CSV 或登录富途。窗口按标的所在交易所的交易日计算（港股港交所、美股纽交所、加股多伦多、沙特 Tadawul、NYMEX 期货），涨跌幅以当地货币计。股票同时给出原始与复权涨跌幅和同市场对照的超额收益。"
+    state.mode = data.mode || "hourly";
+    byId("detailToggle").disabled = !["daily", "hourly"].includes(state.mode);
+    byId("detailToggle").title = ["daily", "hourly"].includes(state.mode) ? "" : "期货无复权/超额列";
+    byId("priceStatus").textContent = ["daily", "hourly"].includes(state.mode) ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
+    byId("sourceHelp").textContent = state.mode === "hourly"
+      ? "默认使用本机价格库的一小时线，按各交易所交易时段累计小时；午休、收盘后、周末和假期不计。小时线约覆盖最近两年，更早新闻显示缺数据。每日仍更新日线，命令行/服务可选 daily 交易日窗口。"
+      : state.mode === "daily"
+      ? "使用本机价格库日线，窗口按标的所在交易所交易日计算；股票提供原始与复权收益及同市场对照。"
       : "查询时由内部服务连接富途 OpenD。需要运行服务的电脑已登录富途并具备历史行情权限；网页无需选择价格文件。";
   } catch (error) {
     byId("priceStatus").textContent = "内部查询服务不可用";

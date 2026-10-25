@@ -3,6 +3,7 @@ returns against benchmarks, with a source on every price."""
 
 from dataclasses import replace
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from .assets import Asset, resolve_asset
 from .futures import (FIXED_METHOD, METHOD as FUTURES_METHOD, contract_expiry, contract_ticker,
@@ -11,6 +12,7 @@ from .query import query_event
 from .windows import DEFAULT_TRADING_WINDOWS, TradingWindowConfig, window_label_zh
 
 
+HK = ZoneInfo("Asia/Hong_Kong")
 DEFAULT_BENCHMARKS = ("2800.HK", "^HSI")
 BENCHMARKS_BY_MARKET = {
     "XHKG": ("2800.HK", "^HSI"),
@@ -352,4 +354,153 @@ def daily_report(provider, asset: Asset, published_at: datetime, *, as_of: datet
             "windows": rows,
         }
     payload["benchmarks"] = comparisons
+    return payload
+
+
+def hourly_report(provider, asset: Asset, published_at: datetime, *, as_of: datetime,
+                  benchmarks=None, calendar=None) -> dict:
+    """Hourly equivalent of daily_report; adjusted bars and benchmarks use identical targets."""
+    from .query import query_event
+    from .windows import hourly_label_zh
+    from .market_calendars import calendar_for
+    if benchmarks is None:
+        benchmarks = benchmarks_for(asset)
+    calendar = calendar or calendar_for(getattr(asset, "market", "XHKG"))
+    raw = query_event(provider, asset, published_at, as_of=as_of, mode="hourly", calendar=calendar)
+    # A full calendar trading day with no asset bars but benchmark bars is a suspension.
+    suspension_benchmark = next((code for code in benchmarks if code in benchmarks_for(asset)), None)
+    if suspension_benchmark:
+        from .windows import _hourly_intervals
+        marked = []
+        for item in raw.windows:
+            if item.flag != "missing_data" or item.target_at is None:
+                marked.append(item); continue
+            day = item.target_at.astimezone(calendar.tz).date()
+            try:
+                spans = _hourly_intervals(day, calendar)
+                own = [bar for start, end in spans for bar in provider.bars(asset.ticker, start, end, "hour")]
+                bench = [bar for start, end in spans for bar in provider.bars(suspension_benchmark, start, end, "hour")]
+            except (ValueError, RuntimeError):
+                own, bench = [None], []
+            marked.append(replace(item, status="suspended", flag="suspended") if not own and bench else item)
+        raw = replace(raw, windows=tuple(marked))
+    adj_provider = _with_basis(provider, "adj")
+    try:
+        adj = query_event(adj_provider, asset, published_at, as_of=as_of, mode="hourly", calendar=calendar) if adj_provider else None
+    except (ValueError, RuntimeError):
+        adj = None
+    if raw.baseline_flag == "missing_data":
+        labels = ["before_6th", "before_3th", "before_1th", "after_1th", "after_3th", "after_6th"]
+        return {"ticker": asset.ticker, "asset_role": asset.role, "published_at": published_at.astimezone(HK).isoformat(),
+            "published_at_local": published_at.astimezone(calendar.tz).isoformat(), "market": asset.market,
+            "exchange_timezone": str(calendar.tz), "currency": asset.currency, "unit": asset.unit,
+            "price_unit": price_unit(asset), "asset_type": asset.asset_type, "stage": asset.stage,
+            "as_of": as_of.isoformat(), "mode": "hourly", "session": raw.session,
+            "baseline": {"observed_at": None, "price": None, "adj_price": None, "source": None,
+                         "basis": "raw", "gap_seconds": None, "status": "missing", "flag": "missing_data"},
+            "windows": {label: {"label_zh": hourly_label_zh(label), "target_at": None, "observed_at": None,
+                "price": None, "adj_price": None, "return_pct": None, "adj_return_pct": None,
+                "price_change": None, "status": "missing", "flag": "missing_data", "source": None,
+                "start_at": None, "start_price": None, "end_at": None, "end_price": None}
+                for label in labels}, "benchmarks": {}, "adj_error": "缺少小时线基准", "method": "缺数据不填零。"}
+    adj_map = {w.label: w for w in adj.windows} if adj else {}
+    windows = {}
+    for item in raw.windows:
+        other = adj_map.get(item.label)
+        target = item.target_at
+        base_at, base_price = raw.baseline.observed_at, raw.baseline.price
+        start, end = ((item.observed_at, item.price), (base_at, base_price)) if item.label.startswith("before_") else ((base_at, base_price), (item.observed_at, item.price))
+        astart, aend = ((other.observed_at, other.price), (adj.baseline.observed_at, adj.baseline.price)) if other and item.label.startswith("before_") else ((adj.baseline.observed_at, adj.baseline.price), (other.observed_at, other.price)) if other and adj else ((None, None), (None, None))
+        windows[item.label] = {
+            "label_zh": hourly_label_zh(item.label), "target_at": _iso(target), "observed_at": _iso(item.observed_at),
+            "price": item.price, "adj_price": other.price if other else None,
+            "return_pct": item.return_pct, "adj_return_pct": other.return_pct if other else None,
+            "price_change": ((base_price - item.price) if item.label.startswith("before_") else (item.price - base_price))
+                if item.price is not None and base_price is not None else None,
+            "status": item.status, "flag": item.flag or (other.flag if other else None),
+            "delay_seconds": item.delay_seconds, "source": "yfinance 1 小时线", "source_detail": item.source, "basis": "raw",
+            "start_at": _iso(start[0]), "start_price": start[1], "end_at": _iso(end[0]), "end_price": end[1],
+            "adj_start_at": _iso(astart[0]), "adj_start_price": astart[1], "adj_end_at": _iso(aend[0]), "adj_end_price": aend[1],
+        }
+    comparisons = {}
+    for code in dict.fromkeys(benchmarks):
+        try:
+            bench = resolve_asset(code)
+            if bench.market != asset.market: continue
+            result = query_event(provider, bench, published_at, as_of=as_of, mode="hourly", calendar=calendar)
+            try:
+                bench_adj_provider = _with_basis(provider, "adj")
+                result_adj = query_event(bench_adj_provider, bench, published_at,
+                                         as_of=as_of, mode="hourly", calendar=calendar) if bench_adj_provider else None
+            except (ValueError, RuntimeError, TypeError):
+                result_adj = None
+            own_by_label = {w.label: w for w in raw.windows}
+            own_adj_by_label = {w.label: w for w in adj.windows} if adj else {}
+            bench_adj_by_label = {w.label: w for w in result_adj.windows} if result_adj else {}
+            rows = {}
+            for w in result.windows:
+                own = own_by_label[w.label]
+                w_adj = bench_adj_by_label.get(w.label)
+                own_adj = own_adj_by_label.get(w.label)
+                aligned = (w.return_pct is not None and own.return_pct is not None and
+                           result.baseline.observed_at == raw.baseline.observed_at and
+                           w.observed_at == own.observed_at)
+                aligned_adj = (w_adj is not None and own_adj is not None and
+                               result_adj.baseline.observed_at == adj.baseline.observed_at and
+                               w_adj.observed_at == own_adj.observed_at)
+                bstart, bend = ((w.observed_at, w.price), (result.baseline.observed_at, result.baseline.price)) if w.label.startswith("before_") else ((result.baseline.observed_at, result.baseline.price), (w.observed_at, w.price))
+                rows[w.label] = {"observed_at": _iso(w.observed_at), "price": w.price,
+                    "return_pct": w.return_pct, "adj_return_pct": w_adj.return_pct if w_adj else None,
+                    "status": w.status, "excess_return_pct": own.return_pct - w.return_pct if aligned else None,
+                    "adj_excess_return_pct": own_adj.return_pct - w_adj.return_pct if aligned_adj else None,
+                    "start_at": _iso(bstart[0]), "start_price": bstart[1],
+                    "end_at": _iso(bend[0]), "end_price": bend[1]}
+            comparisons[bench.ticker] = {"currency": bench.currency, "price_unit": price_unit(bench),
+                "baseline": {"observed_at": result.baseline.observed_at.isoformat(), "price": result.baseline.price},
+                "adj_error": None if result_adj else "复权小时线不可用", "windows": rows}
+        except (ValueError, RuntimeError):
+            comparisons[code] = {"error": "对照标的小时线缺数据", "windows": {}}
+    payload = {"ticker": asset.ticker, "asset_role": asset.role, "published_at": published_at.astimezone(HK).isoformat(),
+        "published_at_local": published_at.astimezone(calendar.tz).isoformat(), "market": asset.market,
+        "exchange_timezone": str(calendar.tz), "currency": asset.currency, "unit": asset.unit,
+        "price_unit": price_unit(asset), "asset_type": asset.asset_type, "stage": asset.stage,
+        "as_of": as_of.isoformat(), "mode": "hourly", "session": raw.session,
+        "baseline": {"observed_at": raw.baseline.observed_at.isoformat(), "price": raw.baseline.price,
+            "adj_price": adj.baseline.price if adj else None, "source": "yfinance 1 小时线", "source_detail": raw.baseline.source,
+            "basis": "raw", "gap_seconds": raw.baseline_gap_seconds, "status": raw.baseline_status,
+            "flag": raw.baseline_flag}, "windows": windows, "benchmarks": comparisons,
+        "adj_error": None if adj else "复权小时线不可用", "method": "按交易时段累计小时；休市时间跳过；缺数据不填零。",
+        "data_version": provider.data_version() if hasattr(provider, "data_version") else None}
+    root = root_for_ticker(asset.ticker) if asset.asset_type == "futures" else None
+    if root:
+        base_day = raw.baseline.observed_at.date()
+        front = front_contract(root, base_day)
+        remaining = _days_to_expiry(calendar_for("NYMEX"), base_day, contract_expiry(front))
+        code = next_contract(front) if remaining < DEFAULT_MIN_DAYS_TO_EXPIRY else front
+        fixed_asset = replace(asset, ticker=contract_ticker(code), aliases=(code,), data_ticker=contract_ticker(code))
+        try:
+            fixed = query_event(provider, fixed_asset, published_at, as_of=as_of, mode="hourly", calendar=calendar)
+        except (ValueError, RuntimeError):
+            fixed = None
+        payload["contract"] = {"contract": code, "ticker": contract_ticker(code),
+            "front_contract": front, "switched": code != front, "last_trade_date": contract_expiry(code).isoformat(),
+            "note": f"临近到期，改用 {code}" if code != front else None}
+        if fixed and fixed.baseline_flag != "missing_data":
+            payload["continuous_baseline"] = payload["baseline"]
+            payload["baseline"] = {"observed_at": fixed.baseline.observed_at.isoformat(), "price": fixed.baseline.price,
+                "adj_price": fixed.baseline.price, "source": "yfinance 1 小时线", "source_detail": fixed.baseline.source, "basis": "raw",
+                "gap_seconds": fixed.baseline_gap_seconds, "status": fixed.baseline_status, "flag": fixed.baseline_flag}
+            fixed_map = {w.label: w for w in fixed.windows}
+            for label, row in payload["windows"].items():
+                row["continuous"] = {key: row.get(key) for key in ("observed_at", "price", "return_pct", "status", "flag", "source", "start_at", "start_price", "end_at", "end_price")}
+                w = fixed_map[label]
+                row.update({"observed_at": _iso(w.observed_at), "price": w.price, "adj_price": w.price,
+                    "return_pct": w.return_pct, "adj_return_pct": w.return_pct, "status": w.status,
+                    "flag": w.flag, "source": "yfinance 1 小时线", "source_detail": w.source, "contract": code})
+                start, end = ((w.observed_at, w.price), (fixed.baseline.observed_at, fixed.baseline.price)) if label.startswith("before_") else ((fixed.baseline.observed_at, fixed.baseline.price), (w.observed_at, w.price))
+                row.update({"start_at": _iso(start[0]), "start_price": start[1], "end_at": _iso(end[0]), "end_price": end[1]})
+        else:
+            payload["contract"]["error"] = f"{code} 小时线缺数据"
+            payload["contract"]["fallback"] = "continuous"
+            payload["contract"]["fallback_note"] = "固定合约小时线不可用，结果保留连续合约"
     return payload

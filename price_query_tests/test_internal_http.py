@@ -29,7 +29,7 @@ class InternalHttpTests(unittest.TestCase):
         item = NewsItem("one", "BBC", "腾讯发布新游戏", "", datetime(2026, 9, 28, 10, tzinfo=HK),
                         "https://example.com/one", "zh")
         service = QueryService(Provider, news_source=lambda: [item],
-                               now=lambda: datetime(2026, 9, 28, 12, tzinfo=HK))
+                               now=lambda: datetime(2026, 9, 28, 12, tzinfo=HK), mode="minute")
         self.server = create_server(service, "127.0.0.1", 0)
         self.thread = Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         self.thread.start()
