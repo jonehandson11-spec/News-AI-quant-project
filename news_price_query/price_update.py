@@ -282,7 +282,7 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader=N
                 calendar = calendar_for(market)
                 last = store.last_hourly_bar(entry.ticker)
                 fetch_from = (datetime.fromisoformat(last).astimezone(timezone.utc) - timedelta(days=5)
-                              if last else now.astimezone(timezone.utc) - timedelta(days=729))
+                              if last else now.astimezone(timezone.utc) - timedelta(days=727))  # Yahoo 1h 限 730 天内，日期取整加结束日 +1 天后要留余量
                 fetch_to = now.astimezone(timezone.utc)
                 raw = hourly_downloader(entry.ticker, fetch_from.date().isoformat(),
                                         (fetch_to + timedelta(days=1)).date().isoformat())
