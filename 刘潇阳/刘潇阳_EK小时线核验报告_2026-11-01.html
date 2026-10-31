@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>刘潇阳 · EK 小时线核验报告 · 2026-11-01</title>
+<style>
+  :root{
+    --bg:#f5f7f9; --card:#ffffff; --ink:#1a2430; --muted:#67727f;
+    --line:#e3e8ee; --ok:#0e7a48; --okbg:#e6f5ec; --warn:#9a6b00; --warnbg:#fdf3dc;
+    --bad:#a3232b; --badbg:#fbe9ea; --accent:#1b4b73; --head:#eef3f8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.68 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 24px 72px}
+  header{border-bottom:2px solid var(--accent);padding-bottom:18px;margin-bottom:26px}
+  h1{margin:0 0 8px;font-size:26px;letter-spacing:.3px}
+  .sub{color:var(--muted);font-size:13.5px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:24px 0 32px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .kpi .n{font-size:27px;font-weight:700;line-height:1.2;color:var(--accent)}
+  .kpi .n.ok{color:var(--ok)} .kpi .n.warn{color:var(--warn)}
+  .kpi .l{color:var(--muted);font-size:12.5px;margin-top:4px}
+  h2{font-size:18px;margin:40px 0 12px;padding-left:10px;border-left:4px solid var(--accent)}
+  h3{font-size:15px;margin:24px 0 8px;color:var(--accent)}
+  table{width:100%;border-collapse:collapse;background:var(--card);
+        border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13.5px;margin:10px 0}
+  th{background:var(--head);text-align:left;padding:10px;font-weight:600;
+     border-bottom:1px solid var(--line);white-space:nowrap;font-size:12.5px}
+  td{padding:9px 10px;border-bottom:1px solid #f0f3f6;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even){background:#fbfcfd}
+  .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;white-space:nowrap}
+  pre{background:#1e2733;color:#e8eef5;padding:14px 16px;border-radius:10px;overflow:auto;
+      font:12.5px/1.62 ui-monospace,Consolas,monospace;margin:10px 0}
+  pre .c{color:#8fb8a8}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .b-ok{background:var(--okbg);color:var(--ok)}
+  .b-warn{background:var(--warnbg);color:var(--warn)}
+  .b-bad{background:var(--badbg);color:var(--bad)}
+  .note{color:var(--muted);font-size:13px}
+  .flag{border-left:4px solid var(--warn);background:#fffdf7;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+  .okline{border-left:4px solid var(--ok);background:#f6fcf8;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+  .badline{border-left:4px solid var(--bad);background:#fdf7f7;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0}
+  ul{margin:8px 0 0;padding-left:20px} li{margin:6px 0}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media (max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>EK 小时线核验报告</h1>
+  <div class="sub" style="margin-bottom:6px"><strong>核验人：刘潇阳</strong>　·　2026-11-01</div>
+  <div class="sub">
+    核验对象：News-AI-quant-project 查询系统（main <span class="mono">4902a32</span> + 本次修复 <span class="mono">4962330</span> / <span class="mono">e774e34</span>，价格库 run <span class="mono">20261031T221419-b13cf6</span>）<br>
+    执行：2026-11-01 01:00–02:10 (HKT)　样本：0883.HK / 0857.HK / 0386.HK / XOM / BZ=F 各 2 点<br>
+    核验方式：全部走接口与数据库取值，逐点留原始返回值与可复跑命令，不使用截图。
+  </div>
+</header>
+
+<div class="kpis">
+  <div class="kpi"><div class="n ok">10 / 10</div><div class="l">时间全部对齐</div></div>
+  <div class="kpi"><div class="n ok">8 / 10</div><div class="l">收盘价分毫不差</div></div>
+  <div class="kpi"><div class="n ok">98.8%</div><div class="l">港股两年收盘价一致率</div></div>
+  <div class="kpi"><div class="n ok">2</div><div class="l">本次已修缺陷（页面 + 口径）</div></div>
+</div>
+
+<div class="okline">
+  <strong>结论：系统的价格和时间可交付。10 个点时间全对、8 个点收盘价分毫不差；另 2 点是布伦特、各差 1 个最小跳动（0.009%），原因是系统按到期换月到 BZF27、外部取当月连续 BZZ26，合约不同不是算错。</strong>
+  放大到近两年 490 个交易日做整日审计，港股收盘价一致率 98.2–98.8%。
+  核验中发现的两处问题已在本次提交修复，见第五节。
+</div>
+
+<h2>一、10 个抽样点逐点核验</h2>
+<p class="note">
+  方法：输入「该小时 bar 结束 + 1 分钟」给查询系统，取它返回的<strong>小时线结束时刻与收盘价</strong>；
+  再到外部行情源取同一标的、同一个 bar 的收盘价。外部源为东方财富 60 分钟 K 线（第 2 点用雪球）。
+</p>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>标的</th><th>系统输入</th><th>系统显示 bar 结束</th>
+    <th class="num">系统收盘价</th><th>外部源</th><th class="num">外部收盘价</th><th class="num">差值</th><th>判定</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>0883.HK</td><td class="mono">2026-10-22 10:31 +08</td><td class="mono">2026-10-22 10:30 +08</td><td class="num">23.0400</td><td>东方财富</td><td class="num">23.0400</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>2</td><td>0883.HK</td><td class="mono">2026-07-14 10:31 +08</td><td class="mono">2026-07-14 10:30 +08</td><td class="num">22.6600</td><td>雪球</td><td class="num">22.6600</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>3</td><td>0857.HK</td><td class="mono">2026-10-22 14:31 +08</td><td class="mono">2026-10-22 14:30 +08</td><td class="num">9.6650</td><td>东方财富</td><td class="num">9.6650</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>4</td><td>0857.HK</td><td class="mono">2026-10-28 15:31 +08</td><td class="mono">2026-10-28 15:30 +08</td><td class="num">9.9550</td><td>东方财富</td><td class="num">9.9550</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>5</td><td>0386.HK</td><td class="mono">2026-10-20 10:31 +08</td><td class="mono">2026-10-20 10:30 +08</td><td class="num">4.4700</td><td>东方财富</td><td class="num">4.4700</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>6</td><td>0386.HK</td><td class="mono">2026-10-28 16:01 +08</td><td class="mono">2026-10-28 16:00 +08</td><td class="num">4.5650</td><td>东方财富</td><td class="num">4.5650</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>7</td><td>XOM</td><td class="mono">2026-10-24 01:31 +08</td><td class="mono">2026-10-23 13:30 −04</td><td class="num">182.2500</td><td>东方财富</td><td class="num">182.2500</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>8</td><td>XOM</td><td class="mono">2026-10-28 23:31 +08</td><td class="mono">2026-10-28 11:30 −04</td><td class="num">182.7050</td><td>东方财富</td><td class="num">182.7050</td><td class="num">0.0000</td><td><span class="badge b-ok">一致</span></td></tr>
+    <tr><td>9</td><td>BZ=F</td><td class="mono">2026-10-29 01:01 +08</td><td class="mono">2026-10-28 13:00 −04</td><td class="num">112.0400</td><td>东财·当月连续</td><td class="num">112.0500</td><td class="num">−0.0100</td><td><span class="badge b-warn">差 1 跳动</span></td></tr>
+    <tr><td>10</td><td>BZ=F</td><td class="mono">2026-10-29 03:01 +08</td><td class="mono">2026-10-28 15:00 −04</td><td class="num">111.7100</td><td>东财·当月连续</td><td class="num">111.7200</td><td class="num">−0.0100</td><td><span class="badge b-warn">差 1 跳动</span></td></tr>
+  </tbody>
+</table>
+<p class="note">
+  第 9、10 点差 0.01 美元即布伦特最小变动单位（0.009%）。系统在结果里写明「固定合约 BZF27（最后交易日 2026-11-30）」，换月是显式行为，不是错价。
+</p>
+
+<div class="okline">
+  <strong>上表可一键复跑，不需要人也来点一遍。</strong>
+  把外部收盘价存成 <span class="mono">ticker,bar_end,close</span> 三列的 CSV，然后：
+<pre>python scripts/crosscheck_hourly.py --db prices.sqlite3 \
+  --as-of 2026-10-31T12:00:00+08:00 \
+  --reference 刘潇阳_参考数据_外部源.csv \
+  --point 0883.HK=2026-10-22T10:31:00+08:00 \
+  --point XOM=2026-10-28T11:31:00-04:00 <span class="c"># 可重复多次</span></pre>
+  输出逐点的系统时间、系统价、参考价、差值与判定；任一点不一致退出码为 1，可直接接 CI。
+  参考值来源不限——Yahoo 导出、东方财富、雪球、人工抄录都行，仓库里不写死任何供应商。
+</div>
+
+<h2>二、放大到近两年：全区间整日审计</h2>
+<p class="note">
+  只抽 10 个点说明不了两年的历史库。再做一层：把系统每天的小时线<strong>合成当日开/高/低/收</strong>，
+  与东方财富日线逐日比对。覆盖 2024-11-04 ~ 2026-10-30。
+</p>
+<table>
+  <thead><tr><th>标的</th><th class="num">可比交易日</th><th class="num">收盘价一致</th><th class="num">一致率</th><th class="num">最高价一致</th><th class="num">最低价一致</th><th class="num">收盘差最大</th></tr></thead>
+  <tbody>
+    <tr><td>0883.HK</td><td class="num">490</td><td class="num">484</td><td class="num"><strong>98.8%</strong></td><td class="num">477</td><td class="num">473</td><td class="num">0.12</td></tr>
+    <tr><td>0857.HK</td><td class="num">490</td><td class="num">481</td><td class="num"><strong>98.2%</strong></td><td class="num">479</td><td class="num">466</td><td class="num">0.06</td></tr>
+    <tr><td>0386.HK</td><td class="num">490</td><td class="num">484</td><td class="num"><strong>98.8%</strong></td><td class="num">480</td><td class="num">477</td><td class="num">0.13</td></tr>
+    <tr><td>XOM</td><td class="num">499</td><td class="num">425（≤0.05）</td><td class="num"><strong>85.2%</strong></td><td class="num">490</td><td class="num">490</td><td class="num">2.53</td></tr>
+    <tr><td>BZ=F</td><td class="num">—</td><td class="num" colspan="5">日级不可比（两边换月日期不同），逐小时比对为 ±1 个跳动，见 4.4</td></tr>
+  </tbody>
+</table>
+
+<div class="okline">
+  <strong>港股这三个标的，两年的历史库基本是干净的。</strong>
+  490 个交易日里只有 6–9 天收盘价对不上，而且这 6–9 天<strong>全是半日市</strong>（平安夜、除夕、农历年前夕）——
+  不是价格抓错，是那几天少存了最后一根 bar。
+</div>
+
+<p class="note">
+  开盘价一致率只有 42–51%，但这<strong>不是错价</strong>：外部日线的“开盘”是 09:30 集合竞价成交价，
+  系统第一根 bar 的 open 是首笔连续交易价，本来就差 1 个价位。实测差异中位数：0857.HK 为 0.010、0386.HK 为 0.005，97% 的日期在 0.02 以内。
+</p>
+
+<h2>三、口径与发现</h2>
+
+<div class="flag">
+  <strong>3.1 系统显示的是「bar 结束时刻」，Yahoo 原始数据是「bar 开始时刻」。</strong><br>
+  系统显示 <span class="mono">2026-10-28 10:30</span>，对应 <span class="mono">09:30–10:30</span>。拿 Yahoo 原始数据核对必须 <strong>+1 小时</strong>，否则会误判成“时间整体错一小时”。本次 10/10 按结束时刻对齐，无一错位。
+</div>
+<div class="flag">
+  <strong>3.2 港股每交易日 7 根 bar，比东方财富多一根。</strong><br>
+  系统存 09:30 / 10:30 / 11:30 / 12:30 / 13:30 / 14:30 / 15:30 起算的 7 根；东财 6 根（跳过 11:30–12:00 这 30 分钟）。按<strong>显示时刻</strong>对齐后 6 根全部吻合。午休输入返回 12:00 那根并标 <span class="mono">lunch_break</span>。
+</div>
+<div class="flag">
+  <strong>3.3 美股尾盘收盘价存在集合竞价口径差。</strong><br>
+  XOM 最后一根 bar（15:30–16:00 ET）系统 182.06、东财日收盘 182.02，差 0.04（0.02%）；港股 16:00 那根与东财完全一致。
+</div>
+<div class="flag" id="roll">
+  <strong>3.4 BZ=F 是未做换月调整的连续合约，换月日会出现价格台阶。</strong><br>
+  相邻两根小时 bar 跳变超过 3 美元的有 <strong>79 次</strong>。典型：2026-04-07 当天 15:00 收 111.49 → 18:00 那根掉到 94.06 并收 95.0，之后一直维持 94–96——<strong>不是暴跌，是换月台阶</strong>；同日东财当月连续收 103.42，差 8.72 纯属换月时点不同。<br>
+  <strong>影响：</strong>新闻若落在换月日附近，会算出 ±10% 的假涨跌。日级收盘价也因此不能用外部日线核对，只能逐小时比同一时间戳。
+</div>
+
+<h2>四、发现的缺陷与处理</h2>
+
+<h3>4.1 Windows 下页面打不开（已修复）</h3>
+<div class="badline">
+  <strong>现象：</strong>直接打开 <span class="mono">http://127.0.0.1:8765/</span>，下拉框只有 7 个静态默认标的（比亚迪/腾讯/阿里/中芯/汇丰/盈富/3033），0883 / 0857 / 0386 / XOM / BZ=F 一个都选不到；点「自动取价并查询」无反应；底部状态停在「检查服务中…」。<br>
+  <strong>证据（数据侧）：</strong>
+<pre>GET /app.mjs → HTTP/1.0 200 OK
+Content-type: <span class="c">text/plain</span>          ← 应为 text/javascript
+控制台：Failed to load module script: Expected a JavaScript-or-Wasm module script
+        but the server responded with a MIME type of "text/plain".</pre>
+  <strong>根因：</strong><span class="mono">web/server.py</span> 用标准库 <span class="mono">SimpleHTTPRequestHandler</span>，未注册 <span class="mono">.mjs</span>；Windows 注册表缺省映射成 text/plain，浏览器按 ES Module 规范拒绝执行，整个前端脚本不运行。<strong>Linux/macOS 正常，仅 Windows 中招。</strong><br>
+  <strong>修复：</strong>Handler 上显式覆盖 <span class="mono">extensions_map</span>（<span class="mono">.mjs/.js → text/javascript</span>），并在模块导入时 <span class="mono">mimetypes.add_type</span> 兜底；补 HTTP 测试断言响应头。提交 <span class="mono">4962330</span>。
+</div>
+
+<h3>4.2 半日市缺最后一根 bar（已接入检测与标记）</h3>
+<p class="note">判据：正常交易日小时线应覆盖到收盘；少于即缺口。清单见 <span class="mono">刘潇阳_小时线缺口清单_2026-11-01.csv</span>。</p>
+<table>
+  <thead><tr><th>类型</th><th>日期</th><th>影响标的</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge b-warn">半日市</span></td><td class="mono">2024-12-24 / 2025-12-24 / 2024-12-31 / 2025-12-31 / 2025-01-28 / 2026-02-16</td><td>3 港股 + 恒指 + 盈富</td><td>缺 11:30–12:00 那根，收盘价被错取为 11:30 价</td></tr>
+    <tr><td><span class="badge b-warn">提前收盘</span></td><td class="mono">2024-11-29 / 2025-07-03 / 2025-11-28 / 2025-12-24</td><td>XOM / SPY / XLE</td><td>美股 13:00 提前收盘，缺 12:30–13:00</td></tr>
+    <tr><td><span class="badge b-bad">异常</span></td><td class="mono">2026-01-30</td><td>XOM / SPY / XLE / BZ=F</td><td>正常交易日，XOM 全天只有 1 根 bar</td></tr>
+    <tr><td><span class="badge b-bad">异常</span></td><td class="mono">2026-02-02 / 2026-04-20</td><td>3 港股</td><td>正常交易日，分别只有 1 根 / 4 根</td></tr>
+  </tbody>
+</table>
+<div class="flag">
+  <strong>处理思路：不伪造数据，但不许它悄悄给出错误收盘价。</strong><br>
+  ① 新增 <span class="mono">news_price_query/hourly_quality.py</span>：按交易所日历逐日核对「最后一根 bar 的结束时间 vs 当日收盘时间」。<strong>不按固定根数判断</strong>——Yahoo 港股 7 根、东财 6 根，网格不同会误判；比收盘时间对所有市场都成立。固定月份合约默认跳过（Yahoo 本身稀疏）。<br>
+  ② 新增 CLI 体检：<span class="mono">python -m news_price_query quality --db … --fail-on-gaps</span>，真实库跑出 <strong>4447 个交易日中 49 天覆盖不全</strong>，可直接接 CI。<br>
+  ③ 查询侧：当日已收盘、但最后一根 bar 未覆盖到收盘时，基准价 <span class="mono">flag = incomplete_session</span>，页面提示「这个价格不是当日收盘价」；新闻在收盘前不会误报。<br>
+  提交 <span class="mono">4962330</span>。
+</div>
+<div class="badline">
+  <strong>实例（数据侧，可直接复跑）：</strong>0883.HK 2024-12-24 14:00 查询 → baseline <span class="mono">2024-12-24 11:30</span>、价 <span class="mono">18.72</span>、flag <span class="mono">incomplete_session</span>；官方收盘 <span class="mono">18.60</span>。同一天 10:00 查询不误报（当天还没收盘）。
+</div>
+
+<h2>五、证据与复现方式</h2>
+<p class="note">按约定，核验只走数据接入，不用截图。每个数字都能用下面三组命令复现。</p>
+
+<h3>5.1 系统侧取数</h3>
+<pre>POST http://127.0.0.1:8765/api/query
+{"asset":"0883.HK","published_at":"2026-10-22T10:31:00+08:00","benchmarks":[]}
+
+→ baseline.observed_at = 2026-10-22T10:30:00+08:00
+  baseline.price       = 23.04
+  baseline.status      = on_time
+  baseline.gap_seconds = 60</pre>
+
+<h3>5.2 外部源取数</h3>
+<pre>GET https://push2his.eastmoney.com/api/qt/stock/kline/get
+    ?secid=116.00883&amp;klt=60&amp;fqt=0&amp;lmt=7&amp;end=20261022
+    &amp;fields1=f1,f2,f3,f4,f5,f6&amp;fields2=f51,f52,f53,f54,f55,f56,f57
+
+→ "2026-10-22 10:30,23.920,23.040,24.060,23.020,33470000,782958680.000"
+   日期,开盘,收盘,最高,最低,成交量,成交额</pre>
+
+<h3>5.3 逐点比对（一键）</h3>
+<pre>python scripts/crosscheck_hourly.py --db prices.sqlite3 \
+  --as-of 2026-10-31T12:00:00+08:00 --reference 刘潇阳_参考数据_外部源.csv \
+  --point 0883.HK=2026-10-22T10:31:00+08:00 --point 0883.HK=2026-07-14T10:31:00+08:00 \
+  --point 0857.HK=2026-10-22T14:31:00+08:00 --point 0857.HK=2026-10-28T15:31:00+08:00 \
+  --point 0386.HK=2026-10-20T10:31:00+08:00 --point 0386.HK=2026-10-28T16:01:00+08:00 \
+  --point XOM=2026-10-23T13:31:00-04:00   --point XOM=2026-10-28T11:31:00-04:00 \
+  --point BZ=F=2026-10-28T13:01:00-04:00  --point BZ=F=2026-10-28T15:01:00-04:00
+
+标的       系统 bar 结束                      系统价      参考价      差  判定
+0883.HK  2026-10-22T10:30:00+08:00       23.0400    23.0400  +0.0000  一致
+0883.HK  2026-07-14T10:30:00+08:00       22.6600    22.6600  +0.0000  一致
+0857.HK  2026-10-22T14:30:00+08:00        9.6650     9.6650  +0.0000  一致
+0857.HK  2026-10-28T15:30:00+08:00        9.9550     9.9550  +0.0000  一致
+0386.HK  2026-10-20T10:30:00+08:00        4.4700     4.4700  +0.0000  一致
+0386.HK  2026-10-28T16:00:00+08:00        4.5650     4.5650  +0.0000  一致
+XOM      2026-10-23T13:30:00-04:00      182.2500   182.2500  +0.0000  一致
+XOM      2026-10-28T11:30:00-04:00      182.7050   182.7050  +0.0000  一致
+BZ=F     2026-10-28T13:00:00-04:00      112.0400   112.0500  -0.0100  不一致
+BZ=F     2026-10-28T15:00:00-04:00      111.7100   111.7200  -0.0100  不一致
+
+一致 8/10</pre>
+<p class="note">
+  最后两行「不一致」是布伦特换月合约差异（BZF27 vs 当月连续），差 1 个最小跳动，属预期；如需按 tick 容差判定，加 <span class="mono">--tolerance 0.01</span>。
+</p>
+
+<h2>六、没做到的部分（如实说明）</h2>
+<ul>
+  <li><strong>没有用 Yahoo Finance 本身做对照。</strong>Yahoo 对中国大陆 IP 全域停服（返回官方停服页），本机 IP 还被单独 403 限流。按「雅虎打不开就换渠道」的授权改用东方财富 / 雪球——两边不同源，同时验证了管道和供应商，但严格的“Yahoo 同源”这一步没做。</li>
+  <li><strong>2024-11 ~ 2025-10 的逐小时外部对照没做成。</strong>东财小时线只回溯约 1 个月、雪球约 3.5 个月，腾讯/新浪/investing 被拦、富途 OpenD 未装、纳斯达克只返日线。该段用第二节的日线级整日审计兜住：能发现错日、错价、缺口，发现不了“单根小时线被替换”。</li>
+  <li><strong>缺 bar 的数据本身没有补。</strong>不伪造行情：半日市的最后一根目前是<em>标记</em>而不是<em>补齐</em>，需要等能取到该 bar 的数据源后重抓。</li>
+  <li><strong>组员共享实例没验成，不是网络问题。</strong>README 里的 <span class="mono">bookmarks-…trycloudflare.com</span> 这次 DNS 直接 <strong>NXDOMAIN</strong>，隧道已失效，需组长重开。</li>
+</ul>
+
+<h2>七、建议的下一步</h2>
+<ul>
+  <li><strong>CI 接入体检</strong>：在价格更新后跑 <span class="mono">quality --fail-on-gaps</span>，让缺口在合并前就暴露。</li>
+  <li><strong>补抓 3 个异常缺口日</strong>：2026-01-30、2026-02-02、2026-04-20。</li>
+  <li><strong>半日市修复</strong>：抓取端在 half_day 的 session close 之前多留一根 30 分钟 bar；在补上之前，<span class="mono">incomplete_session</span> 保证不会静默出错。</li>
+  <li><strong>布伦特换月</strong>：换月日加显式标记，避免 ±10% 假涨跌；参考 <span class="mono">continuous_crosses_roll</span> 在日线模式里已有实现，可移植到小时模式。</li>
+</ul>
+
+<footer>
+  数据来源：本地查询服务 / 价格库（run <span class="mono">20261031T221419-b13cf6</span>，覆盖 2024-11-04 ~ 2026-10-30）；
+  外部对照：东方财富 push2his 60 分钟与日线（secid 116.00883 / 116.00857 / 116.00386 / 106.XOM / 112.B00Y）、雪球 60 分钟线。<br>
+  本报告所有数字均为实际接口取值，未做估算；核验全程使用数据接入，未使用截图。
+</footer>
+
+</div>
+</body>
+</html>
