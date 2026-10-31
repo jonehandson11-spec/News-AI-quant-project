@@ -8,7 +8,7 @@ from .assets import Asset
 from .prices import PriceBar
 from .windows import (DEFAULT_TRADING_WINDOWS, TradingWindowConfig, targets, trading_day_targets,
                       HOURLY_OFFSETS, hourly_label, hourly_bar_end, shift_trading_hours,
-                      trading_seconds_between)
+                      trading_seconds_between, session_segments)
 
 
 HK = ZoneInfo("Asia/Hong_Kong")
@@ -214,7 +214,27 @@ def query_event_hourly(provider, asset: Asset, published_at: datetime, *, as_of:
                    else "after_close")
     return EventResult(asset, event, baseline, int((event-base_end).total_seconds()), "on_time",
                        tuple(windows), mode="hourly", session=session,
-                       baseline_flag=("zero_volume" if _hourly_zero_volume(asset, base_bar, base_end, calendar) else None))
+                       baseline_flag=("incomplete_session"
+                                      if _hourly_incomplete_session(base_end, event, calendar)
+                                      else "zero_volume" if _hourly_zero_volume(asset, base_bar, base_end, calendar)
+                                      else None))
+
+
+def _hourly_incomplete_session(base_end: datetime, event: datetime, calendar) -> bool:
+    """当日已收盘，但库里最后一根 bar 没覆盖到收盘时间时返回 True。
+
+    半日市（平安夜、除夕、农历年前夕）和美股提前收盘日，数据源有时会少给最后那根
+    30 分钟 bar。此时"最后一根已完成 bar 的收盘价"并不是当日收盘价，
+    直接当基准价给出会算错涨跌幅，必须显式标出来。
+    """
+    local_end = base_end.astimezone(calendar.tz)
+    sessions = session_segments(local_end.date(), calendar)
+    if not sessions:
+        return False
+    close = sessions[-1][1]
+    if event.astimezone(calendar.tz) < close:
+        return False  # 当天尚未收盘，不能要求已经覆盖到收盘
+    return base_end < close
 
 
 def _hourly_zero_volume(asset: Asset, bar: PriceBar, end: datetime, calendar) -> bool:

@@ -150,3 +150,21 @@ USD/t. ICE gasoil has no free daily source and remains unavailable for queries.
 默认窗口是新闻前 6、3、1 个交易小时和新闻后 1、3、6 个交易小时。只累计日历开市时段，休市、午休、周末、节假日及天气停市均跳过。小时线约覆盖最近 729 天，超出覆盖范围的结果显示缺数据，不填零；`--mode daily` 保留原交易日窗口和日线更新。
 
 Yahoo 港股小时线时间戳为 09:30、10:30、11:30、12:30、13:30、14:30、15:30。12:30 bar 是午休后 13:00–13:30 的短 bar；15:30 bar 的结束时间是 16:00。样本中该 bar 收盘价与日线收盘通常一致，但成交量经常为零，因此这个 15:30 零量不标为「零成交」。NYMEX 小时模式按 Yahoo Globex 近似时段：交易日 D 前一日 18:00 至 D 日 17:00 美东时间；日线继续使用 CSV 的 14:30 结算时刻。
+
+## 小时线覆盖体检（`quality`）
+
+半日市（平安夜、除夕、农历年前夕）和美股提前收盘日，Yahoo 有时不给最后那根 30 分钟 bar。这时「最后一根已完成 bar 的收盘价」并不是当日收盘价，直接拿来当基准价会把涨跌幅算错。
+
+`quality` 子命令按交易所日历逐日核对，不需要联网：
+
+```
+python -m news_price_query quality --db ~/.news_price_query/prices.sqlite3 --format table
+python -m news_price_query quality --db ... --ticker 0883.HK --start 2024-11-01 --end 2026-10-31
+python -m news_price_query quality --db ... --fail-on-gaps   # CI 用，有缺口就退出码 1
+```
+
+判断依据不是「每天应该有 N 根」——不同数据源的 bar 对齐网格不同（Yahoo 港股 7 根、东方财富 6 根），硬编码根数会误判。这里比较的是**最后一根 bar 的结束时间与当日收盘时间**，对所有市场都成立。输出含 `bars`、`last_end`、`session_close`、`uncovered_minutes`。
+
+固定月份合约（`role=contract`，如 BZF27）在 Yahoo 上本身稀疏，默认跳过；需要时加 `--include-contracts`。
+
+查询侧同样接了这个判断：当日已收盘、但库里最后一根 bar 没覆盖到收盘时，基准价的 `flag` 会变成 `incomplete_session`，页面上显示「当日小时线未覆盖到收盘（多半是半日市或提前收盘），这个价格不是当日收盘价」。新闻在收盘前则不会误报。

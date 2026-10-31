@@ -20,7 +20,8 @@ const showTime = (value) => value ? value.slice(0, 19).replace("T", " ") : "—"
 const showDate = (value) => value ? String(value).slice(0, 10) : "缺失";
 // 小时模式显示到分钟（交易所当地时间），日线模式只显示日期。
 const showEndpoint = (value) => value && state.result?.mode === "hourly" ? String(value).slice(0, 16).replace("T", " ") : showDate(value);
-const hourlyFlagText = { missing_data: "没有可用的小时线（超出约两年覆盖、停牌或缺数据）" };
+const hourlyFlagText = { missing_data: "没有可用的小时线（超出约两年覆盖、停牌或缺数据）",
+  incomplete_session: "当日小时线未覆盖到收盘（多半是半日市或提前收盘），这个价格不是当日收盘价" };
 const flagLabel = (flag) => (state.result?.mode === "hourly" && hourlyFlagText[flag]) || flagText[flag] || flag;
 const showPrice = (value) => value === null || value === undefined ? "缺失" : Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;

@@ -178,6 +178,15 @@ def _hourly_intervals(day, calendar):
             for a, b in segments]
 
 
+def session_segments(day, calendar):
+    """Trading-session segments (start, end) for one local date.
+
+    Empty on non-trading days. Used by the hourly completeness check so that
+    "expected coverage" always comes from the same calendar the query uses.
+    """
+    return _hourly_intervals(day, calendar)
+
+
 def hourly_bar_end(bar, calendar):
     """Map Yahoo's HK 12:30 stamp to 13:00 effective start; cap at segment close."""
     from datetime import timedelta, time

@@ -4,6 +4,7 @@ import argparse
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
+import mimetypes
 import os
 from pathlib import Path
 import time
@@ -19,9 +20,24 @@ from web.service import LocalNewsStore, QueryService
 WEB_ROOT = Path(__file__).resolve().parent
 REPO_NEWS = WEB_ROOT.parent / "data" / "news.csv"
 
+# Windows 的注册表通常没有 .mjs 的 MIME 映射，标准库会退回 text/plain；
+# 浏览器按 ES Module 规范拒绝执行 text/plain 的模块脚本，结果是整个前端脚本不运行、
+# 页面只剩 index.html 里静态写死的几个选项，查询按钮也点不动。
+# 这里显式注册，保证跨平台都把 .mjs/.js 当 JavaScript 发出去。
+MODULE_MIME = {"text/javascript": (".mjs", ".js")}
+for _mime, _suffixes in MODULE_MIME.items():
+    for _suffix in _suffixes:
+        mimetypes.add_type(_mime, _suffix)
+
+
 
 def create_server(service: QueryService, host="127.0.0.1", port=8765, access=None):
     class Handler(SimpleHTTPRequestHandler):
+        # SimpleHTTPRequestHandler.extensions_map 在类定义时就从 mimetypes 建好了，
+        # 之后再 add_type 不会回填，所以这里必须显式覆盖一次。
+        extensions_map = {**SimpleHTTPRequestHandler.extensions_map,
+                          ".mjs": "text/javascript", ".js": "text/javascript"}
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=str(WEB_ROOT), **kwargs)
 

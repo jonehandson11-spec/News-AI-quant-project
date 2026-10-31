@@ -170,6 +170,17 @@ def _parser():
     scan.add_argument("--output", help="Write JSON report here instead of stdout")
     study = commands.add_parser("study", help="Summarize batch JSONL returns and coverage")
     study.add_argument("--input", required=True, help="Batch JSONL file")
+    quality = commands.add_parser("quality",
+                                  help="Check every stored hourly day reaches its session close")
+    quality.add_argument("--db", help="Local price store path (default ~/.news_price_query/prices.sqlite3)")
+    quality.add_argument("--ticker", action="append", help="Limit to one ticker; repeatable")
+    quality.add_argument("--start", help="First local trading date, YYYY-MM-DD")
+    quality.add_argument("--end", help="Last local trading date, YYYY-MM-DD")
+    quality.add_argument("--format", choices=("json", "table"), default="json")
+    quality.add_argument("--include-contracts", action="store_true",
+                         help="同时检查固定月份合约（Yahoo 上本身稀疏，默认跳过）")
+    quality.add_argument("--fail-on-gaps", action="store_true",
+                         help="Exit 1 when any day is incomplete (for CI)")
     return parser
 
 
@@ -232,6 +243,29 @@ def main(argv=None) -> int:
     args = _parser().parse_args(argv)
     provider = None
     try:
+        if args.command == "quality":
+            from datetime import date as _date
+
+            from .hourly_quality import scan, summarize
+            from .price_store import PriceStore
+
+            store = PriceStore(args.db, create=False)
+            rows = list(scan(store, args.ticker,
+                             _date.fromisoformat(args.start) if args.start else None,
+                             _date.fromisoformat(args.end) if args.end else None,
+                             include_contracts=args.include_contracts))
+            summary = summarize(rows)
+            if args.format == "table":
+                print(f"检查交易日 {summary.checked_days} 个，覆盖不全 {len(summary.incomplete_days)} 个")
+                for item in summary.incomplete_days:
+                    print(f"  {item.ticker:9s} {item.day} 根数={item.bars:2d} "
+                          f"最后结束={item.last_end:%Y-%m-%d %H:%M} 收盘={item.session_close:%H:%M} "
+                          f"缺 {item.uncovered_minutes} 分钟")
+            else:
+                print(json.dumps(summary.as_dict(), ensure_ascii=False, indent=2))
+            if args.fail_on_gaps and summary.incomplete_days:
+                return 1
+            return 0
         if args.command == "study":
             from .study import summarize
 

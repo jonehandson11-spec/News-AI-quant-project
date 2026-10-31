@@ -67,6 +67,14 @@ class InternalHttpTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("首版仅支持", body["error"])
 
+    def test_module_script_is_served_as_javascript(self):
+        """前端是 ES Module；一旦按 text/plain 发出去，浏览器会拒绝执行，页面直接变空壳。"""
+        self.connection.request("GET", "/app.mjs")
+        response = self.connection.getresponse()
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.headers.get("Content-Type"), "text/javascript")
+        response.read()
+
     def test_internal_page_is_served_without_exposing_python_source(self):
         self.connection.request("GET", "/")
         page = self.connection.getresponse()
