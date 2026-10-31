@@ -1,0 +1,22 @@
+主体：crawler.py
+爬ft新闻 频率1h 每轮最多入库30篇 两篇之间会休眠5-10秒防网页检测
+（之前爬太快/一次爬太多被网站强制踢下线
+
+cookie.txt
+粘贴cookie到这里
+www.ft.com->登录账号->回到首页->F12（打开检查）->选择网络->F5刷新->点开第一个www.ft.com->往下翻请求标头->cookie->右键复制值->粘贴到cookie.txt并保存
+
+ft账号密码：
+weizhizheng@proton.me
+Zwz200605021512@
+
+用完记得登出防止多人顶号出问题（关闭网页不会自动登出
+
+示意图在cookie.bmp
+
+clean.py
+清理数据库里入库的垃圾数据（要是账号cookie掉了或被踢下线就会正文变广告，这个专门清理这些情况
+
+ft_news.db
+数据库
+按栓要求的title publish_time crawled_time  source_website url content
