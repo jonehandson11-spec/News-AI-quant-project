@@ -1,0 +1,51 @@
+name: Publish price DB (weekdays 18:00 UTC)
+
+# 每个工作日更新 yfinance 价格库，压缩后发布到 Release prices-latest，供云端网页下载。
+# 注意：仓库是公开的，这个价格库（Yahoo 数据）任何人都能下载。
+
+on:
+  schedule:
+    - cron: '0 18 * * 1-5'
+  workflow_dispatch:
+
+concurrency:
+  group: price-db
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NEWS_PRICE_DB: ${{ github.workspace }}/prices.sqlite3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install yfinance tzdata
+      - name: Restore previous DB
+        run: |
+          if gh release download prices-latest -p prices.sqlite3.gz -D . ; then
+            gunzip -f prices.sqlite3.gz
+          else
+            echo "首次运行：从头建库"
+          fi
+      - name: Update prices
+        run: |
+          python scripts/update_prices.py --db "$NEWS_PRICE_DB" \
+            --universe news_price_query/data/universe_example_hk.csv \
+            --universe news_price_query/data/universe_oil_research.csv \
+            || echo "::warning::部分代码更新失败，仍发布已更新部分"
+      - name: Publish
+        run: |
+          gzip -kf prices.sqlite3
+          gh release view prices-latest >/dev/null 2>&1 || \
+            gh release create prices-latest --title "价格库（自动更新）" \
+              --notes "yfinance 日线+小时线，工作日自动更新，供云端查询网页下载。" --latest=false
+          gh release upload prices-latest prices.sqlite3.gz --clobber

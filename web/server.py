@@ -225,8 +225,9 @@ def build_service(args) -> QueryService:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1", help="监听地址；默认只在本机。公开部署须先获 Ek 批准并加访问控制")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", default=os.environ.get("NEWS_PRICE_HOST", "127.0.0.1"), help="监听地址；默认只在本机。公开部署须先获 Ek 批准并加访问控制")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8765)),
+                        help="端口；云平台会通过 PORT 环境变量指定")
     parser.add_argument("--provider", choices=("local", "futu"), default="local",
                         help="local：本地价格库（默认，免 OpenD）；futu：富途 OpenD")
     parser.add_argument("--db", default=None, help="本地价格库路径，默认 ~/.news_price_query/prices.sqlite3 或 NEWS_PRICE_DB")

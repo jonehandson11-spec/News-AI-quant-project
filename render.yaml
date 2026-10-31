@@ -1,0 +1,17 @@
+# Render 免费版部署（Blueprint）。访问码哈希在 Render 网页里填，不进仓库。
+services:
+  - type: web
+    name: news-price-query
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install tzdata
+    startCommand: python deploy/cloud_start.py
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: NEWS_PRICE_ACCESS_CODES_JSON
+        sync: false
+      - key: NEWS_PRICE_SESSION_SECRET
+        sync: false
