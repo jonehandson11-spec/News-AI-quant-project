@@ -20,6 +20,24 @@ from web.service import LocalNewsStore, QueryService
 WEB_ROOT = Path(__file__).resolve().parent
 REPO_NEWS = WEB_ROOT.parent / "data" / "news.csv"
 
+STATIC_PAGES = {"/", "/index.html", "/styles.css", "/app.mjs", "/core.mjs", "/chart.mjs"}
+
+
+def allowed_static_path(path: str) -> bool:
+    """Serve the query page, its scripts, and vendored frontend libraries only."""
+    if path in STATIC_PAGES:
+        return True
+    if not path.startswith("/vendor/") or "\\" in path:
+        return False
+    root = WEB_ROOT.resolve()
+    candidate = (WEB_ROOT / path.lstrip("/")).resolve()
+    try:
+        candidate.relative_to(root / "vendor")
+    except ValueError:
+        return False
+    return candidate.is_file()
+
+
 # Windows 的注册表通常没有 .mjs 的 MIME 映射，标准库会退回 text/plain；
 # 浏览器按 ES Module 规范拒绝执行 text/plain 的模块脚本，结果是整个前端脚本不运行、
 # 页面只剩 index.html 里静态写死的几个选项，查询按钮也点不动。
@@ -142,10 +160,29 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
                 except (KeyError, IndexError, TypeError, ValueError, OSError, RuntimeError) as exc:
                     self._error(exc)
                 return
+            if parsed.path == "/api/bars":
+                try:
+                    params = parse_qs(parsed.query)
+
+                    def first(*names):
+                        for name in names:
+                            values = params.get(name)
+                            if values and values[0] != "":
+                                return values[0]
+                        return None
+
+                    symbol = first("symbol", "asset")
+                    interval, start, end = first("interval"), first("start"), first("end")
+                    if not symbol or not interval or not start or not end:
+                        raise ValueError("需要提供 symbol、interval、start、end")
+                    self._json(200, service.bars(symbol, interval, start, end))
+                except (KeyError, IndexError, TypeError, ValueError, OSError, RuntimeError) as exc:
+                    self._error(exc)
+                return
             if parsed.path.startswith("/api/"):
                 self._json(404, {"error": "未知 API 路径"})
                 return
-            if parsed.path not in {"/", "/index.html", "/styles.css", "/app.mjs", "/core.mjs"}:
+            if not allowed_static_path(parsed.path):
                 self.send_error(404)
                 return
             super().do_GET()

@@ -89,6 +89,33 @@
       <div class="table-scroll"><table><thead><tr id="resultHead"><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>差价</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
       <p class="result-note" id="resultNote">交易小时：只算交易时段，午休、收盘后、周末和假期不算。缺数据不按零处理。</p>
     </section>
+
+    <section id="chartPanel" class="panel chart-panel" aria-labelledby="chartHeading">
+      <div class="panel-heading"><span class="section-number">03</span><div><p class="eyebrow">CHART</p><h2 id="chartHeading">K 线图</h2></div></div>
+      <p class="panel-description">查询新闻后，会在发布时间附近画出 K 线，并标出新闻时点。也可以只选标的和区间，直接查看。可拖动平移，滚轮或触控缩放。日K线由本地小时线合成；没有数据的时段留空，不补造。</p>
+      <div class="chart-toolbar">
+        <div id="chartIntervals" class="chart-toggles" role="group" aria-label="K线周期">
+          <button type="button" data-interval="1h" aria-pressed="true">1小时</button>
+          <button type="button" data-interval="1d" aria-pressed="false">日线</button>
+        </div>
+        <div id="chartRanges" class="chart-toggles" role="group" aria-label="新闻前后区间">
+          <button type="button" data-range="1d" aria-pressed="false">前后1天</button>
+          <button type="button" data-range="1w" aria-pressed="true">前后1周</button>
+          <button type="button" data-range="1m" aria-pressed="false">前后1月</button>
+          <button type="button" data-range="3m" aria-pressed="false">前后3月</button>
+        </div>
+        <label for="chartStart">开始</label>
+        <input id="chartStart" type="date">
+        <label for="chartEnd">结束</label>
+        <input id="chartEnd" type="date">
+        <button id="chartLoad" type="button">查看K线</button>
+      </div>
+      <p id="chartMessage" class="message" role="status" aria-live="polite">查询新闻后将显示该时点附近的 K 线，也可直接选择区间查看。</p>
+      <p id="chartNewsNote" class="chart-news-note" hidden></p>
+      <div id="chartContainer" class="chart-container">
+        <div id="chartTooltip" class="chart-tooltip" hidden></div>
+      </div>
+    </section>
   </main>
   <footer><span>新闻 × 港股价格查询 · 数据来源与时间始终随结果保留</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">查看源代码与使用说明 ↗</a></footer>
 </body>
