@@ -143,6 +143,21 @@ class QueryService:
             rows.append(row)
         return rows
 
+    def bars(self, asset_name, interval, start, end):
+        """OHLC bars for the K-line chart; requires the local price database."""
+        asset = self._asset(asset_name)
+        provider = self.provider_factory()
+        try:
+            store = getattr(provider, "store", None)
+            if store is None:
+                raise ValueError("K线图只支持本地价格库")
+            from news_price_query.chart_bars import chart_bars
+            return chart_bars(store, asset, interval, start, end)
+        finally:
+            close = getattr(provider, "close", None)
+            if close:
+                close()
+
     def source_info(self):
         return {"price_source": self.price_source, "mode": self.mode,
                 "data_version": self.data_version()}

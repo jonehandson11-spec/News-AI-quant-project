@@ -1,4 +1,5 @@
 import { WINDOW_LABELS, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, relativeHongKongInput } from "./core.mjs";
+import { initChart, loadChart } from "./chart.mjs";
 
 const byId = (id) => document.getElementById(id);
 const state = { news: [], result: null, newsRequest: 0,
@@ -431,6 +432,7 @@ byId("queryForm").addEventListener("submit", async (event) => {
     });
     renderResult(result);
     message("查询完成。请核对新闻相关性和行情来源。", true);
+    loadChart({ symbol: result.ticker, newsTime: result.published_at, range: "1w" });
   } catch (error) { byId("results").hidden = true; message(error.message); }
   finally { button.disabled = false; }
 });
@@ -448,3 +450,4 @@ byId("detailToggle").addEventListener("change", (event) => {
   if (state.result) renderResult(state.result);
 });
 loadCatalog();
+initChart();

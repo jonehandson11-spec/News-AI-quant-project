@@ -16,3 +16,26 @@ select:focus{border-color:#267764;box-shadow:0 0 0 3px rgba(38,119,100,.12)}
 .table-scroll td,.table-scroll th{overflow-wrap:break-word;vertical-align:top}
 .table-scroll .comparison-note{white-space:normal;line-height:1.45;font-size:10px}
 .detail-toggle{display:flex;align-items:center;gap:7px;border:1px solid #cbd8cf;background:#fff;border-radius:8px;padding:9px 12px;font-size:12px;color:#2d6659;white-space:nowrap}.detail-toggle input{accent-color:#267764;margin:0}.detail-toggle:has(input:disabled){color:#89958f;background:#f5f7f5;cursor:not-allowed}.detail-toggle input:disabled{cursor:not-allowed}
+
+.chart-panel{margin-top:28px}
+.chart-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;margin:0 0 14px}
+.chart-toggles{display:flex;flex-wrap:wrap;gap:8px}
+.chart-toggles button,.chart-toolbar>button{border:1px solid #cbd8cf;background:#fff;color:#2d6659;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700}
+.chart-toggles button[aria-pressed="true"]{background:#267764;color:#fff;border-color:#267764}
+.chart-toolbar label{margin:0;font-size:12px;color:#617872;font-weight:700}
+.chart-toolbar input[type=date]{height:40px;border:1px solid #cbd8cf;border-radius:8px;padding:0 10px;background:#fff;color:#132329}
+#chartLoad{background:#113e3a;color:#fff;border-color:#113e3a}
+.chart-container{position:relative;width:100%;height:440px;border:1px solid #e4ebe4;border-radius:11px;background:#fbfcfa;touch-action:none;overflow:hidden}
+.chart-tooltip{position:absolute;z-index:5;min-width:220px;max-width:min(92%,360px);padding:10px 12px;background:#fff;border:1px solid #dce5dc;border-radius:8px;box-shadow:0 8px 24px #193d2514;color:#132329;font-size:12px;line-height:1.55;pointer-events:none}
+.chart-tooltip[hidden]{display:none}
+.chart-tooltip strong{display:block;margin-bottom:4px;font-size:12px;color:#2d6659}
+.chart-tooltip span{display:block}
+.chart-news-note{margin:0 0 10px;color:#7a4a2b;font-size:12px}
+.chart-news-note[hidden]{display:none}
+#chartMessage.ok{color:#2d6659}
+@media (max-width:720px){
+  .chart-container{height:320px}
+  .chart-toolbar{gap:8px}
+  .chart-toolbar input[type=date]{width:100%}
+  .chart-toolbar label{flex-basis:100%}
+}
