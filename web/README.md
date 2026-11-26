@@ -13,9 +13,9 @@ API 只供同源本机页面使用；不要公开部署。如需团队共享，�
 
 `static/` 是原公开 GitHub Pages 的旧版 CSV 页面（由 `build_site.py` 构建），保留不动，不是组员的查询入口。
 
-## 访问码（组员公网链接）
+## 访问码（可选，仅本地或隧道）
 
-开启后所有页面和 `/api/*` 须先登录：会话 cookie 30 天（HttpOnly、Secure、SameSite=Lax），同一来源 15 分钟内输错 5 次会被限速，登录记录写本地日志。可每人一个码，也可全组共用一个码（文件里只放一条）。
+线上 Render 站点已不再启用访问码，拿到链接即可使用。若要在本机或隧道上开启访问码，开启后所有页面和 `/api/*` 须先登录：会话 cookie 30 天（HttpOnly、Secure、SameSite=Lax），同一来源 15 分钟内输错 5 次会被限速，登录记录写本地日志。可每人一个码，也可全组共用一个码（文件里只放一条）。
 
 ```bash
 python -m web.access generate --names 全组共用 --hash-file /安全目录/access_codes.json --plain-file /安全目录/access_codes.txt
