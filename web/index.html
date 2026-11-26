@@ -90,6 +90,12 @@
       <div class="baseline-card"><span id="baselineLabel">发布前基准价</span><strong id="baselinePrice">—</strong><small id="baselineDetail"></small></div>
       <div class="table-scroll"><table><thead><tr id="resultHead"><th>窗口</th><th>目标时间</th><th>实际取价</th><th>价格</th><th>差价</th><th>涨跌幅</th><th>状态</th></tr></thead><tbody id="resultRows"></tbody></table></div>
       <p class="result-note" id="resultNote">交易小时：只算交易时段，午休、收盘后、周末和假期不算。缺数据不按零处理。</p>
+      <section id="marketStateSection" class="market-state-section" hidden aria-labelledby="marketStateHeading">
+        <div class="market-state-title"><div><p class="eyebrow">DAILY MARKET STATE</p><h3 id="marketStateHeading">发布前行情描述</h3></div><strong>发布前行情描述，非 GVS 校准因子</strong></div>
+        <p id="marketStateMeta" class="market-state-meta"></p>
+        <p id="marketStateError" class="market-state-error" hidden></p>
+        <div id="marketStateTableWrap" class="table-scroll"><table class="market-state-table"><thead><tr><th>字段</th><th>数值</th><th>说明</th></tr></thead><tbody id="marketStateRows"></tbody></table></div>
+      </section>
     </section>
 
     <section id="chartPanel" class="panel chart-panel" aria-labelledby="chartHeading">

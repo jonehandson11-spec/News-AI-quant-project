@@ -48,6 +48,13 @@ for _mime, _suffixes in MODULE_MIME.items():
         mimetypes.add_type(_mime, _suffix)
 
 
+def _market_state_flag(request):
+    value = request.get("market_state", False)
+    if not isinstance(value, bool):
+        raise ValueError("market_state 必须是布尔值")
+    return value
+
+
 
 def create_server(service: QueryService, host="127.0.0.1", port=8765, access=None):
     class Handler(SimpleHTTPRequestHandler):
@@ -243,8 +250,10 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
                 request = json.loads(self.rfile.read(length))
                 if not isinstance(request, dict):
                     raise ValueError("请求内容必须是对象")
+                market_state = _market_state_flag(request)
                 result = service.query(request["asset"], request["published_at"],
-                                       benchmarks=request.get("benchmarks", []))
+                                       benchmarks=request.get("benchmarks", []),
+                                       market_state=market_state)
                 self._json(200, result)
             except (KeyError, TypeError, ValueError, OSError, RuntimeError) as exc:
                 self._error(exc)
