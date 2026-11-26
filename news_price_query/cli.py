@@ -13,6 +13,7 @@ from .assets import resolve_asset
 from .news import find_direct_match, read_news
 from .prices import CsvPriceProvider, FutuPriceProvider
 from .query import query_event
+from .market_state import csv_headers as market_state_csv_headers, csv_values as market_state_csv_values, market_state as calculate_market_state, PROFILE_ID
 from .windows import TradingWindowConfig, window_label_zh
 
 
@@ -193,7 +194,7 @@ _CSV_COLUMNS = (
     "price_source", "source_detail", "price_basis", "benchmark_ticker", "benchmark_baseline_at",
     "benchmark_baseline_price", "benchmark_baseline_status", "benchmark_return_pct",
     "excess_return_pct", "adj_excess_return_pct", "benchmarks_json", "error",
-)
+) + market_state_csv_headers()
 
 
 def _write_csv(rows: list[dict], handle):
@@ -236,7 +237,22 @@ def _write_csv(rows: list[dict], handle):
                 "adj_excess_return_pct": window.get("adj_excess_return_pct"),
                 "benchmarks_json": json.dumps({code: (benchmark.get("windows") or {}).get(label)
                     for code, benchmark in (item.get("benchmarks") or {}).items()}, ensure_ascii=False),
+                **market_state_csv_values(item.get("market_state")),
             })
+
+
+
+def _attach_market_state(row, provider, asset, published_at, as_of):
+    """Add market_state to a query payload when a local price store is available."""
+    store = getattr(provider, "store", None)
+    if store is None:
+        row["market_state"] = {"profile_id": PROFILE_ID, "error": "需要本地价格库"}
+        return row
+    try:
+        row["market_state"] = calculate_market_state(store, asset, published_at, as_of=as_of)
+    except (ValueError, OSError, RuntimeError) as exc:
+        row["market_state"] = {"profile_id": PROFILE_ID, "error": str(exc)}
+    return row
 
 
 def main(argv=None) -> int:
@@ -313,6 +329,7 @@ def main(argv=None) -> int:
 
             report = daily_report(provider, asset, event_time, as_of=as_of, config=options["config"],
                                   benchmarks=(*benchmarks_for(asset), *([benchmark_asset.ticker] if benchmark_asset else [])))
+            _attach_market_state(report, provider, asset, event_time, as_of)
             if args.format == "table":
                 from .daily_table import format_daily_table
 
@@ -324,12 +341,15 @@ def main(argv=None) -> int:
             from .daily_report import benchmarks_for, hourly_report
             report = hourly_report(provider, asset, event_time, as_of=as_of,
                                    benchmarks=(*benchmarks_for(asset), *([benchmark_asset.ticker] if benchmark_asset else [])))
+            _attach_market_state(report, provider, asset, event_time, as_of)
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
         if args.command == "query":
             result = query_event(provider, asset, event_time, as_of=as_of, **options)
             comparison = query_event(provider, benchmark_asset, event_time, as_of=as_of, **options) if benchmark_asset else None
-            print(json.dumps(_result_dict(result, benchmark=comparison), ensure_ascii=False, indent=2))
+            payload = _result_dict(result, benchmark=comparison)
+            _attach_market_state(payload, provider, asset, event_time, as_of)
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
             return 0
         articles = read_news(args.news)
         matched = [(item, match) for item in articles if (match := find_direct_match(item, asset))]
@@ -343,11 +363,14 @@ def main(argv=None) -> int:
                         benchmarks=(*benchmarks_for(asset), *([benchmark_asset.ticker] if benchmark_asset else [])))
                     row.update({"article_id": item.article_id, "title": item.title, "source": item.source,
                                 "url": item.url, "match": asdict(match)})
+                    _attach_market_state(row, provider, asset, item.published_at, as_of)
                     output.append(row)
                     continue
                 result = query_event(provider, asset, item.published_at, as_of=as_of, **options)
                 comparison = query_event(provider, benchmark_asset, item.published_at, as_of=as_of, **options) if benchmark_asset else None
-                output.append(_result_dict(result, news=item, match=match, benchmark=comparison))
+                row = _result_dict(result, news=item, match=match, benchmark=comparison)
+                _attach_market_state(row, provider, asset, item.published_at, as_of)
+                output.append(row)
             except ValueError as exc:
                 failures += 1
                 output.append({

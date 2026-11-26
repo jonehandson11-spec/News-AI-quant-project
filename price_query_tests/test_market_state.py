@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from news_price_query.assets import Asset, resolve_asset
 from news_price_query.market_calendars import calendar_for
-from news_price_query.market_state import PROFILE_ID, market_state
+from news_price_query.market_state import PROFILE_ID, csv_headers, csv_values, market_state
 from news_price_query.price_store import DailyRow, PriceStore
 from web.service import QueryService
 from web.server import _market_state_flag
@@ -146,6 +146,41 @@ class MarketStateTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, "market_state 必须是布尔值"):
                 _market_state_flag({"market_state": value})
         self.assertIs(_market_state_flag({}), False)
+
+    def test_csv_values_leave_missing_blank_and_keep_zero_coverage(self):
+        headers = csv_headers()
+        self.assertEqual(headers[0], "momentum_z")
+        self.assertEqual(headers[1], "momentum_z_missing_reason")
+        self.assertEqual(headers[-3:], ("profile_id", "cutoff_date", "benchmark"))
+        values = csv_values({
+            "profile_id": PROFILE_ID,
+            "cutoff_date": "2026-09-25",
+            "benchmark": "2800.HK",
+            "fields": {
+                "momentum_z": {"value": -0.6595588260084632, "missing_reason": None},
+                "realized_volatility": {"value": 0.01535311845855941},
+                "relative_trading_activity": {"value": 0.5807046764688161},
+                "liquidity_stress_z": {"value": None, "missing_reason": "ESTIMATOR_NOT_READY"},
+                "benchmark_beta": {"value": 0.6884755979714041},
+                "benchmark_momentum_z": {"value": -0.8964502213602309},
+                "data_coverage": {"value": 1.0},
+            },
+        })
+        self.assertAlmostEqual(values["momentum_z"], -0.6596, places=4)
+        self.assertAlmostEqual(values["realized_volatility"], 0.015353, places=6)
+        self.assertAlmostEqual(values["relative_trading_activity"], 0.5807, places=4)
+        self.assertIsNone(values["liquidity_stress_z"])
+        self.assertEqual(values["liquidity_stress_z_missing_reason"], "ESTIMATOR_NOT_READY")
+        self.assertAlmostEqual(values["benchmark_beta"], 0.6885, places=4)
+        self.assertAlmostEqual(values["benchmark_momentum_z"], -0.8965, places=4)
+        self.assertEqual(values["data_coverage"], 1.0)
+        self.assertEqual(values["data_coverage_missing_reason"], "")
+        empty = csv_values({"profile_id": PROFILE_ID, "error": "需要本地价格库"})
+        self.assertIsNone(empty["momentum_z"])
+        self.assertEqual(empty["momentum_z_missing_reason"], "")
+        self.assertEqual(empty["profile_id"], PROFILE_ID)
+        zero = csv_values({"fields": {"data_coverage": {"value": 0.0, "missing_reason": None}}})
+        self.assertEqual(zero["data_coverage"], 0.0)
 
 
 if __name__ == "__main__":
