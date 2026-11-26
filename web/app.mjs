@@ -1,4 +1,4 @@
-import { WINDOW_LABELS, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, relativeHongKongInput } from "./core.mjs";
+import { WINDOW_LABELS, assetOptionText, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, relativeHongKongInput, selectedAssetValue } from "./core.mjs";
 import { initChart, loadChart } from "./chart.mjs";
 
 const byId = (id) => document.getElementById(id);
@@ -377,7 +377,7 @@ async function fetchJson(url, options) {
 
 async function loadNews() {
   const request = ++state.newsRequest;
-  const params = new URLSearchParams({ asset: byId("asset").value });
+  const params = new URLSearchParams({ asset: selectedAssetValue() });
   if (byId("newsStart").value) params.set("start", byId("newsStart").value);
   if (byId("newsEnd").value) params.set("end", byId("newsEnd").value);
   byId("newsStatus").textContent = "读取新闻中…";
@@ -398,27 +398,26 @@ async function loadNews() {
 }
 
 function syncBenchmarkOptions() {
-  const asset = (state.assets || []).find((item) => item.ticker === byId("asset").value);
+  const value = selectedAssetValue();
+  const asset = (state.assets || []).find((item) => item.ticker === value || item.name === value);
   const hk = !asset || !asset.market || asset.market === "XHKG";
   for (const node of document.querySelectorAll(".hk-only")) node.hidden = !hk;
 }
 
 function fillAssets() {
-  const input = byId("asset"), selected = input.value.trim(), stage = byId("stageFilter").value;
-  const list = byId("assetOptions");
-  list.replaceChildren();
-  let firstEnabled = "";
+  const select = byId("asset"), selected = select.value, stage = byId("stageFilter").value;
+  select.replaceChildren();
   for (const asset of state.assets || []) {
     if (stage && asset.stage !== stage) continue;
-    if (asset.queryable === false) continue;
     const option = document.createElement("option");
     option.value = asset.ticker;
-    const extra = [asset.stage, asset.currency].filter(Boolean).join(" · ");
-    option.label = `${asset.name} · ${asset.ticker}${extra ? ` · ${extra}` : ""}`;
-    list.append(option);
-    if (!firstEnabled) firstEnabled = asset.ticker;
+    option.textContent = assetOptionText(asset);
+    option.disabled = asset.queryable === false;
+    select.append(option);
   }
-  if (!selected && firstEnabled) input.value = firstEnabled;
+  const enabled = [...select.options].filter((option) => !option.disabled);
+  if (enabled.some((option) => option.value === selected)) select.value = selected;
+  else if (enabled.length) select.value = enabled[0].value;
   syncBenchmarkOptions();
 }
 
@@ -441,8 +440,8 @@ async function loadCatalog() {
     const help = byId("assetHelp");
     if (help) {
       help.textContent = state.yahooOndemand
-        ? "可从列表选择，或直接输入任何代码。价格库没有的标的会现场从 Yahoo 拉取（第一次稍慢，之后会缓存）。"
-        : "可从列表选择已登记标的和本地价格库中的股票；未入库的标的请先加入股票池并更新价格库。";
+        ? "可从列表选择已登记标的（显示中文名），或在下方输入代码、中文名。价格库没有的标的会现场从 Yahoo 拉取（第一次稍慢，之后会缓存）。"
+        : "可从列表选择已登记标的和本地价格库中的股票（显示中文名），或在下方输入代码、中文名；未入库的标的请先加入股票池并更新价格库。";
     }
     byId("priceStatus").textContent = ["daily", "hourly"].includes(state.mode) ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
     byId("sourceHelp").textContent = state.mode === "hourly"
@@ -459,8 +458,13 @@ async function loadCatalog() {
   await loadNews();
 }
 
-byId("asset").addEventListener("change", () => { syncBenchmarkOptions(); loadNews(); });
-byId("asset").addEventListener("input", () => { syncBenchmarkOptions(); });
+byId("asset").addEventListener("change", () => {
+  const typed = byId("assetInput");
+  if (typed) typed.value = "";
+  syncBenchmarkOptions();
+  loadNews();
+});
+byId("assetInput").addEventListener("change", () => { syncBenchmarkOptions(); loadNews(); });
 byId("stageFilter").addEventListener("change", () => { fillAssets(); loadNews(); });
 byId("newsFilter").addEventListener("submit", (event) => { event.preventDefault(); loadNews(); });
 byId("publishedAt").addEventListener("input", clearTimePreset);
@@ -488,7 +492,7 @@ byId("queryForm").addEventListener("submit", async (event) => {
     if (state.mode === "daily") benchmarks.push("^HSI");
     const result = await fetchJson("./api/query", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ asset: byId("asset").value,
+      body: JSON.stringify({ asset: selectedAssetValue(),
         published_at: hongKongInputToIso(byId("publishedAt").value), benchmarks, market_state: true }),
     });
     renderResult(result);

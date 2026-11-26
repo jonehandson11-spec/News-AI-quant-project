@@ -85,6 +85,24 @@ class InternalHttpTests(unittest.TestCase):
         self.assertEqual(source.status, 404)
         source.read()
 
+    def test_query_page_catalog_select_keeps_chinese_names(self):
+        """研究环节下的标的列表必须用 select 显示中文名，不能只剩代码。"""
+        self.connection.request("GET", "/")
+        page = self.connection.getresponse()
+        html = page.read().decode("utf-8")
+        self.assertEqual(page.status, 200)
+        self.assertIn('<select id="asset"', html)
+        self.assertIn("选择标的", html)
+        self.assertIn("比亚迪 · 1211.HK", html)
+        self.assertIn('id="assetInput"', html)
+        self.assertNotIn('list="assetOptions"', html)
+        self.connection.request("GET", "/app.mjs")
+        script = self.connection.getresponse().read().decode("utf-8")
+        self.assertIn("assetOptionText", script)
+        self.assertIn("option.textContent = assetOptionText(asset)", script)
+        self.assertIn("const select = byId(\"asset\")", script)
+        self.assertNotIn("assetOptions", script)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -227,3 +227,16 @@ export function detailPreference(search, storedValue) {
   if (detail === "0") return false;
   return storedValue === "1";
 }
+
+export function assetOptionText(asset) {
+  const extra = [asset.stage, asset.currency].filter(Boolean).join(" · ");
+  const pending = asset.data_status === "no_free_source" ? "（无免费数据）" : "";
+  return `${asset.name} · ${asset.ticker}${extra ? ` · ${extra}` : ""}${pending}`;
+}
+
+export function selectedAssetValue(root = globalThis.document) {
+  const typed = root?.getElementById?.("assetInput")?.value?.trim();
+  if (typed) return typed;
+  return root?.getElementById?.("asset")?.value || "";
+}
+
