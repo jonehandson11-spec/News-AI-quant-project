@@ -1,4 +1,4 @@
-# Render 免费版部署（Blueprint）。访问码哈希在 Render 网页里填，不进仓库。
+# Render 免费版部署（Blueprint）。云端网页无需访问码；下列环境变量若仍存在会被启动脚本忽略。
 services:
   - type: web
     name: news-price-query

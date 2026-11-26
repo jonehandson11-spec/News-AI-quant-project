@@ -1,18 +1,18 @@
-"""云端启动脚本（Render 免费版）：下载价格库、从环境变量读访问码哈希，然后启动网页。
+"""云端启动脚本（Render 免费版）：下载价格库，然后启动网页（无需访问码）。
 
 环境变量：
-  NEWS_PRICE_ACCESS_CODES_JSON  访问码哈希文件的完整内容（只含 salt/hash，不含明文访问码）。必填。
-  NEWS_PRICE_SESSION_SECRET     64 位十六进制会话密钥，休眠重启后登录不失效。可选。
   NEWS_PRICE_DB_URL             价格库下载地址（.sqlite3.gz），默认仓库 Release prices-latest。
   PORT                          平台指定的端口。
+
+以下变量若仍留在平台上，本脚本会忽略，不必删除：
+  NEWS_PRICE_ACCESS_CODES_JSON、NEWS_PRICE_SESSION_SECRET、NEWS_PRICE_ACCESS_CODES。
+本地启动（python -m web.server --access-codes）不受影响。
 """
 
 import gzip
-import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import urllib.request
 
@@ -35,32 +35,19 @@ def fetch_db(url, target):
     tmp.replace(target)
 
 
-def write_access_files():
-    raw = os.environ.get("NEWS_PRICE_ACCESS_CODES_JSON", "").strip()
-    if not raw:
-        sys.exit("缺少 NEWS_PRICE_ACCESS_CODES_JSON，拒绝无访问码公开启动")
-    data = json.loads(raw)
-    if data.get("version") != 1 or not data.get("codes"):
-        sys.exit("NEWS_PRICE_ACCESS_CODES_JSON 格式无效")
-    if any("code" in record or "plain" in record for record in data["codes"]):
-        sys.exit("NEWS_PRICE_ACCESS_CODES_JSON 只能放哈希，不能放明文访问码")
-    codes = RUNTIME / "access_codes.json"
-    codes.write_text(json.dumps(data), encoding="utf-8")
-    secret = os.environ.get("NEWS_PRICE_SESSION_SECRET", "").strip()
-    if secret:
-        if len(bytes.fromhex(secret)) != 32:
-            sys.exit("NEWS_PRICE_SESSION_SECRET 必须是 64 位十六进制")
-        (RUNTIME / "session_secret").write_text(secret, encoding="ascii")
-    return codes
+def server_command(argv=None):
+    """Build web.server argv. Cloud mode never enables access codes."""
+    os.environ.pop("NEWS_PRICE_ACCESS_CODES", None)
+    db = RUNTIME / "prices.sqlite3"
+    return [sys.executable, "-m", "web.server", "--provider", "local", "--db", str(db),
+            "--host", "0.0.0.0", *(argv if argv is not None else sys.argv[1:])]
 
 
 def main():
     RUNTIME.mkdir(parents=True, exist_ok=True)
-    codes = write_access_files()
     db = RUNTIME / "prices.sqlite3"
     fetch_db(os.environ.get("NEWS_PRICE_DB_URL", DEFAULT_DB_URL), db)
-    cmd = [sys.executable, "-m", "web.server", "--provider", "local", "--db", str(db),
-           "--access-codes", str(codes), "--host", "0.0.0.0", *sys.argv[1:]]
+    cmd = server_command()
     os.chdir(ROOT)
     os.execv(sys.executable, cmd)
 
