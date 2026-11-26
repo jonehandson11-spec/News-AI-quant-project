@@ -6,6 +6,7 @@ import {
   createChart,
   createSeriesMarkers,
 } from "./vendor/lightweight-charts/lightweight-charts.standalone.production.mjs";
+import { selectedAssetValue } from "./core.mjs";
 
 const byId = (id) => document.getElementById(id);
 const RANGE_DAYS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90 };
@@ -366,7 +367,7 @@ async function fetchBars(symbol, interval, start, end) {
 }
 
 export async function loadChart({ symbol, newsTime, range } = {}) {
-  const ticker = symbol || byId("asset")?.value;
+  const ticker = symbol || selectedAssetValue();
   if (!ticker) {
     message("请先选择标的。");
     return;

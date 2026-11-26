@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset } from "./core.mjs";
+import { assetOptionText, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset, selectedAssetValue } from "./core.mjs";
 
 test("detail preference defaults off and URL overrides stored preference", () => {
   assert.equal(detailPreference("", null), false);
@@ -97,3 +97,23 @@ test("benchmark excess return needs aligned baselines", () => {
     { asOf: "2026-09-28T12:00:00+08:00", benchmark: true });
   assert.equal(result.windows.after_1h.excess_return_pct, null);
 });
+
+test("asset option text keeps the Chinese name next to the ticker", () => {
+  assert.equal(
+    assetOptionText({ name: "布伦特原油", ticker: "BZ=F", stage: "原油价格", currency: "USD" }),
+    "布伦特原油 · BZ=F · 原油价格 · USD",
+  );
+  assert.equal(
+    assetOptionText({ name: "ICE 低硫柴油", ticker: "ICE-LSGO", stage: "成品油价格", currency: "USD", data_status: "no_free_source" }),
+    "ICE 低硫柴油 · ICE-LSGO · 成品油价格 · USD（无免费数据）",
+  );
+});
+
+test("selected asset prefers the free-text input over the catalog select", () => {
+  const nodes = { assetInput: { value: "阿里巴巴" }, asset: { value: "BZ=F" } };
+  const root = { getElementById: (id) => nodes[id] };
+  assert.equal(selectedAssetValue(root), "阿里巴巴");
+  nodes.assetInput.value = "  ";
+  assert.equal(selectedAssetValue(root), "BZ=F");
+});
+
