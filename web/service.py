@@ -240,7 +240,22 @@ class QueryService:
             })
         return sorted(found, key=lambda item: item["published_at"], reverse=True)
 
-    def query(self, asset_name, published_at, *, benchmarks=()):
+    def _attach_market_state(self, payload, provider, asset, event_time, as_of, enabled):
+        if not enabled:
+            return payload
+        from news_price_query.market_state import PROFILE_ID, market_state as calculate_market_state
+        store = getattr(provider, "store", None)
+        if store is None:
+            payload["market_state"] = {"profile_id": PROFILE_ID, "error": "需要本地价格库"}
+            return payload
+        try:
+            payload["market_state"] = calculate_market_state(
+                store, asset, event_time, as_of=as_of)
+        except (ValueError, RuntimeError) as exc:
+            payload["market_state"] = {"profile_id": PROFILE_ID, "error": str(exc)}
+        return payload
+
+    def query(self, asset_name, published_at, *, benchmarks=(), market_state=False):
         asset = self._asset(asset_name)
         if not asset.queryable:
             raise ValueError(f"{asset.ticker} 无免费数据：{asset.notes or ''}")
@@ -260,20 +275,25 @@ class QueryService:
             raise ValueError("对照标的只支持 2800.HK 和 3033.HK")
         as_of = self.now()
         if self.yahoo_ondemand:
+            market_benchmark = {"XHKG": "2800.HK", "XNYS": "SPY", "XTSE": "XIU.TO"}.get(asset.market)
             needed = [asset.ticker, *benchmarks_for(asset), *selected, "2800.HK", "^HSI"]
+            if market_state and market_benchmark:
+                needed.append(market_benchmark)
             self._ensure_prices(*needed)
         provider = self.provider_factory()
         if self.mode == "hourly":
             try:
-                return hourly_report(provider, asset, event_time, as_of=as_of,
-                                     benchmarks=(*benchmarks_for(asset), *selected))
+                payload = hourly_report(provider, asset, event_time, as_of=as_of,
+                                        benchmarks=(*benchmarks_for(asset), *selected))
+                return self._attach_market_state(payload, provider, asset, event_time, as_of, market_state)
             finally:
                 close = getattr(provider, "close", None)
                 if close: close()
         if self.mode == "daily":
             try:
-                return daily_report(provider, asset, event_time, as_of=as_of,
-                                    benchmarks=(*benchmarks_for(asset), *selected))
+                payload = daily_report(provider, asset, event_time, as_of=as_of,
+                                       benchmarks=(*benchmarks_for(asset), *selected))
+                return self._attach_market_state(payload, provider, asset, event_time, as_of, market_state)
             finally:
                 close = getattr(provider, "close", None)
                 if close:
@@ -281,6 +301,7 @@ class QueryService:
         try:
             main = query_event(provider, asset, event_time, as_of=as_of, mode=self.mode)
             payload = _result_dict(main)
+            self._attach_market_state(payload, provider, asset, event_time, as_of, market_state)
             for label, window in payload["windows"].items():
                 if window["price"] is not None:
                     window["price_change"] = (

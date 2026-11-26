@@ -27,6 +27,52 @@ const flagLabel = (flag) => (state.result?.mode === "hourly" && hourlyFlagText[f
 const showPrice = (value) => value === null || value === undefined ? "缺失" : Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;
 const showReturn = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+const MARKET_STATE_FIELDS = [
+  ["momentum_z", "价格动量 z 分数"],
+  ["realized_volatility", "已实现波动率（日，未年化）"],
+  ["relative_trading_activity", "相对成交活跃度"],
+  ["liquidity_stress_z", "流动性压力 z 分数"],
+  ["benchmark_beta", "对照敏感度 beta"],
+  ["benchmark_momentum_z", "对照趋势 z 分数"],
+  ["data_coverage", "价格数据覆盖率"],
+];
+const MARKET_STATE_REASONS = { INSUFFICIENT_HISTORY: "历史不足", NOT_APPLICABLE: "不适用",
+  ESTIMATOR_NOT_READY: "估计方法未就绪", REFERENCE_MISSING: "参照缺失", NOT_OBSERVED: "无观测",
+  OUT_OF_COVERAGE: "超出覆盖", AMBIGUOUS: "口径不明" };
+function renderMarketState(result) {
+  const section = byId("marketStateSection");
+  const stateBlock = result.market_state;
+  section.hidden = !stateBlock;
+  if (!stateBlock) return;
+  const failed = Boolean(stateBlock.error);
+  byId("marketStateError").hidden = !failed;
+  byId("marketStateError").textContent = failed ? stateBlock.error : "";
+  byId("marketStateTableWrap").hidden = failed;
+  byId("marketStateMeta").textContent = failed ? `profile_id：${stateBlock.profile_id || "—"}`
+    : `profile_id：${stateBlock.profile_id} · 截止日：${stateBlock.cutoff_date || "—"} · 口径：${stateBlock.price_basis === "adj" ? "复权收盘" : "原始收盘"} · 对照：${stateBlock.benchmark || "无"}`;
+  const body = byId("marketStateRows");
+  body.replaceChildren();
+  for (const [code, label] of MARKET_STATE_FIELDS) {
+    const item = stateBlock.fields?.[code] || { value: null, missing_reason: "NOT_OBSERVED" };
+    const row = document.createElement("tr");
+    const name = document.createElement("td");
+    name.append(document.createTextNode(`${label} `));
+    const tag = document.createElement("code"); tag.textContent = code; name.append(tag); row.append(name);
+    const value = document.createElement("td");
+    value.textContent = item.value === null || item.value === undefined
+      ? `缺失 · ${MARKET_STATE_REASONS[item.missing_reason] || item.missing_reason || "无观测"}`
+      : Number(item.value).toFixed(4);
+    row.append(value);
+    const details = document.createElement("td");
+    const dates = ["window_start", "window_end", "reference_start", "reference_end", "reference_first_end_date", "reference_last_end_date", "first_return_date", "last_return_date", "first_pair_date", "last_pair_date", "first_expected_date", "last_expected_date"]
+      .filter((key) => item[key]).map((key) => `${key}: ${item[key]}`);
+    if (item.benchmark) dates.unshift(`benchmark: ${item.benchmark}`);
+    if (item.unit) dates.push(item.unit);
+    if (item.note) dates.push(item.note);
+    details.textContent = dates.join(" · ") || stateBlock.method || "—";
+    row.append(details); body.append(row);
+  }
+}
 const timePresetButtons = [...document.querySelectorAll(".time-presets button")];
 
 function clearTimePreset() {
@@ -233,6 +279,7 @@ const sessionText = { pre_open: "开盘前", morning: "上午盘", lunch_break: 
 function renderResult(result) {
   state.result = result;
   byId("results").hidden = false;
+  renderMarketState(result);
   const toggle = byId("detailToggle");
   const available = detailToggleAvailable(result);
   toggle.disabled = !available;
@@ -442,7 +489,7 @@ byId("queryForm").addEventListener("submit", async (event) => {
     const result = await fetchJson("./api/query", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ asset: byId("asset").value,
-        published_at: hongKongInputToIso(byId("publishedAt").value), benchmarks }),
+        published_at: hongKongInputToIso(byId("publishedAt").value), benchmarks, market_state: true }),
     });
     renderResult(result);
     message("查询完成。请核对新闻相关性和行情来源。", true);
