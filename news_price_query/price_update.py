@@ -5,11 +5,14 @@ from the asset registry or ticker suffix; calendar_for(market) picks the calenda
 """
 
 import csv
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from math import isfinite
 from pathlib import Path
 import re
+import time
+from threading import Lock
 from zoneinfo import ZoneInfo
 
 from .assets import market_of_ticker, resolve_asset
@@ -76,12 +79,17 @@ def market_of(ticker: str) -> tuple[str, str]:
 
 def _normalize(code: str) -> str:
     text = code.strip().upper()
-    if re.fullmatch(r"\d{1,3}|\d{5}|0\d{3}", text):
-        return f"{int(text):04d}.HK"  # HK stock numbers such as 00883 / 0883
+    if re.fullmatch(r"\d{1,5}", text):
+        return f"{int(text):04d}.HK"  # HK stock numbers such as 9988 / 0883 / 700
     match = re.fullmatch(r"(\d{1,5})\.HK", text)
     if match:
         return f"{int(match.group(1)):04d}.HK"
     return text
+
+
+def normalize_ticker(code: str) -> str:
+    """Normalize ticker codes: '9988' -> '9988.HK', '700.HK' -> '0700.HK'."""
+    return _normalize(code)
 
 
 def read_universe(path: str | Path) -> list[UniverseEntry]:
@@ -153,7 +161,7 @@ def _rebased(store: PriceStore, ticker: str, rows: list[dict]) -> bool:
 def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader=None, *, now: datetime,
                   start: str = "2000-01-01", overlap_days: int = 10, source: str = "yfinance",
                   universe_label: str | None = None, refetch=(), hourly_downloader=None,
-                  update_daily: bool = True) -> dict:
+                  update_daily: bool = True, include_defaults: bool = True) -> dict:
     """downloader(ticker, start_date_iso, end_date_iso_exclusive) -> list of
     {date, close, adj_close, volume}."""
     entries = list(universe)
@@ -162,21 +170,22 @@ def update_prices(store: PriceStore, universe: list[UniverseEntry], downloader=N
     for ticker in sorted(refetch_tickers - known):
         entries.append(UniverseEntry(ticker))
         known.add(ticker)
-    for ticker, name, aliases, role in ALWAYS_INCLUDED:
-        if ticker not in known:
-            entries.append(UniverseEntry(ticker, name, aliases, role))
-            known.add(ticker)
-    markets = set()
-    for entry in entries:
-        try:
-            markets.add(market_of(entry.ticker)[0])
-        except NotImplementedError:
-            pass
-    for market in sorted(markets):
-        for ticker in BENCHMARKS_BY_MARKET.get(market, ()):
+    if include_defaults:
+        for ticker, name, aliases, role in ALWAYS_INCLUDED:
             if ticker not in known:
-                entries.append(_benchmark_entry(ticker))
+                entries.append(UniverseEntry(ticker, name, aliases, role))
                 known.add(ticker)
+        markets = set()
+        for entry in entries:
+            try:
+                markets.add(market_of(entry.ticker)[0])
+            except NotImplementedError:
+                pass
+        for market in sorted(markets):
+            for ticker in BENCHMARKS_BY_MARKET.get(market, ()):
+                if ticker not in known:
+                    entries.append(_benchmark_entry(ticker))
+                    known.add(ticker)
     # Single futures contracts: the current front month and the next one, so their
     # history is kept while Yahoo still lists them (expired contracts disappear there).
     for entry in list(entries):
@@ -359,7 +368,7 @@ def yfinance_downloader(ticker: str, start: str, end: str) -> list[dict]:
     import yfinance as yf
 
     frame = yf.download(ticker, start=start, end=end, auto_adjust=False, actions=False,
-                        progress=False, multi_level_index=False, threads=False)
+                        progress=False, multi_level_index=False, threads=False, timeout=30)
     if frame is None or frame.empty:
         return []
     output = []
@@ -379,7 +388,8 @@ def yfinance_hourly_downloader(ticker: str, start: str, end: str) -> list[dict]:
     import yfinance as yf
 
     frame = yf.download(ticker, start=start, end=end, interval="1h", auto_adjust=False,
-                        actions=False, progress=False, multi_level_index=False, threads=False)
+                        actions=False, progress=False, multi_level_index=False, threads=False,
+                        timeout=30)
     if frame is None or frame.empty:
         return []
     output = []
@@ -392,3 +402,87 @@ def yfinance_hourly_downloader(ticker: str, start: str, end: str) -> list[dict]:
             "volume": float(row["Volume"]) if "Volume" in row else None,
         })
     return output
+
+ONDEMAND_SOURCE = "yfinance-ondemand"
+ONDEMAND_TIMEOUT = 90
+DEFAULT_BENCHMARKS = ("2800.HK", "^HSI")
+
+_ticker_locks_guard = Lock()
+_ticker_locks: dict[str, Lock] = {}
+
+
+def _lock_for(ticker: str) -> Lock:
+    with _ticker_locks_guard:
+        return _ticker_locks.setdefault(ticker, Lock())
+
+
+def _run_with_timeout(func, timeout_seconds):
+    if timeout_seconds is None:
+        return func()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(func)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except FuturesTimeout:
+            raise TimeoutError(f"timed out after {timeout_seconds} seconds") from None
+
+
+def ticker_has_hourly(store: PriceStore, ticker: str) -> bool:
+    return bool(store.hourly_coverage(ticker)["stored_rows"])
+
+
+def ensure_ticker(store: PriceStore, ticker: str, *, now: datetime | None = None,
+                  downloader=None, hourly_downloader=None, timeout: float | None = ONDEMAND_TIMEOUT,
+                  source: str = ONDEMAND_SOURCE) -> dict:
+    """Fetch one ticker into the store if hourly bars are missing. Concurrent
+    callers for the same ticker share one fetch. Does not invent prices."""
+    code = _normalize(ticker)
+    now = now or datetime.now(HK)
+    lock = _lock_for(code)
+    with lock:
+        if ticker_has_hourly(store, code):
+            return {"ticker": code, "fetched": False, "cached": True, "source": source}
+        daily = downloader or yfinance_downloader
+        hourly = hourly_downloader or yfinance_hourly_downloader
+        deadline = None if timeout is None else (time.monotonic() + timeout)
+
+        def _guard(func):
+            def wrapped(ticker, start, end):
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise RuntimeError(f"从 Yahoo 获取 {ticker} 行情超时，请稍后重试")
+                    try:
+                        return _run_with_timeout(lambda: func(ticker, start, end), remaining)
+                    except TimeoutError:
+                        raise RuntimeError(f"从 Yahoo 获取 {ticker} 行情超时，请稍后重试") from None
+                return func(ticker, start, end)
+            return wrapped
+
+        result = update_prices(
+            store, [UniverseEntry(code)], _guard(daily), now=now, source=source,
+            universe_label=f"ondemand:{code}", hourly_downloader=_guard(hourly),
+            include_defaults=False,
+        )
+        hourly_summaries = {item.ticker: item for item in result["hourly_tickers"]}
+        daily_summaries = {item.ticker: item for item in result["tickers"]}
+        hourly_summary = hourly_summaries.get(code)
+        daily_summary = daily_summaries.get(code)
+        if daily_summary and daily_summary.error and not store.last_date(code):
+            raise RuntimeError(f"从 Yahoo 获取 {code} 日线失败：{daily_summary.error}")
+        if not ticker_has_hourly(store, code):
+            hourly_error = hourly_summary.error if hourly_summary else "no hourly data returned"
+            if hourly_error and "no hourly data returned" in hourly_error:
+                raise ValueError(
+                    f"缺数据：Yahoo 没有 {code} 的小时线（代码可能无效，或该标的无小时行情）")
+            raise RuntimeError(f"从 Yahoo 获取 {code} 小时线失败：{hourly_error}")
+        return {"ticker": code, "fetched": True, "cached": False, "source": source,
+                "run_id": result["run_id"], "rows_written": result["rows_written"]}
+
+
+def ensure_benchmarks(store: PriceStore, tickers=DEFAULT_BENCHMARKS, **kwargs) -> list[dict]:
+    """Make sure comparison tickers exist in the store; fetch any that are missing."""
+    results = []
+    for ticker in tickers:
+        results.append(ensure_ticker(store, ticker, **kwargs))
+    return results

@@ -133,7 +133,7 @@ def resolve_asset(name: str) -> Asset:
     asset = _LOOKUP.get(key)
     if asset is not None:
         return asset
-    code = re.fullmatch(r"(?:([0-9]{1,5})\.hk|hk\.([0-9]{1,5}))", key)
+    code = re.fullmatch(r"(?:([0-9]{1,5})(?:\.hk)?|hk\.([0-9]{1,5}))", key)
     if code is not None:
         digits = code.group(1) or code.group(2)
         number = int(digits)

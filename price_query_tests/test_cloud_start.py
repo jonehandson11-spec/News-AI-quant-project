@@ -29,3 +29,9 @@ def test_ignores_access_codes_env_even_if_set(monkeypatch, tmp_path):
     assert "NEWS_PRICE_ACCESS_CODES" not in os.environ
     assert not (tmp_path / "access_codes.json").exists()
     assert not (tmp_path / "session_secret").exists()
+
+
+def test_cloud_command_enables_yahoo_ondemand(monkeypatch, tmp_path):
+    monkeypatch.setattr(cloud_start, "RUNTIME", tmp_path)
+    cmd = cloud_start.server_command([])
+    assert "--yahoo-ondemand" in cmd

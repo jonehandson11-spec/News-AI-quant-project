@@ -357,21 +357,21 @@ function syncBenchmarkOptions() {
 }
 
 function fillAssets() {
-  const select = byId("asset"), selected = select.value, stage = byId("stageFilter").value;
-  select.replaceChildren();
+  const input = byId("asset"), selected = input.value.trim(), stage = byId("stageFilter").value;
+  const list = byId("assetOptions");
+  list.replaceChildren();
+  let firstEnabled = "";
   for (const asset of state.assets || []) {
     if (stage && asset.stage !== stage) continue;
+    if (asset.queryable === false) continue;
     const option = document.createElement("option");
     option.value = asset.ticker;
     const extra = [asset.stage, asset.currency].filter(Boolean).join(" · ");
-    const pending = asset.data_status === "no_free_source" ? "（无免费数据）" : "";
-    option.textContent = `${asset.name} · ${asset.ticker}${extra ? ` · ${extra}` : ""}${pending}`;
-    option.disabled = asset.queryable === false;
-    select.append(option);
+    option.label = `${asset.name} · ${asset.ticker}${extra ? ` · ${extra}` : ""}`;
+    list.append(option);
+    if (!firstEnabled) firstEnabled = asset.ticker;
   }
-  const enabled = [...select.options].filter((option) => !option.disabled);
-  if (enabled.some((option) => option.value === selected)) select.value = selected;
-  else if (enabled.length) select.value = enabled[0].value;
+  if (!selected && firstEnabled) input.value = firstEnabled;
   syncBenchmarkOptions();
 }
 
@@ -390,9 +390,18 @@ async function loadCatalog() {
     state.mode = data.mode || "hourly";
     byId("detailToggle").disabled = !["daily", "hourly"].includes(state.mode);
     byId("detailToggle").title = ["daily", "hourly"].includes(state.mode) ? "" : "期货无复权/超额列";
+    state.yahooOndemand = Boolean(data.yahoo_ondemand);
+    const help = byId("assetHelp");
+    if (help) {
+      help.textContent = state.yahooOndemand
+        ? "可从列表选择，或直接输入任何代码。价格库没有的标的会现场从 Yahoo 拉取（第一次稍慢，之后会缓存）。"
+        : "可从列表选择已登记标的和本地价格库中的股票；未入库的标的请先加入股票池并更新价格库。";
+    }
     byId("priceStatus").textContent = ["daily", "hourly"].includes(state.mode) ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
     byId("sourceHelp").textContent = state.mode === "hourly"
-      ? "默认使用本机价格库的一小时线，按各交易所交易时段累计小时；午休、收盘后、周末和假期不计。小时线约覆盖最近两年，更早新闻显示缺数据。每日仍更新日线，命令行/服务可选 daily 交易日窗口。"
+      ? (state.yahooOndemand
+        ? "默认使用本机价格库的一小时线，按各交易所交易时段累计小时；午休、收盘后、周末和假期不计。小时线约覆盖最近两年，更早新闻显示缺数据。价格库没有的标的会现场从 Yahoo 拉取并缓存。"
+        : "默认使用本机价格库的一小时线，按各交易所交易时段累计小时；午休、收盘后、周末和假期不计。小时线约覆盖最近两年，更早新闻显示缺数据。每日仍更新日线，命令行/服务可选 daily 交易日窗口。")
       : state.mode === "daily"
       ? "使用本机价格库日线，窗口按标的所在交易所交易日计算；股票提供原始与复权收益及同市场对照。"
       : "查询时由内部服务连接富途 OpenD。需要运行服务的电脑已登录富途并具备历史行情权限；网页无需选择价格文件。";
@@ -404,6 +413,7 @@ async function loadCatalog() {
 }
 
 byId("asset").addEventListener("change", () => { syncBenchmarkOptions(); loadNews(); });
+byId("asset").addEventListener("input", () => { syncBenchmarkOptions(); });
 byId("stageFilter").addEventListener("change", () => { fillAssets(); loadNews(); });
 byId("newsFilter").addEventListener("submit", (event) => { event.preventDefault(); loadNews(); });
 byId("publishedAt").addEventListener("input", clearTimePreset);
@@ -419,7 +429,11 @@ byId("queryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = byId("runQuery");
   button.disabled = true;
-  message(state.mode === "daily" ? "正在读取本地价格库并计算…" : "正在从富途 OpenD 获取行情并计算…");
+  message(state.yahooOndemand
+      ? "正在查询…若价格库没有该标的，会现场从 Yahoo 拉取，第一次可能要等一会儿。"
+      : state.mode === "daily" || state.mode === "hourly"
+        ? "正在读取本地价格库并计算…"
+        : "正在从富途 OpenD 获取行情并计算…");
   try {
     const benchmarks = [];
     if (byId("benchmarkMarket").checked) benchmarks.push("2800.HK");

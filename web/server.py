@@ -273,7 +273,8 @@ def build_service(args) -> QueryService:
     run = version()
     label = "本地价格库 · yfinance 日线" + (f" · 更新于 {run['finished_at'][:16].replace('T', ' ')} HKT" if run else "")
     return QueryService(lambda: provider, news_source=news_source, mode=args.mode,
-                        instruments=store.instruments, price_source=label, data_version=version)
+                        instruments=store.instruments, price_source=label, data_version=version,
+                        yahoo_ondemand=getattr(args, "yahoo_ondemand", False))
 
 
 def main():
@@ -294,6 +295,8 @@ def main():
                         help="访问码哈希文件；也可设置 NEWS_PRICE_ACCESS_CODES")
     parser.add_argument("--session-secret", default=None, help="会话密钥文件；默认与访问码文件同目录")
     parser.add_argument("--access-log", default=None, help="访问日志文件；默认与访问码文件同目录")
+    parser.add_argument("--yahoo-ondemand", action="store_true",
+                        help="价格库没有的标的，现场从 Yahoo 拉取并缓存；云端默认打开，本机默认关闭")
     args = parser.parse_args()
     if args.provider == "local" and args.mode == "minute":
         parser.error("本地价格库没有分钟线，请用 --mode hourly/daily 或 --provider futu")
