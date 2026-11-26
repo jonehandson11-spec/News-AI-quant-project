@@ -96,12 +96,15 @@ class InternalHttpTests(unittest.TestCase):
         self.assertIn("比亚迪 · 1211.HK", html)
         self.assertIn('id="assetInput"', html)
         self.assertNotIn('list="assetOptions"', html)
+        self.assertNotIn("stageFilter", html)
+        self.assertNotIn("研究环节", html)
         self.connection.request("GET", "/app.mjs")
         script = self.connection.getresponse().read().decode("utf-8")
         self.assertIn("assetOptionText", script)
         self.assertIn("option.textContent = assetOptionText(asset)", script)
         self.assertIn("const select = byId(\"asset\")", script)
         self.assertNotIn("assetOptions", script)
+        self.assertNotIn("stageFilter", script)
 
 
 if __name__ == "__main__":

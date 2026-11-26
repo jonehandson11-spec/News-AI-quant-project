@@ -1,4 +1,4 @@
-import { WINDOW_LABELS, assetOptionText, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, relativeHongKongInput, selectedAssetValue } from "./core.mjs";
+import { WINDOW_LABELS, assetOptionText, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, marketStateCsvCells, marketStateCsvHeaders, relativeHongKongInput, selectedAssetValue } from "./core.mjs";
 import { initChart, loadChart } from "./chart.mjs";
 
 const byId = (id) => document.getElementById(id);
@@ -342,7 +342,7 @@ function downloadCsv() {
     const codes = Object.keys(result.benchmarks || {});
     const headers = ["ticker", "price_unit", "currency", "published_at", "session", "t0", "baseline_at", "baseline_price", "baseline_adj_price",
       "window", "target_at", "observed_at", "price", "adj_price", "start_at", "start_price", "end_at", "end_price", "adj_start_price", "adj_end_price", "return_pct", "adj_return_pct", "status", "flag", "contract", "continuous_price", "continuous_return_pct", "continuous_start_price", "continuous_end_price", "continuous_crosses_roll", "continuous_rolls", "source",
-      ...codes.flatMap((code) => [`${code}_return_pct`, `${code}_excess_pct`, `${code}_adj_excess_pct`, `${code}_start_price`, `${code}_end_price`, `${code}_price_unit`]), "data_version"];
+      ...codes.flatMap((code) => [`${code}_return_pct`, `${code}_excess_pct`, `${code}_adj_excess_pct`, `${code}_start_price`, `${code}_end_price`, `${code}_price_unit`]), "data_version", ...marketStateCsvHeaders()];
     const rows = Object.entries(result.windows).map(([label, item]) => [
       result.ticker, result.price_unit || result.currency || "", result.currency || "", result.published_at, result.session, result.t0, result.baseline.observed_at, result.baseline.price,
       result.baseline.adj_price, label, item.target_at, item.observed_at, item.price, item.adj_price, item.start_at, item.start_price,
@@ -351,19 +351,19 @@ function downloadCsv() {
       item.continuous?.start_price, item.continuous?.end_price,
       item.continuous?.crosses_roll ?? item.crosses_roll, JSON.stringify(item.continuous?.rolls || item.rolls || []), item.source,
       ...codes.flatMap((code) => { const compared = result.benchmarks[code]; const row = compared.windows?.[label]; return [row?.return_pct, row?.excess_return_pct, row?.adj_excess_return_pct, row?.start_price, row?.end_price, compared.price_unit || compared.currency || result.currency || ""]; }),
-      result.data_version?.run_id,
+      result.data_version?.run_id, ...marketStateCsvCells(result),
     ].map(quote).join(","));
     download(`${result.ticker}-news-price.csv`, `\uFEFF${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`, "text/csv;charset=utf-8");
     return;
   }
-  const headers = ["ticker", "published_at", "baseline_at", "baseline_price", "window", "target_at", "observed_at", "price", "price_change", "return_pct", "status", "delay_seconds", "source", "basis", "return_2800_pct", "excess_2800_pct", "return_3033_pct", "excess_3033_pct"];
+  const headers = ["ticker", "published_at", "baseline_at", "baseline_price", "window", "target_at", "observed_at", "price", "price_change", "return_pct", "status", "delay_seconds", "source", "basis", "return_2800_pct", "excess_2800_pct", "return_3033_pct", "excess_3033_pct", ...marketStateCsvHeaders()];
   const rows = Object.entries(result.windows).map(([label, item]) => {
     const market = result.benchmarks?.["2800.HK"]?.windows?.[label];
     const tech = result.benchmarks?.["3033.HK"]?.windows?.[label];
     return [result.ticker, result.published_at, result.baseline.observed_at, result.baseline.price,
       label, item.target_at, item.observed_at, item.price, item.price_change, item.return_pct, item.status,
       item.delay_seconds, item.source, item.basis, market?.return_pct, market?.excess_return_pct,
-      tech?.return_pct, tech?.excess_return_pct].map(quote).join(",");
+      tech?.return_pct, tech?.excess_return_pct, ...marketStateCsvCells(result)].map(quote).join(",");
   });
   download(`${result.ticker}-news-price.csv`, `\uFEFF${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`, "text/csv;charset=utf-8");
 }
@@ -405,10 +405,9 @@ function syncBenchmarkOptions() {
 }
 
 function fillAssets() {
-  const select = byId("asset"), selected = select.value, stage = byId("stageFilter").value;
+  const select = byId("asset"), selected = select.value;
   select.replaceChildren();
   for (const asset of state.assets || []) {
-    if (stage && asset.stage !== stage) continue;
     const option = document.createElement("option");
     option.value = asset.ticker;
     option.textContent = assetOptionText(asset);
@@ -425,13 +424,6 @@ async function loadCatalog() {
   try {
     const data = await fetchJson("./api/assets", { cache: "no-store" });
     state.assets = data.assets;
-    const stages = [...new Set(data.assets.map((asset) => asset.stage).filter(Boolean))];
-    const stageSelect = byId("stageFilter");
-    stageSelect.hidden = byId("stageLabel").hidden = stages.length === 0;
-    const chosenStage = stageSelect.value;
-    stageSelect.replaceChildren(new Option("全部环节", ""));
-    for (const stage of stages) stageSelect.append(new Option(stage, stage));
-    if (stages.includes(chosenStage)) stageSelect.value = chosenStage;
     fillAssets();
     state.mode = data.mode || "hourly";
     byId("detailToggle").disabled = !["daily", "hourly"].includes(state.mode);
@@ -465,7 +457,6 @@ byId("asset").addEventListener("change", () => {
   loadNews();
 });
 byId("assetInput").addEventListener("change", () => { syncBenchmarkOptions(); loadNews(); });
-byId("stageFilter").addEventListener("change", () => { fillAssets(); loadNews(); });
 byId("newsFilter").addEventListener("submit", (event) => { event.preventDefault(); loadNews(); });
 byId("publishedAt").addEventListener("input", clearTimePreset);
 for (const button of timePresetButtons) {

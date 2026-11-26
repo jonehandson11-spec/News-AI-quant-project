@@ -260,3 +260,40 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
             observed_days=None, first_expected_date=None, last_expected_date=None, missing_dates=[])
     output["fields"] = fields
     return output
+
+
+CSV_METRIC_FIELDS = (
+    "momentum_z",
+    "realized_volatility",
+    "relative_trading_activity",
+    "liquidity_stress_z",
+    "benchmark_beta",
+    "benchmark_momentum_z",
+    "data_coverage",
+)
+
+
+def csv_headers() -> tuple[str, ...]:
+    """Column names appended to query CSV exports."""
+    headers = []
+    for key in CSV_METRIC_FIELDS:
+        headers.extend((key, f"{key}_missing_reason"))
+    headers.extend(("profile_id", "cutoff_date", "benchmark"))
+    return tuple(headers)
+
+
+def csv_values(block) -> dict:
+    """Flatten a market_state payload for CSV. Missing values are None, not 0."""
+    fields = (block or {}).get("fields") or {}
+    values = {}
+    for key in CSV_METRIC_FIELDS:
+        item = fields.get(key) or {}
+        value = item.get("value") if isinstance(item, dict) else None
+        reason = item.get("missing_reason") if isinstance(item, dict) else None
+        values[key] = value
+        values[f"{key}_missing_reason"] = reason or ""
+    values["profile_id"] = (block or {}).get("profile_id") or ""
+    values["cutoff_date"] = (block or {}).get("cutoff_date") or ""
+    values["benchmark"] = (block or {}).get("benchmark") or ""
+    return values
+

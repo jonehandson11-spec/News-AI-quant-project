@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assetOptionText, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset, selectedAssetValue } from "./core.mjs";
+import { assetOptionText, dailyColumns, detailPreference, detailToggleAvailable, hongKongInputToIso, marketStateCsvCells, marketStateCsvHeaders, parsePricesCsv, queryPrices, relativeHongKongInput, resolveAsset, selectedAssetValue } from "./core.mjs";
 
 test("detail preference defaults off and URL overrides stored preference", () => {
   assert.equal(detailPreference("", null), false);
@@ -115,5 +115,52 @@ test("selected asset prefers the free-text input over the catalog select", () =>
   assert.equal(selectedAssetValue(root), "阿里巴巴");
   nodes.assetInput.value = "  ";
   assert.equal(selectedAssetValue(root), "BZ=F");
+});
+
+test("market state CSV cells keep computed values and leave missing fields empty", () => {
+  const headers = marketStateCsvHeaders();
+  assert.deepEqual(headers, [
+    "momentum_z", "momentum_z_missing_reason",
+    "realized_volatility", "realized_volatility_missing_reason",
+    "relative_trading_activity", "relative_trading_activity_missing_reason",
+    "liquidity_stress_z", "liquidity_stress_z_missing_reason",
+    "benchmark_beta", "benchmark_beta_missing_reason",
+    "benchmark_momentum_z", "benchmark_momentum_z_missing_reason",
+    "data_coverage", "data_coverage_missing_reason",
+    "profile_id", "cutoff_date", "benchmark",
+  ]);
+  const cells = marketStateCsvCells({
+    market_state: {
+      profile_id: "pq-market-state-daily-v1",
+      cutoff_date: "2026-09-25",
+      benchmark: "2800.HK",
+      fields: {
+        momentum_z: { value: -0.6595588260084632, missing_reason: null },
+        realized_volatility: { value: 0.01535311845855941 },
+        relative_trading_activity: { value: 0.5807046764688161 },
+        liquidity_stress_z: { value: null, missing_reason: "ESTIMATOR_NOT_READY" },
+        benchmark_beta: { value: 0.6884755979714041 },
+        benchmark_momentum_z: { value: -0.8964502213602309 },
+        data_coverage: { value: 1.0 },
+      },
+    },
+  });
+  assert.equal(Number(cells[0]).toFixed(4), "-0.6596");
+  assert.equal(Number(cells[2]).toFixed(6), "0.015353");
+  assert.equal(Number(cells[4]).toFixed(4), "0.5807");
+  assert.equal(cells[6], "");
+  assert.equal(cells[7], "ESTIMATOR_NOT_READY");
+  assert.equal(Number(cells[8]).toFixed(4), "0.6885");
+  assert.equal(Number(cells[10]).toFixed(4), "-0.8965");
+  assert.equal(cells[12], 1);
+  assert.equal(cells[13], "");
+  assert.equal(cells[14], "pq-market-state-daily-v1");
+  assert.equal(cells[15], "2026-09-25");
+  assert.equal(cells[16], "2800.HK");
+
+  const missing = marketStateCsvCells({ market_state: { profile_id: "pq-market-state-daily-v1", error: "需要本地价格库" } });
+  assert.deepEqual(missing.slice(0, 14), ["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+  assert.equal(missing[14], "pq-market-state-daily-v1");
+  assert.deepEqual(marketStateCsvCells({}), Array(17).fill(""));
 });
 

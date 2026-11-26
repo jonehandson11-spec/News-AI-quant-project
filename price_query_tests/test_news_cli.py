@@ -110,6 +110,12 @@ class NewsCliTests(unittest.TestCase):
         self.assertEqual(one_hour["article_id"], "one")
         self.assertEqual(one_hour["price"], "102.0")
         self.assertEqual(one_hour["return_pct"], "2.0")
+        self.assertIn("momentum_z", rows[0])
+        self.assertIn("liquidity_stress_z_missing_reason", rows[0])
+        self.assertEqual(one_hour["momentum_z"], "")
+        self.assertEqual(one_hour["liquidity_stress_z"], "")
+        self.assertEqual(one_hour["data_coverage"], "")
+        self.assertEqual(one_hour["profile_id"], "pq-market-state-daily-v1")
 
     def test_scan_lists_direct_mentions_without_price_data(self):
         news = self.root / "scan_news.csv"

@@ -240,3 +240,37 @@ export function selectedAssetValue(root = globalThis.document) {
   return root?.getElementById?.("asset")?.value || "";
 }
 
+export const MARKET_STATE_CSV_FIELDS = [
+  "momentum_z",
+  "realized_volatility",
+  "relative_trading_activity",
+  "liquidity_stress_z",
+  "benchmark_beta",
+  "benchmark_momentum_z",
+  "data_coverage",
+];
+
+export function marketStateCsvHeaders() {
+  return [
+    ...MARKET_STATE_CSV_FIELDS.flatMap((key) => [key, `${key}_missing_reason`]),
+    "profile_id",
+    "cutoff_date",
+    "benchmark",
+  ];
+}
+
+export function marketStateCsvCells(result) {
+  const block = result?.market_state;
+  const fields = block?.fields || {};
+  const cells = [];
+  for (const key of MARKET_STATE_CSV_FIELDS) {
+    const item = fields[key] || {};
+    cells.push(item.value === null || item.value === undefined ? "" : item.value);
+    cells.push(item.missing_reason || "");
+  }
+  cells.push(block?.profile_id || "");
+  cells.push(block?.cutoff_date || "");
+  cells.push(block?.benchmark || "");
+  return cells;
+}
+
