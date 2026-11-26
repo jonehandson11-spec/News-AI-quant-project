@@ -10,9 +10,8 @@ from zoneinfo import ZoneInfo
 from dataclasses import replace
 from pathlib import Path
 
-from news_price_query.assets import ASSETS, resolve_asset
+from news_price_query.assets import ASSETS, RESEARCH_ASSETS, resolve_asset, market_of_ticker, _futu_code, Asset
 from news_price_query.cli import _result_dict
-from news_price_query.assets import RESEARCH_ASSETS
 from news_price_query.daily_report import benchmarks_for, daily_report, hourly_report
 from news_price_query.news import find_direct_match, parse_news, read_news
 from news_price_query.query import query_event
@@ -84,9 +83,14 @@ class LocalNewsStore:
 
 class QueryService:
     def __init__(self, provider_factory, *, news_source=None, now=None, mode="hourly",
-                 instruments=None, price_source="富途 OpenD", data_version=None):
+                 instruments=None, price_source="富途 OpenD", data_version=None,
+                 yahoo_ondemand=False, ondemand_ensure=None):
         """instruments: optional callable returning price_store.Instrument rows
-        (local price database); they are added to the seven registered assets."""
+        (local price database); they are added to the seven registered assets.
+        yahoo_ondemand: if a ticker is missing from the local store, fetch it
+        from Yahoo and cache it. Off by default so a local PC stays local-only.
+        ondemand_ensure: optional hook used in tests in place of ensure_ticker.
+        """
         if mode not in ("minute", "daily", "hourly"):
             raise ValueError(f"Unknown query mode: {mode}")
         self.mode = mode
@@ -96,6 +100,8 @@ class QueryService:
         self.instruments = instruments
         self.price_source = price_source
         self.data_version = data_version or (lambda: None)
+        self.yahoo_ondemand = bool(yahoo_ondemand)
+        self.ondemand_ensure = ondemand_ensure
 
     def _allowed(self):
         allowed = dict(ALLOWED)
@@ -116,21 +122,38 @@ class QueryService:
                 allowed[item.ticker] = replace(base, aliases=names + base.aliases)
         return allowed
 
+    def _resolve_any(self, value):
+        """Resolve a registered name, an HK code, or any ticker whose market is known."""
+        try:
+            return resolve_asset(value)
+        except ValueError:
+            pass
+        from news_price_query.price_update import normalize_ticker
+        ticker = normalize_ticker(str(value))
+        try:
+            market, currency = market_of_ticker(ticker)
+        except NotImplementedError as exc:
+            raise ValueError(f"无法识别标的 {value}：{exc}") from exc
+        return Asset(ticker, _futu_code(ticker), "equity", (ticker,), market=market, currency=currency)
+
     def _asset(self, value):
         allowed = self._allowed()
         key = "".join(str(value).casefold().split())
         for candidate in allowed.values():
-            if key in {"".join(alias.casefold().split()) for alias in candidate.aliases}:
+            aliases = {"".join(alias.casefold().split()) for alias in candidate.aliases}
+            if key in aliases or key == "".join(candidate.ticker.casefold().split()):
                 return candidate
         try:
-            asset = resolve_asset(value)
+            asset = self._resolve_any(value) if self.yahoo_ondemand else resolve_asset(value)
         except ValueError:
             asset = None
-        if asset is None or asset.ticker not in allowed:
-            if self.instruments is None:
-                raise ValueError("首版仅支持七个已登记标的")
-            raise ValueError("只支持已登记标的和本地价格库中的标的；新股票请先加入股票池并运行 update_prices.py")
-        return allowed[asset.ticker]
+        if asset is not None and asset.ticker in allowed:
+            return allowed[asset.ticker]
+        if self.yahoo_ondemand and asset is not None:
+            return asset
+        if self.instruments is None:
+            raise ValueError("首版仅支持七个已登记标的")
+        raise ValueError("只支持已登记标的和本地价格库中的标的；新股票请先加入股票池并运行 update_prices.py")
 
     def catalog(self):
         rows = []
@@ -143,9 +166,33 @@ class QueryService:
             rows.append(row)
         return rows
 
+    def _ensure_prices(self, *tickers):
+        """If on-demand is on, fetch any ticker that is not yet in the local store."""
+        if not self.yahoo_ondemand:
+            return
+        needed = [code for code in dict.fromkeys(tickers) if code]
+        if not needed:
+            return
+        provider = self.provider_factory()
+        try:
+            store = getattr(provider, "store", None)
+            if store is None:
+                return
+            ensure = self.ondemand_ensure
+            if ensure is None:
+                from news_price_query.price_update import ensure_ticker
+                ensure = ensure_ticker
+            for ticker in needed:
+                ensure(store, ticker, now=self.now())
+        finally:
+            close = getattr(provider, "close", None)
+            if close:
+                close()
+
     def bars(self, asset_name, interval, start, end):
         """OHLC bars for the K-line chart; requires the local price database."""
         asset = self._asset(asset_name)
+        self._ensure_prices(asset.ticker)
         provider = self.provider_factory()
         try:
             store = getattr(provider, "store", None)
@@ -160,7 +207,7 @@ class QueryService:
 
     def source_info(self):
         return {"price_source": self.price_source, "mode": self.mode,
-                "data_version": self.data_version()}
+                "data_version": self.data_version(), "yahoo_ondemand": self.yahoo_ondemand}
 
     def news(self, asset_name, start=None, end=None):
         asset = self._asset(asset_name)
@@ -212,6 +259,9 @@ class QueryService:
         elif any(code not in BENCHMARKS for code in selected):
             raise ValueError("对照标的只支持 2800.HK 和 3033.HK")
         as_of = self.now()
+        if self.yahoo_ondemand:
+            needed = [asset.ticker, *benchmarks_for(asset), *selected, "2800.HK", "^HSI"]
+            self._ensure_prices(*needed)
         provider = self.provider_factory()
         if self.mode == "hourly":
             try:

@@ -5,7 +5,7 @@ services:
     runtime: python
     plan: free
     branch: main
-    buildCommand: pip install tzdata
+    buildCommand: pip install -r deploy/requirements.txt
     startCommand: python deploy/cloud_start.py
     healthCheckPath: /
     envVars:

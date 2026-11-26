@@ -445,9 +445,10 @@ def hourly_report(provider, asset: Asset, published_at: datetime, *, as_of: date
                 aligned = (w.return_pct is not None and own.return_pct is not None and
                            result.baseline.observed_at == raw.baseline.observed_at and
                            w.observed_at == own.observed_at)
-                aligned_adj = (w_adj is not None and own_adj is not None and
-                               result_adj.baseline.observed_at == adj.baseline.observed_at and
-                               w_adj.observed_at == own_adj.observed_at)
+                aligned_adj = (w_adj is not None and own_adj is not None
+                               and w_adj.return_pct is not None and own_adj.return_pct is not None
+                               and result_adj.baseline.observed_at == adj.baseline.observed_at
+                               and w_adj.observed_at == own_adj.observed_at)
                 bstart, bend = ((w.observed_at, w.price), (result.baseline.observed_at, result.baseline.price)) if w.label.startswith("before_") else ((result.baseline.observed_at, result.baseline.price), (w.observed_at, w.price))
                 rows[w.label] = {"observed_at": _iso(w.observed_at), "price": w.price,
                     "return_pct": w.return_pct, "adj_return_pct": w_adj.return_pct if w_adj else None,
