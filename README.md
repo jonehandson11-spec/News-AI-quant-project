@@ -127,7 +127,7 @@ FT 本机自动程序、Windows 任务和故障弹窗的操作方法见[本机�
 
 ## 新闻价格查询页面（入口）
 
-**组员直接用：** 打开 <https://bookmarks-administrator-administrator-marks.trycloudflare.com>，输入组长单独发的访问码即可使用，什么都不用装。链接只在组长电脑开着时可用；组长重开后链接会变，以本 README 为准。
+**组员直接用：** 打开 <https://news-price-query.onrender.com>，输入组长单独发的访问码即可使用，什么都不用装。链接固定不变，组长电脑关着也能用；网站没人用 15 分钟会休眠，第一次打开要等约 1 分钟。
 
 输入股票（或期货）和新闻发布时间查询价格；不用导入 CSV，也不用登录富途 OpenD。覆盖港股、美股、加股、沙特股票和 Brent/WTI/RBOB/ULSD 期货（石油研究首期标的见 `news_price_query/data/research_assets.csv`）。
 
