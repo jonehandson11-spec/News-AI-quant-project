@@ -493,13 +493,22 @@ def hourly_report(provider, asset: Asset, published_at: datetime, *, as_of: date
                 "gap_seconds": fixed.baseline_gap_seconds, "status": fixed.baseline_status, "flag": fixed.baseline_flag}
             fixed_map = {w.label: w for w in fixed.windows}
             for label, row in payload["windows"].items():
-                row["continuous"] = {key: row.get(key) for key in ("observed_at", "price", "return_pct", "status", "flag", "source", "start_at", "start_price", "end_at", "end_price")}
+                row["continuous"] = {key: row[key] for key in (
+                    "observed_at", "price", "return_pct", "status", "flag", "source",
+                    "start_at", "start_price", "end_at", "end_price")}
                 w = fixed_map[label]
-                row.update({"observed_at": _iso(w.observed_at), "price": w.price, "adj_price": w.price,
+                span = _span(label, fixed.baseline.observed_at, fixed.baseline.price,
+                             w.observed_at, w.price)
+                start_price, end_price = span["start_price"], span["end_price"]
+                row.update({"target_at": _iso(w.target_at), "observed_at": _iso(w.observed_at),
+                    "price": w.price, "adj_price": w.price,
                     "return_pct": w.return_pct, "adj_return_pct": w.return_pct, "status": w.status,
+                    "price_change": (end_price - start_price
+                                     if start_price is not None and end_price is not None else None),
+                    "delay_seconds": w.delay_seconds,
                     "flag": w.flag, "source": "yfinance 1 小时线", "source_detail": w.source, "contract": code})
-                start, end = ((w.observed_at, w.price), (fixed.baseline.observed_at, fixed.baseline.price)) if label.startswith("before_") else ((fixed.baseline.observed_at, fixed.baseline.price), (w.observed_at, w.price))
-                row.update({"start_at": _iso(start[0]), "start_price": start[1], "end_at": _iso(end[0]), "end_price": end[1]})
+                row.update(span)
+                row.update({f"adj_{key}": value for key, value in span.items()})
         else:
             payload["contract"]["error"] = f"{code} 小时线缺数据"
             payload["contract"]["fallback"] = "continuous"
