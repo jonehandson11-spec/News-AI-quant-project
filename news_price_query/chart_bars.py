@@ -40,6 +40,13 @@ TZ_LABEL = {
     "Asia/Riyadh": "利雅得时间",
     "Europe/London": "伦敦时间",
 }
+TZ_LABEL_EN = {
+    "Asia/Hong_Kong": "HKT",
+    "America/New_York": "New York time",
+    "America/Toronto": "Toronto time",
+    "Asia/Riyadh": "Riyadh time",
+    "Europe/London": "London time",
+}
 
 
 def normalize_interval(value: str) -> str:
@@ -147,6 +154,7 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
 
     coverage = store.hourly_coverage(ticker)
     missing = len(bars) == 0
+    message_en = None
     if missing:
         message = "缺数据"
         if coverage["stored_rows"]:
@@ -157,12 +165,15 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
                 f"（本地小时线约 {earliest} 至 {latest}）。"
                 "日K线由小时线合成，不会用仅有收盘价的日线补造开高低。"
             )
+            message_en = f"No hourly prices in this range. Stored coverage: {earliest} to {latest}."
         else:
             message = "缺数据：本地价格库没有该标的的小时线"
+            message_en = "No hourly prices are stored for this symbol."
     else:
         message = None
         if kind == "1d":
             message = "日K线由本地小时线合成；没有小时线的交易日留空，不补造。"
+            message_en = "Daily candles use stored hourly data. Sessions with no hourly data are omitted."
 
     tz_name = str(tz)
     return {
@@ -170,6 +181,7 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
         "interval": kind,
         "exchange_timezone": tz_name,
         "time_label": TZ_LABEL.get(tz_name, tz_name),
+        "time_label_en": TZ_LABEL_EN.get(tz_name, tz_name),
         "start": first.isoformat(),
         "end": last.isoformat(),
         "source": source,
@@ -177,6 +189,7 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
         "bar_count": len(bars),
         "missing": missing,
         "message": message,
+        "message_en": message_en,
         "coverage": {
             "hourly_from": coverage["earliest_bar"],
             "hourly_to": coverage["latest_bar"],

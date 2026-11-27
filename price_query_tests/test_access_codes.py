@@ -98,7 +98,7 @@ class AccessCodeTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/query", "{}")[0], 401)
         status, _, body = self.request("GET", "/login")
         self.assertEqual(status, 200)
-        self.assertIn("访问码".encode(), body)
+        self.assertIn(b"Access Code", body)
         self.assertEqual(self.request("HEAD", "/server.py")[0], 405)
         self.assertEqual(self.request("HEAD", "/")[0], 405)
 

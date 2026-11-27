@@ -89,9 +89,9 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
 
         def _login_page(self, status=200, error=None):
             message = (f'<p class="error">{error}</p>' if error else "")
-            body = ("<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\">"
+            body = ("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\">"
                     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                    "<title>新闻价格查询 · 登录</title><style>"
+                    "<title>Hong Kong &amp; Oil Markets | Sign In</title><style>"
                     "body{margin:0;background:#f4f7f2;color:#26352a;font:16px sans-serif;"
                     "display:grid;min-height:100vh;place-items:center}.card{box-sizing:border-box;"
                     "width:min(92vw,380px);padding:32px;background:white;border:1px solid #dce7dc;"
@@ -101,11 +101,11 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
                     "button{width:100%;margin-top:16px;padding:12px;background:#23834a;color:white;"
                     "border:0;border-radius:8px;font:inherit;cursor:pointer}.note{color:#68776b;"
                     "font-size:13px;margin:18px 0 0}.error{color:#b42318;margin:0 0 16px}"
-                    "</style><main class=\"card\"><h1>新闻价格查询 · 登录</h1>" + message +
-                    "<form method=\"post\" action=\"/login\"><label for=\"code\">访问码</label>"
+                    "</style><main class=\"card\"><h1>Sign In</h1>" + message +
+                    "<form method=\"post\" action=\"/login\"><label for=\"code\">Access Code</label>"
                     "<input id=\"code\" name=\"code\" autocomplete=\"off\" required>"
-                    "<button type=\"submit\">进入</button></form>"
-                    "<p class=\"note\">访问码每人一个，请勿转发。</p></main></html>").encode("utf-8")
+                    "<button type=\"submit\">Sign In</button></form>"
+                    "<p class=\"note\">Keep your personal access code private.</p></main></html>").encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -163,8 +163,26 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
                     rows = service.news(params["asset"][0],
                                         params.get("start", [None])[0], params.get("end", [None])[0])
                     self._json(200, {"matches": rows,
+                                     "source": getattr(service.news_source, "source_info", None),
                                      "stale": bool(getattr(service.news_source, "stale", False))})
                 except (KeyError, IndexError, TypeError, ValueError, OSError, RuntimeError) as exc:
+                    self._error(exc)
+                return
+            if parsed.path == "/api/price":
+                try:
+                    params = parse_qs(parsed.query)
+                    symbol = params.get("symbol", [""])[0].strip()
+                    interval = params.get("interval", ["1d"])[0]
+                    on_date = params.get("date", [None])[0]
+                    market_state = params.get("market_state", ["0"])[0]
+                    if not symbol or len(symbol) > 120:
+                        raise ValueError("Enter a valid symbol or asset name.")
+                    if market_state not in ("0", "1"):
+                        raise ValueError("market_state must be 0 or 1.")
+                    self._json(200, service.price(symbol, interval, on_date,
+                                                   market_state=market_state == "1",
+                                                   as_of=params.get("as_of", [None])[0]))
+                except (TypeError, ValueError, OSError, RuntimeError) as exc:
                     self._error(exc)
                 return
             if parsed.path == "/api/bars":
@@ -209,7 +227,7 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
                 client = self._client()
                 if not access.allowed(client):
                     access.log("rate_limited", None, client)
-                    self._login_page(429, "尝试次数过多，请 15 分钟后再试")
+                    self._login_page(429, "Too many attempts. Try again in 15 minutes.")
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
@@ -234,7 +252,7 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
                 access.record_failure(client)
                 access.log("login_failed", None, client)
                 time.sleep(0.3)
-                self._login_page(401, "访问码不正确")
+                self._login_page(401, "Incorrect access code.")
                 return
             if access is not None and not self._authorized_or_reject(path):
                 return
@@ -261,16 +279,18 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
     return ThreadingHTTPServer((host, port), Handler)
 
 
-def build_service(args) -> QueryService:
+def build_service(args, *, gvs_quality_source=None) -> QueryService:
     if args.news_csv:
         news_source = LocalNewsStore(args.news_csv)
     elif REPO_NEWS.exists():
-        news_source = LocalNewsStore(REPO_NEWS)
+        news_source = LocalNewsStore(REPO_NEWS, repository_snapshot=True)
     else:
         news_source = None  # public team feed on GitHub
     if args.provider == "futu":
         return QueryService(partial(FutuPriceProvider, host=args.futu_host, port=args.futu_port),
-                            news_source=news_source, mode=args.mode, price_source="富途 OpenD")
+                            news_source=news_source, mode=args.mode,
+                            price_source_en="Futu OpenD",
+                            gvs_quality_source=gvs_quality_source)
     from news_price_query.price_store import LocalDbPriceProvider, PriceStore
 
     store = PriceStore(args.db, create=False)
@@ -280,10 +300,14 @@ def build_service(args) -> QueryService:
         return provider.data_version()
 
     run = version()
-    label = "本地价格库 · yfinance 日线" + (f" · 更新于 {run['finished_at'][:16].replace('T', ' ')} HKT" if run else "")
+    finished_at = run['finished_at'][:16].replace('T', ' ') if run else None
+    label = "本地价格库 · yfinance 日线" + (f" · 更新于 {finished_at} HKT" if finished_at else "")
+    label_en = "Price database · Yahoo Finance" + (f" · Updated {finished_at} HKT" if finished_at else "")
     return QueryService(lambda: provider, news_source=news_source, mode=args.mode,
-                        instruments=store.instruments, price_source=label, data_version=version,
-                        yahoo_ondemand=getattr(args, "yahoo_ondemand", False))
+                        instruments=store.instruments, price_source=label, price_source_en=label_en,
+                        data_version=version,
+                        yahoo_ondemand=getattr(args, "yahoo_ondemand", False),
+                        gvs_quality_source=gvs_quality_source)
 
 
 def main():

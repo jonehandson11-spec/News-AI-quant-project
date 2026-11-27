@@ -1,81 +1,54 @@
-"""Build a GitHub Pages artifact from the repository's existing news CSV."""
+"""Build the GitHub Pages redirect to the hosted price query service."""
 
 import argparse
-from datetime import datetime, timezone
-import json
 from pathlib import Path
-import shutil
-import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PRICE_QUERY_URL = "https://news-price-query.onrender.com/"
+REDIRECT_PAGE = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0; url={PRICE_QUERY_URL}">
+  <link rel="canonical" href="{PRICE_QUERY_URL}">
+  <title>Hong Kong &amp; Oil Markets</title>
+</head>
+<body>
+  <main>
+    <h1>Hong Kong &amp; Oil Markets</h1>
+    <p><a href="{PRICE_QUERY_URL}">Open the price lookup</a></p>
+  </main>
+</body>
+</html>
+"""
 
-from news_price_query.assets import ASSETS  # noqa: E402
-from news_price_query.news import find_direct_match, read_news  # noqa: E402
-from news_price_query.prices import CsvPriceProvider  # noqa: E402
 
-
-def build(news_path: Path, output: Path, public_prices: Path | None = None) -> dict:
+def build(output: Path) -> Path:
     output.mkdir(parents=True, exist_ok=True)
-    for filename in ("index.html", "styles.css", "app.mjs"):
-        shutil.copy2(ROOT / "web" / "static" / filename, output / filename)
-    for filename in ("core.mjs", "local-prices.mjs"):
-        shutil.copy2(ROOT / "web" / filename, output / filename)
-    (output / ".nojekyll").write_text("", encoding="utf-8")
-
-    articles = read_news(news_path)
-    matches = []
-    for article in articles:
-        for asset in ASSETS:
-            if asset.role != "equity":
-                continue
-            match = find_direct_match(article, asset)
-            if match:
-                matches.append({
-                    "article_id": article.article_id,
-                    "ticker": asset.ticker,
-                    "title": article.title,
-                    "source": article.source,
-                    "url": article.url,
-                    "published_at": article.published_at.isoformat(),
-                    "match_type": match.kind,
-                    "evidence": match.evidence,
-                    "verified_by_human": False,
-                })
-    index = {"articles_total": len(articles), "matches": matches}
-    (output / "news-index.json").write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-
-    price_file = output / "price-history.csv"
-    manifest = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "news_articles_total": len(articles),
-        "news_matches_total": len(matches),
-        "news_latest_published_at": max((item.published_at.isoformat() for item in articles), default=None),
-        "public_prices_available": False,
-        "latest_price_at": None,
-        "price_bars_total": 0,
-    }
-    if public_prices and public_prices.is_file():
-        provider = CsvPriceProvider(public_prices)
-        if not provider._bars:
-            raise ValueError("Public price CSV has no bars")
-        shutil.copy2(public_prices, price_file)
-        manifest["public_prices_available"] = True
-        manifest["latest_price_at"] = max(item.timestamp for item in provider._bars).isoformat()
-        manifest["price_bars_total"] = len(provider._bars)
-    elif price_file.exists():
-        price_file.unlink()
-    (output / "site-data.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    return manifest
+    page = output / "index.html"
+    entries = tuple(output.iterdir())
+    if entries:
+        if (entries == (page,) and not page.is_symlink() and page.is_file()
+                and page.read_text(encoding="utf-8", errors="replace") == REDIRECT_PAGE):
+            return page
+        raise ValueError("Use a new or empty output directory to avoid publishing stale files.")
+    with page.open("x", encoding="utf-8") as handle:
+        handle.write(REDIRECT_PAGE)
+    return page
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--news", type=Path, default=ROOT / "data" / "news.csv")
+    # Accept the previous workflow command without reading legacy data inputs.
+    parser.add_argument("--news", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--output", type=Path, default=ROOT / "_site")
-    parser.add_argument("--public-prices", type=Path, default=ROOT / "data" / "public_prices.csv")
+    parser.add_argument("--public-prices", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
-    print(json.dumps(build(args.news, args.output, args.public_prices), ensure_ascii=False, indent=2))
+    try:
+        print(build(args.output))
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

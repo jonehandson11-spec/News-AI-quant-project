@@ -1,46 +1,41 @@
-import csv
-import json
 from pathlib import Path
-import tempfile
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
 import unittest
 
-from web.build_site import build
+from web.build_site import PRICE_QUERY_URL, ROOT, build
 
 
 class SiteBuildTests(unittest.TestCase):
-    def test_build_indexes_matches_without_publishing_article_bodies(self):
-        with tempfile.TemporaryDirectory() as temp:
+    def test_legacy_workflow_command_builds_only_the_redirect(self):
+        with TemporaryDirectory() as temp:
             root = Path(temp)
-            news = root / "news.csv"
-            with news.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.writer(handle)
-                writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-                writer.writerow(("id-1", "test", "比亚迪发布新车型", "private body text", "2026-09-28T10:00:00+08:00", "2026-09-28T10:05:00+08:00", "https://example.com/1", "zh-CN"))
             output = root / "site"
-            manifest = build(news, output)
-            index = json.loads((output / "news-index.json").read_text(encoding="utf-8"))
-            self.assertEqual(manifest["news_articles_total"], 1)
-            self.assertEqual(index["matches"][0]["ticker"], "1211.HK")
-            self.assertTrue((output / "local-prices.mjs").exists())
-            self.assertIn("priceFile", (output / "index.html").read_text(encoding="utf-8"))
-            self.assertNotIn("./api/query", (output / "app.mjs").read_text(encoding="utf-8"))
-            self.assertNotIn("private body text", (output / "news-index.json").read_text(encoding="utf-8"))
-            self.assertFalse((output / "price-history.csv").exists())
+            subprocess.run(
+                [sys.executable, str(ROOT / "web" / "build_site.py"),
+                 "--news", str(root / "absent-news.csv"),
+                 "--public-prices", str(root / "absent-prices.csv"),
+                 "--output", str(output)],
+                check=True, capture_output=True,
+            )
+            self.assertEqual({path.name for path in output.iterdir()}, {"index.html"})
+            page = (output / "index.html").read_text(encoding="utf-8")
+            self.assertIn(f'http-equiv="refresh" content="0; url={PRICE_QUERY_URL}"', page)
+            self.assertIn(f'<a href="{PRICE_QUERY_URL}">', page)
+            self.assertEqual(build(output).read_text(encoding="utf-8"), page)
 
-    def test_authorized_public_prices_are_validated_before_copy(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            news = root / "news.csv"
-            with news.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.writer(handle)
-                writer.writerow(("article_id", "source", "title", "content", "publish_time", "crawl_time", "url", "language"))
-            prices = root / "public_prices.csv"
-            prices.write_text("ticker,interval,timestamp,close\n1211.HK,minute,2026-09-28T09:59:00+08:00,100\n", encoding="utf-8")
-            output = root / "site"
-            manifest = build(news, output, prices)
-            self.assertTrue(manifest["public_prices_available"])
-            self.assertEqual(manifest["price_bars_total"], 1)
-            self.assertEqual((output / "price-history.csv").read_text(encoding="utf-8"), prices.read_text(encoding="utf-8"))
+    def test_existing_page_and_data_are_not_overwritten(self):
+        with TemporaryDirectory() as temp:
+            output = Path(temp)
+            index = output / "index.html"
+            index.write_text("<h1>Existing page</h1>", encoding="utf-8")
+            prices = output / "price-history.csv"
+            prices.write_text("existing prices", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "empty output directory"):
+                build(output)
+            self.assertEqual(index.read_text(encoding="utf-8"), "<h1>Existing page</h1>")
+            self.assertEqual(prices.read_text(encoding="utf-8"), "existing prices")
 
 
 if __name__ == "__main__":

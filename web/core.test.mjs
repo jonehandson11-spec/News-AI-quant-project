@@ -98,14 +98,22 @@ test("benchmark excess return needs aligned baselines", () => {
   assert.equal(result.windows.after_1h.excess_return_pct, null);
 });
 
-test("asset option text keeps the Chinese name next to the ticker", () => {
+test("asset options prefer English labels and preserve symbol and availability", () => {
   assert.equal(
-    assetOptionText({ name: "布伦特原油", ticker: "BZ=F", stage: "原油价格", currency: "USD" }),
-    "布伦特原油 · BZ=F · 原油价格 · USD",
+    assetOptionText({ name: "腾讯", name_en: "Tencent", ticker: "0700.HK", currency: "HKD" }),
+    "Tencent · 0700.HK · HKD",
   );
   assert.equal(
-    assetOptionText({ name: "ICE 低硫柴油", ticker: "ICE-LSGO", stage: "成品油价格", currency: "USD", data_status: "no_free_source" }),
-    "ICE 低硫柴油 · ICE-LSGO · 成品油价格 · USD（无免费数据）",
+    assetOptionText({ name: "布伦特原油", ticker: "BZ=F", currency: "USD" }),
+    "Brent Crude Oil Proxy · BZ=F · USD",
+  );
+  assert.equal(
+    assetOptionText({ name: "ICE 低硫柴油", name_en: "ICE Low Sulphur Gasoil", ticker: "ICE-LSGO", currency: "USD", data_status: "no_free_source" }),
+    "ICE Low Sulphur Gasoil · ICE-LSGO · USD (no free data)",
+  );
+  assert.equal(
+    assetOptionText({ name: "外部港股", ticker: "0388.HK", currency: "HKD" }),
+    "0388.HK · HKD",
   );
 });
 
