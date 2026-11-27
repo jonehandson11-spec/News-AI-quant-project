@@ -262,6 +262,7 @@ class PriceStoreTests(unittest.TestCase):
         service = build_service(args)
         self.assertEqual(service.mode, "daily")
         self.assertIn("本地价格库", service.price_source)
+        self.assertIn("Price database · Yahoo Finance", service.source_info()["price_source_en"])
         args.db = str(Path(self.tmp.name) / "missing.sqlite3")
         with self.assertRaises(FileNotFoundError):
             build_service(args)

@@ -36,7 +36,7 @@
 
 API 只供同源本机页面使用；不要公开部署。如需团队共享，须先获 Ek 批准并加访问控制。
 
-`static/` 是原公开 GitHub Pages 的旧版 CSV 页面（由 `build_site.py` 构建），保留不动，不是组员的查询入口。
+旧 GitHub Pages 地址通过 `build_site.py` 生成跳转，统一指向 [团队行情站](https://news-price-query.onrender.com/)。旧版 CSV 页面保存在 [Git 历史](https://github.com/jonehandson11-spec/News-AI-quant-project/tree/3be6990b84e7d348a43a78737f1366dfdb6b42d8/web/static)。
 
 ## 访问码（可选，仅本地或隧道）
 

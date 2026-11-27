@@ -44,6 +44,12 @@ def _missing(reason, **details):
     return _field(None, reason, **details)
 
 
+def _liquidity_missing():
+    return _missing("ESTIMATOR_NOT_READY",
+                    note="免费数据无买卖价差/盘口；按 GVS 定义不得用成交量代理",
+                    note_en="Bid/ask quotes or order-book data are required to estimate liquidity stress.")
+
+
 def _price(row, raw):
     value = row.close if raw else row.adj_close
     if value is None:
@@ -93,8 +99,7 @@ def _blank_fields(reason):
         "relative_trading_activity": _missing(reason, window_mean_volume=None,
                                                reference_mean_volume=None,
                                                volume_unit="shares/contracts"),
-        "liquidity_stress_z": _missing("ESTIMATOR_NOT_READY",
-                                        note="免费数据无买卖价差/盘口；按 GVS 定义不得用成交量代理"),
+        "liquidity_stress_z": _liquidity_missing(),
         "benchmark_beta": _missing(reason),
         "benchmark_momentum_z": _missing(reason, window_days=21, reference_days=252),
         "data_coverage": _missing(reason),
@@ -211,8 +216,7 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
         fields["relative_trading_activity"] = (_missing("REFERENCE_MISSING", **details)
             if not isfinite(current_mean) or not isfinite(reference_mean) or reference_mean <= 0
                                                 else _field(current_mean / reference_mean, **details))
-    fields["liquidity_stress_z"] = _missing("ESTIMATOR_NOT_READY",
-        note="免费数据无买卖价差/盘口；按 GVS 定义不得用成交量代理")
+    fields["liquidity_stress_z"] = _liquidity_missing()
 
     if benchmark is None:
         fields["benchmark_beta"] = _missing(_NOT_APPLICABLE)

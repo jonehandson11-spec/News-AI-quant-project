@@ -1,108 +1,108 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="港股和石油相关资产的历史价格、K 线及 GVS 市场状态。">
-  <title>港股与石油行情</title>
+  <meta name="description" content="Historical prices, candlestick charts, and GVS market state for Hong Kong and oil-related assets.">
+  <title>Hong Kong &amp; Oil Markets</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
 </head>
 <body>
   <header class="masthead">
-    <h1>港股与石油行情</h1>
+    <h1>Hong Kong &amp; Oil Markets</h1>
     <a href="https://github.com/jonehandson11-spec/News-AI-quant-project" target="_blank" rel="noopener noreferrer">GitHub</a>
   </header>
   <main>
     <section class="panel price-panel" aria-labelledby="priceHeading">
       <div class="section-heading">
-        <h2 id="priceHeading">查价格</h2>
-        <span id="priceStatus">正在连接行情服务…</span>
+        <h2 id="priceHeading">Price Lookup</h2>
+        <span id="priceStatus">Connecting to price service…</span>
       </div>
       <form id="quoteForm">
         <div class="quote-controls">
           <div>
-            <label for="asset">选择标的</label>
+            <label for="asset">Instrument</label>
             <select id="asset" name="asset">
-              <optgroup label="港股">
-                <option value="0700.HK">腾讯 · 0700.HK</option>
-                <option value="1211.HK">比亚迪 · 1211.HK</option>
-                <option value="9988.HK">阿里巴巴 · 9988.HK</option>
-                <option value="0981.HK">中芯国际 · 0981.HK</option>
-                <option value="0005.HK">汇丰控股 · 0005.HK</option>
-                <option value="2800.HK">盈富基金 · 2800.HK</option>
-                <option value="3033.HK">南方恒生科技 ETF · 3033.HK</option>
+              <optgroup label="Hong Kong">
+                <option value="0700.HK">Tencent · 0700.HK</option>
+                <option value="1211.HK">BYD · 1211.HK</option>
+                <option value="9988.HK">Alibaba · 9988.HK</option>
+                <option value="0981.HK">SMIC · 0981.HK</option>
+                <option value="0005.HK">HSBC · 0005.HK</option>
+                <option value="2800.HK">Tracker Fund of Hong Kong · 2800.HK</option>
+                <option value="3033.HK">CSOP Hang Seng TECH Index ETF · 3033.HK</option>
               </optgroup>
-              <optgroup label="石油相关">
-                <option value="CL=F">WTI 原油 · CL=F</option>
-                <option value="BZ=F">布伦特原油代理 · BZ=F</option>
-                <option value="0883.HK">中国海油 · 0883.HK</option>
-                <option value="0386.HK">中国石化 · 0386.HK</option>
+              <optgroup label="Oil-related">
+                <option value="CL=F">WTI Crude Oil · CL=F</option>
+                <option value="BZ=F">Brent Crude Oil Proxy · BZ=F</option>
+                <option value="0883.HK">CNOOC · 0883.HK</option>
+                <option value="0386.HK">Sinopec · 0386.HK</option>
               </optgroup>
             </select>
           </div>
           <div>
-            <label for="assetInput">或输入标的</label>
-            <input id="assetInput" name="assetInput" placeholder="如 0700.HK、腾讯、CL=F" autocomplete="off" maxlength="80" aria-describedby="assetHelp">
+            <label for="assetInput">Or Enter Symbol or Name</label>
+            <input id="assetInput" name="assetInput" placeholder="e.g. 0700.HK, Tencent, CL=F" autocomplete="off" maxlength="80" aria-describedby="assetHelp">
           </div>
           <div>
-            <label for="quoteDate">查询日</label>
+            <label for="quoteDate">Date</label>
             <input id="quoteDate" name="date" type="date" aria-describedby="quoteDateHelp">
           </div>
           <div>
-            <label for="quoteInterval">频率</label>
-            <select id="quoteInterval" name="interval"><option value="1d">日线</option><option value="1h">小时线</option></select>
+            <label for="quoteInterval">Interval</label>
+            <select id="quoteInterval" name="interval"><option value="1d">Daily</option><option value="1h">Hourly</option></select>
           </div>
-          <button id="runQuote" class="primary-button" type="submit">查询价格</button>
+          <button id="runQuote" class="primary-button" type="submit">Look Up Price</button>
         </div>
-        <p class="field-help" id="quoteDateHelp">使用交易所当地日期，留空查询最近已完成的行情。 <span id="assetHelp"></span></p>
+        <p class="field-help" id="quoteDateHelp">Dates use the exchange’s local time. Leave the date blank for the latest completed price. <span id="assetHelp"></span></p>
         <p id="quoteMessage" class="message" role="status" aria-live="polite"></p>
       </form>
       <section id="quoteResult" class="quote-result" hidden aria-labelledby="quoteAsset">
         <div class="quote-value">
           <div><h3 id="quoteAsset"></h3><strong id="quotePrice">—</strong></div>
-          <button id="showQuoteChart" type="button" aria-controls="chartPanel">查看 K 线</button>
+          <button id="showQuoteChart" type="button" aria-controls="chartPanel">View Chart</button>
         </div>
         <p id="quoteObservation" class="quote-observation"></p>
         <details id="quoteMarketDetails" class="quote-factors">
-          <summary>GVS 市场状态与质量</summary>
-          <p class="field-help">日频指标。质量值由独立数据源提供。</p>
+          <summary>GVS Market State and Quality</summary>
+          <p class="field-help">Daily indicators. Quality scores come from a separate data source.</p>
           <p id="quoteMarketMessage" class="message" role="status"></p>
           <div id="quoteMarketStateSection" hidden>
             <p id="quoteMarketStateMeta" class="market-state-meta"></p>
             <p id="quoteMarketStateError" class="message error" hidden></p>
             <div id="quoteMarketStateTableWrap" class="table-scroll">
               <table class="market-state-table">
-                <thead><tr><th scope="col">指标</th><th scope="col">数值</th><th scope="col">口径与状态</th></tr></thead>
+                <thead><tr><th scope="col">Indicator</th><th scope="col">Value</th><th scope="col">Method and Status</th></tr></thead>
                 <tbody id="quoteMarketStateRows"></tbody>
                 <tbody id="quoteQualityRows"></tbody>
               </table>
             </div>
-            <button id="downloadQuoteFactors" type="button" hidden>下载指标 CSV</button>
+            <button id="downloadQuoteFactors" type="button" hidden>Download Indicators CSV</button>
           </div>
         </details>
       </section>
     </section>
 
     <details id="chartPanel" class="panel chart-panel">
-      <summary id="chartHeading">K 线图</summary>
+      <summary id="chartHeading">Candlestick Chart</summary>
       <div class="chart-body">
         <div class="chart-toolbar">
-          <div id="chartIntervals" class="chart-toggles" role="group" aria-label="K 线周期">
-            <button type="button" data-interval="1h" aria-pressed="true">1 小时</button>
-            <button type="button" data-interval="1d" aria-pressed="false">日线</button>
+          <div id="chartIntervals" class="chart-toggles" role="group" aria-label="Chart interval">
+            <button type="button" data-interval="1h" aria-pressed="true">1 Hour</button>
+            <button type="button" data-interval="1d" aria-pressed="false">Daily</button>
           </div>
-          <div id="chartRanges" class="chart-toggles" role="group" aria-label="查看区间">
-            <button type="button" data-range="1d" aria-pressed="false">前后 1 天</button>
-            <button type="button" data-range="1w" aria-pressed="true">前后 1 周</button>
-            <button type="button" data-range="1m" aria-pressed="false">前后 1 月</button>
-            <button type="button" data-range="3m" aria-pressed="false">前后 3 月</button>
+          <div id="chartRanges" class="chart-toggles" role="group" aria-label="Chart range">
+            <button type="button" data-range="1d" aria-pressed="false">±1 Day</button>
+            <button type="button" data-range="1w" aria-pressed="true">±1 Week</button>
+            <button type="button" data-range="1m" aria-pressed="false">±1 Month</button>
+            <button type="button" data-range="3m" aria-pressed="false">±3 Months</button>
           </div>
-          <label class="chart-date">开始 <input id="chartStart" type="date"></label>
-          <label class="chart-date">结束 <input id="chartEnd" type="date"></label>
-          <button id="chartLoad" type="button">更新图表</button>
+          <label class="chart-date">From <input id="chartStart" type="date"></label>
+          <label class="chart-date">To <input id="chartEnd" type="date"></label>
+          <button id="chartLoad" type="button">Update Chart</button>
         </div>
-        <p id="chartMessage" class="message" role="status" aria-live="polite">选择标的与日期区间查看 K 线。</p>
+        <p id="chartMessage" class="message" role="status" aria-live="polite">Select an instrument and date range.</p>
         <div id="chartContainer" class="chart-container">
           <div id="chartTooltip" class="chart-tooltip" hidden></div>
         </div>

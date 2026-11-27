@@ -5,12 +5,13 @@ import {
   TickMarkType,
   createChart,
 } from "./vendor/lightweight-charts/lightweight-charts.standalone.production.mjs";
-import { selectedAssetValue } from "./core.mjs";
+import { englishText, selectedAssetValue } from "./core.mjs";
 
 const byId = (id) => document.getElementById(id);
 const RANGE_DAYS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90 };
 const PACK_BASE = 1_000_000_000;
 const PACK_STEP = 3600;
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const UP = "#0f8c6c";
 const DOWN = "#bb5d48";
@@ -68,9 +69,11 @@ function tickLabel(time, tickMarkType) {
   const day = isoDate(iso);
   const clock = iso.includes("T") ? iso.replace("T", " ").slice(11, 16) : "";
   if (tickMarkType === TickMarkType.Year) return day.slice(0, 4);
-  if (tickMarkType === TickMarkType.Month) return `${Number(day.slice(5, 7))}月`;
-  if (tickMarkType === TickMarkType.DayOfMonth) return `${Number(day.slice(8, 10))}日`;
-  return clock || `${Number(day.slice(8, 10))}日`;
+  const month = MONTH_NAMES[Number(day.slice(5, 7)) - 1];
+  const dateLabel = `${month} ${Number(day.slice(8, 10))}`;
+  if (tickMarkType === TickMarkType.Month) return month;
+  if (tickMarkType === TickMarkType.DayOfMonth) return dateLabel;
+  return clock || dateLabel;
 }
 
 function centerTime() {
@@ -139,7 +142,7 @@ function ensureChart() {
     layout: {
       background: { color: "#ffffff" },
       textColor: TEXT,
-      fontFamily: '"Segoe UI", "Microsoft YaHei", sans-serif',
+      fontFamily: '"Segoe UI", sans-serif',
       attributionLogo: false,
     },
     grid: { vertLines: { color: GRID }, horzLines: { color: GRID } },
@@ -157,7 +160,7 @@ function ensureChart() {
     handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
     handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
     localization: {
-      locale: "zh-CN",
+      locale: "en-US",
       timeFormatter: (time) => {
         const bar = nearestBar(time) || state.packed.get(time);
         if (!bar) return "";
@@ -218,12 +221,12 @@ function updateTooltip(param) {
   const pct = bar.open ? (change / bar.open) * 100 : 0;
   const sign = change >= 0 ? "positive" : "negative";
   const signed = `${change >= 0 ? "+" : ""}${change.toFixed(3)}（${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%）`;
-  const volume = bar.volume == null ? "—" : Number(bar.volume).toLocaleString("zh-CN");
+  const volume = bar.volume == null ? "—" : Number(bar.volume).toLocaleString("en-US");
   tooltip.hidden = false;
   tooltip.innerHTML = `<strong>${formatLocal(bar.time, selectedInterval(), label)}</strong>`
-    + `<span>开 ${price.open}　高 ${price.high}　低 ${price.low}　收 ${price.close}</span>`
+    + `<span>Open ${price.open}  ·  High ${price.high}  ·  Low ${price.low}  ·  Close ${price.close}</span>`
     + `<span class="${sign}">${signed}</span>`
-    + `<span>成交量 ${volume}</span>`;
+    + `<span>Volume ${volume}</span>`;
   const box = byId("chartContainer").getBoundingClientRect();
   const tip = tooltip.getBoundingClientRect();
   let left = param.point.x + 16;
@@ -250,7 +253,7 @@ async function fetchBars(symbol, interval, start, end) {
   const params = new URLSearchParams({ symbol, interval, start, end });
   const response = await fetch(`./api/bars?${params.toString()}`, { cache: "no-store" });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+  if (!response.ok) throw new Error(englishText(body.error_en, englishText(body.error, `Could not load chart data (HTTP ${response.status}).`)));
   return body;
 }
 
@@ -262,7 +265,7 @@ export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
   }
   const ticker = state.symbol || selectedAssetValue();
   if (!ticker) {
-    message("请先选择标的。");
+    message("Select an instrument first.");
     return;
   }
   if (["1h", "1d"].includes(interval)) {
@@ -279,12 +282,12 @@ export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
   const start = byId("chartStart").value;
   const end = byId("chartEnd").value;
   if (!start || !end) {
-    message("请选择开始和结束日期。");
+    message("Select a start and end date.");
     return;
   }
   const resolution = selectedInterval();
   const request = ++state.request;
-  message("正在读取K线…");
+  message("Loading chart…");
   if (state.chart) {
     state.packed.clear();
     state.candle.setData([]);
@@ -294,7 +297,7 @@ export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
   try {
     const payload = await fetchBars(ticker, resolution, start, end);
     if (request !== state.request) return;
-    byId("chartMessage").dataset.label = payload.time_label || "";
+    byId("chartMessage").dataset.label = englishText(payload.time_label_en, englishText(payload.time_label, payload.exchange_timezone || ""));
     ensureChart();
     const packed = packBars(payload.bars, resolution);
     state.candle.applyOptions({ priceFormat: priceFormat(payload.bars.length ? payload.bars : [{ open: 1, high: 1, low: 1, close: 1 }]) });
@@ -311,14 +314,15 @@ export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
       color: volumeColor(bar),
     })));
     state.chart.timeScale().fitContent();
+    const note = englishText(payload.message_en, englishText(payload.message));
     if (payload.missing) {
-      message(payload.message || "缺数据");
+      message(note || "No price bars available.");
       return;
     }
     const bits = [
-      `${payload.symbol} · ${resolution === "1h" ? "1小时" : "日线"}`,
-      `${payload.bar_count} 根K线`,
-      payload.message,
+      `${payload.symbol} · ${resolution === "1h" ? "Hourly" : "Daily"}`,
+      `${payload.bar_count} ${payload.bar_count === 1 ? "bar" : "bars"}`,
+      note,
     ].filter(Boolean);
     message(bits.join(" · "), true);
   } catch (error) {

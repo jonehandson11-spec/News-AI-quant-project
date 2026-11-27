@@ -228,10 +228,20 @@ export function detailPreference(search, storedValue) {
   return storedValue === "1";
 }
 
+export function englishText(value, fallback = "") {
+  return typeof value === "string" && value.trim() && !/\p{Script=Han}/u.test(value) ? value : fallback;
+}
+
+export function assetDisplayName(asset) {
+  const ticker = asset.ticker || asset.symbol;
+  if (ticker === "BZ=F") return "Brent Crude Oil Proxy";
+  return englishText(asset.name_en, englishText(asset.name, ticker));
+}
+
 export function assetOptionText(asset) {
-  const extra = [asset.stage, asset.currency].filter(Boolean).join(" · ");
-  const pending = asset.data_status === "no_free_source" ? "（无免费数据）" : "";
-  return `${asset.name} · ${asset.ticker}${extra ? ` · ${extra}` : ""}${pending}`;
+  const fields = [...new Set([assetDisplayName(asset), asset.ticker, asset.currency].filter(Boolean))];
+  const availability = asset.data_status === "no_free_source" ? " (no free data)" : "";
+  return `${fields.join(" · ")}${availability}`;
 }
 
 export function selectedAssetValue(root = globalThis.document) {

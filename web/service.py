@@ -94,7 +94,7 @@ class LocalNewsStore:
 
 class QueryService:
     def __init__(self, provider_factory, *, news_source=None, now=None, mode="hourly",
-                 instruments=None, price_source="富途 OpenD", data_version=None,
+                 instruments=None, price_source="富途 OpenD", price_source_en=None, data_version=None,
                  yahoo_ondemand=False, ondemand_ensure=None, gvs_quality_source=None):
         """instruments: optional callable returning price_store.Instrument rows
         (local price database); they are added to the seven registered assets.
@@ -111,6 +111,7 @@ class QueryService:
         self.now = now or (lambda: datetime.now(HK))
         self.instruments = instruments
         self.price_source = price_source
+        self.price_source_en = price_source_en
         self.data_version = data_version or (lambda: None)
         self.yahoo_ondemand = bool(yahoo_ondemand)
         self.ondemand_ensure = ondemand_ensure
@@ -170,7 +171,8 @@ class QueryService:
 
     def catalog(self):
         return [{"ticker": asset.ticker, "asset_id": asset.asset_id,
-                 "name": asset.name_zh or asset.aliases[0], "role": asset.role,
+                 "name": asset.name_zh or asset.aliases[0], "name_en": asset.name_en,
+                 "role": asset.role,
                  "stage": asset.stage, "market": asset.market, "currency": asset.currency,
                  "asset_type": asset.asset_type, "unit": asset.unit, "queryable": asset.queryable,
                  "data_status": asset.data_status, "oil_research": asset.ticker in OIL_TICKERS}
@@ -216,28 +218,31 @@ class QueryService:
                 close()
 
     def source_info(self):
-        return {"price_source": self.price_source, "mode": self.mode,
+        return {"price_source": self.price_source, "price_source_en": self.price_source_en, "mode": self.mode,
                 "data_version": self.data_version(), "yahoo_ondemand": self.yahoo_ondemand}
 
     def price(self, asset_name, interval, on_date=None, *, market_state=False, as_of=None):
         """Look up a stored close without reading the news feed."""
         if interval not in ("1d", "1h"):
-            raise ValueError("价格周期只支持日线（1d）或小时线（1h）")
-        asset = self._asset(asset_name)
+            raise ValueError("Choose daily (1d) or hourly (1h) prices.")
+        try:
+            asset = self._asset(asset_name)
+        except ValueError:
+            raise ValueError("Symbol unavailable. Check the code or select a listed asset.") from None
         if not asset.queryable:
-            raise ValueError(f"{asset.ticker} 无免费行情来源")
+            raise ValueError(f"No free price source is registered for {asset.ticker}.")
         calendar = calendar_for(asset.market)
         now = self.now().astimezone(calendar.tz)
         if as_of:
             explicit = datetime.fromisoformat(as_of)
             if explicit.utcoffset() is None:
-                raise ValueError("as_of 需要包含时区")
+                raise ValueError("The cutoff must include a timezone.")
             now = min(now, explicit.astimezone(calendar.tz))
         requested = date.fromisoformat(on_date) if on_date else now.date()
         if on_date and requested.isoformat() != on_date:
-            raise ValueError("日期格式需为 YYYY-MM-DD")
+            raise ValueError("Use YYYY-MM-DD for the date.")
         if requested > now.date():
-            raise ValueError("查询日期不能晚于标的当地的截止日期")
+            raise ValueError("Choose a date at or before the exchange-local cutoff date.")
         cutoff = min(datetime.combine(requested, clock_time.max, calendar.tz), now)
         start = datetime.combine(max(calendar.first, requested - timedelta(days=14)),
                                  clock_time.min, calendar.tz)
@@ -246,7 +251,7 @@ class QueryService:
         try:
             store = getattr(provider, "store", None)
             if store is None:
-                raise ValueError("直接查价需要本地价格库")
+                raise ValueError("Direct price lookup requires the local price database.")
             observation = self._price_observation(provider, asset, interval, start, cutoff, calendar)
             fetch_failed = False
             if observation is None and self.yahoo_ondemand and start <= cutoff:
@@ -261,14 +266,15 @@ class QueryService:
             status = "missing" if observed is None else (
                 "observed" if observed.date() == requested else "prior_session")
             result = {"symbol": asset.ticker, "asset_id": asset.asset_id,
-                      "name": asset.name_zh or asset.aliases[0],
+                      "name": asset.name_zh or asset.aliases[0], "name_en": asset.name_en,
                       "market": asset.market, "exchange_timezone": str(calendar.tz),
                       "currency": asset.currency, "unit": asset.unit, "interval": interval,
                       "requested_date": requested.isoformat(), "cutoff_at": cutoff.isoformat(),
                       "observed_at": observed.isoformat() if observed else None, "price": price,
                       "source": source, "price_status": status}
             if observation is None:
-                result["message"] = ("行情补取未返回可用记录" if fetch_failed else "所选日期及此前 14 天无该周期的已完成价格")
+                result["message"] = ("The provider returned no usable prices." if fetch_failed
+                                     else "No completed prices for this interval in the selected 14-day lookback.")
             if market_state and self.yahoo_ondemand:
                 from news_price_query.market_state import benchmark_for_market_state
                 benchmark = benchmark_for_market_state(asset)

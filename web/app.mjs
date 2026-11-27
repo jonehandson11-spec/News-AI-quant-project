@@ -1,29 +1,29 @@
-import { assetOptionText, marketStateCsvCells, marketStateCsvHeaders, selectedAssetValue } from "./core.mjs";
+import { assetDisplayName, assetOptionText, englishText, marketStateCsvCells, marketStateCsvHeaders, selectedAssetValue } from "./core.mjs";
 import { initChart, loadChart } from "./chart.mjs";
 
 const byId = (id) => document.getElementById(id);
 const state = { quote: null };
 const MARKET_FIELDS = [
-  ["momentum_z", "M01 价格动量"],
-  ["realized_volatility", "M02 已实现波动（日，未年化）"],
-  ["relative_trading_activity", "M03 相对成交活跃度"],
-  ["liquidity_stress_z", "M04 流动性压力"],
-  ["benchmark_beta", "M05 基准 Beta"],
-  ["benchmark_momentum_z", "M06 基准动量"],
-  ["data_coverage", "行情样本覆盖率"],
+  ["momentum_z", "M01 Price Momentum"],
+  ["realized_volatility", "M02 Realized Volatility (daily, not annualized)"],
+  ["relative_trading_activity", "M03 Relative Trading Activity"],
+  ["liquidity_stress_z", "M04 Liquidity Stress"],
+  ["benchmark_beta", "M05 Benchmark Beta"],
+  ["benchmark_momentum_z", "M06 Benchmark Momentum"],
+  ["data_coverage", "Price Sample Coverage"],
 ];
 const QUALITY_FIELDS = [
-  ["evidence_reliability", "q01_evidence_reliability", "Q01 证据可靠性", "ESTIMATOR_NOT_READY"],
-  ["data_coverage", "q02_data_coverage", "Q02 数据覆盖", "REFERENCE_MISSING"],
+  ["evidence_reliability", "q01_evidence_reliability", "Q01 Evidence Reliability", "ESTIMATOR_NOT_READY"],
+  ["data_coverage", "q02_data_coverage", "Q02 Data Coverage", "REFERENCE_MISSING"],
 ];
 const MISSING_REASONS = {
-  INSUFFICIENT_HISTORY: "历史不足", NOT_APPLICABLE: "不适用",
-  ESTIMATOR_NOT_READY: "未评估", REFERENCE_MISSING: "未定义参照范围",
-  NOT_OBSERVED: "无观测", OUT_OF_COVERAGE: "超出覆盖",
-  AMBIGUOUS: "口径不明", SOURCE_UNAVAILABLE: "数据源不可用",
+  INSUFFICIENT_HISTORY: "Insufficient history", NOT_APPLICABLE: "Not applicable",
+  ESTIMATOR_NOT_READY: "Not assessed", REFERENCE_MISSING: "Reference scope undefined",
+  NOT_OBSERVED: "No observation", OUT_OF_COVERAGE: "Outside data coverage",
+  AMBIGUOUS: "Method unclear", SOURCE_UNAVAILABLE: "Data source unavailable",
 };
-const SHOW_PRICE = new Intl.NumberFormat("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-const SHOW_RATIO = new Intl.NumberFormat("zh-CN", { style: "percent", maximumFractionDigits: 1 });
+const SHOW_PRICE = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+const SHOW_RATIO = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
 
 function addText(parent, tag, text, className = "") {
   const node = document.createElement(tag);
@@ -54,33 +54,37 @@ function addFactorRow(body, label, code, value, details) {
 function factorDetails(item) {
   const details = [];
   const periods = [
-    [item.window_start, item.window_end, "观察"],
-    [item.reference_start || item.reference_first_end_date, item.reference_end || item.reference_last_end_date, "参照"],
-    [item.first_return_date, item.last_return_date, "收益样本"],
-    [item.first_pair_date, item.last_pair_date, "配对样本"],
-    [item.first_expected_date, item.last_expected_date, "预期样本"],
+    [item.window_start, item.window_end, "Window"],
+    [item.reference_start || item.reference_first_end_date, item.reference_end || item.reference_last_end_date, "Reference"],
+    [item.first_return_date, item.last_return_date, "Return sample"],
+    [item.first_pair_date, item.last_pair_date, "Paired sample"],
+    [item.first_expected_date, item.last_expected_date, "Expected sample"],
   ];
   for (const [from, to, name] of periods) {
-    if (from && to) details.push(`${name} ${from} 至 ${to}`);
+    if (from && to) details.push(`${name} ${from} to ${to}`);
   }
   if (item.benchmark) details.push(item.benchmark);
-  if (item.value == null) details.push(MISSING_REASONS[item.missing_reason] || item.missing_reason || "无观测");
-  for (const key of ["scope_id", "method_version", "source_ref", "note"]) {
+  if (item.value == null) {
+    details.push(MISSING_REASONS[item.missing_reason] || englishText(item.missing_reason, "No observation"));
+  }
+  for (const key of ["scope_id", "method_version", "source_ref"]) {
     if (typeof item[key] === "string" && item[key]) details.push(item[key]);
   }
+  const note = englishText(item.note_en, englishText(item.note));
+  if (note) details.push(note);
   return details;
 }
 
 function renderMarketState(block) {
   const failed = Boolean(block.error);
   byId("quoteMarketStateSection").hidden = false;
-  setMessage("quoteMarketStateError", block.error || "", failed);
+  setMessage("quoteMarketStateError", failed ? englishText(block.error_en, englishText(block.error, "Market state is unavailable.")) : "", failed);
   byId("quoteMarketStateError").hidden = !failed;
   byId("quoteMarketStateTableWrap").hidden = failed;
   byId("downloadQuoteFactors").hidden = failed;
-  const basis = { adj: "复权收盘", raw: "原始收盘" }[block.price_basis] || "—";
+  const basis = { adj: "Adjusted close", raw: "Raw close" }[block.price_basis] || "—";
   byId("quoteMarketStateMeta").textContent = failed ? block.profile_id || ""
-    : `截止 ${block.cutoff_date || "—"} · ${basis} · 基准 ${block.benchmark || "—"} · ${block.profile_id || "—"}`;
+    : `As of ${block.cutoff_date || "—"} · ${basis} · Benchmark ${block.benchmark || "—"} · ${block.profile_id || "—"}`;
 
   const market = byId("quoteMarketStateRows");
   market.replaceChildren();
@@ -97,7 +101,7 @@ function renderMarketState(block) {
     const details = factorDetails(item);
     if (item.by_variable) {
       const assessed = Object.values(item.by_variable).filter((score) => score.value != null).length;
-      if (assessed) details.push(`已评估 ${assessed} 项变量`);
+      if (assessed) details.push(`${assessed} ${assessed === 1 ? "variable" : "variables"} assessed`);
     }
     addFactorRow(quality, label, code, item.value == null ? "—" : Number(item.value).toFixed(4), details);
   }
@@ -127,7 +131,7 @@ function downloadQuoteFactors() {
 async function fetchJson(path) {
   const response = await fetch(path, { cache: "no-store" });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+  if (!response.ok) throw new Error(englishText(body.error_en, englishText(body.error, `Request failed (HTTP ${response.status}).`)));
   return body;
 }
 
@@ -141,7 +145,7 @@ async function runQuote(event) {
   if (button.disabled) return;
   const symbol = selectedAssetValue();
   if (!symbol) {
-    setMessage("quoteMessage", "请选择或输入标的。", true);
+    setMessage("quoteMessage", "Select or enter an instrument.", true);
     return;
   }
   const params = new URLSearchParams({ symbol, interval: byId("quoteInterval").value });
@@ -152,26 +156,27 @@ async function runQuote(event) {
   byId("quoteMarketStateSection").hidden = true;
   setMessage("quoteMarketMessage", "");
   button.disabled = true;
-  setMessage("quoteMessage", "正在查询价格…");
+  setMessage("quoteMessage", "Looking up price…");
 
   try {
     const result = await fetchJson(`./api/price?${params}`);
     state.quote = { result, params };
-    const name = result.symbol === "BZ=F" ? "布伦特原油代理" : result.name;
+    const name = assetDisplayName(result);
     byId("quoteAsset").textContent = [...new Set([name, result.symbol].filter(Boolean))].join(" · ");
     const price = byId("quotePrice");
-    price.textContent = result.price == null ? "缺少价格" : SHOW_PRICE.format(result.price);
+    price.textContent = result.price == null ? "Price unavailable" : SHOW_PRICE.format(result.price);
     if (result.price != null && (result.unit || result.currency)) {
       addText(price, "span", result.unit || result.currency, "price-unit");
     }
     const observation = byId("quoteObservation");
     if (result.observed_at) {
       const time = result.observed_at.slice(0, 19).replace("T", " ");
-      const prior = result.price_status === "prior_session" ? "较早交易时段 · " : "";
-      const resolution = result.interval === "1h" ? "小时线收盘" : "日线收盘";
-      observation.textContent = `${prior}${time} · ${result.exchange_timezone || "交易所当地时间"} · ${resolution} · ${result.source || "来源未记录"}`;
+      const prior = result.price_status === "prior_session" ? "Earlier trading session · " : "";
+      const resolution = result.interval === "1h" ? "Hourly close" : "Daily close";
+      const source = englishText(result.source_en, englishText(result.source, "Source not recorded"));
+      observation.textContent = `${prior}${time} · ${result.exchange_timezone || "Exchange local time"} · ${resolution} · ${source}`;
     } else {
-      observation.textContent = result.message || "查询截点之前没有已完成的行情。";
+      observation.textContent = englishText(result.message_en, englishText(result.message, "No completed price before the cutoff."));
     }
     byId("quoteResult").hidden = false;
     if (byId("chartPanel").open) showChartForQuote(result);
@@ -191,11 +196,11 @@ async function loadQuoteFactors() {
   if (quote.result.cutoff_at) params.set("as_of", quote.result.cutoff_at);
   params.set("market_state", "1");
   quote.loadingFactors = true;
-  setMessage("quoteMarketMessage", "正在读取市场状态…");
+  setMessage("quoteMarketMessage", "Loading market state…");
   try {
     const result = await fetchJson(`./api/price?${params}`);
     if (state.quote !== quote) return;
-    if (!result.market_state) throw new Error("本次查询没有市场状态指标。");
+    if (!result.market_state) throw new Error("No market-state indicators for this query.");
     if (!result.market_state.error) quote.factors = result;
     renderMarketState(result.market_state);
     setMessage("quoteMarketMessage", "");
@@ -209,7 +214,7 @@ async function loadQuoteFactors() {
 function fillAssets(assets) {
   if (!assets?.length) return;
   const select = byId("asset"), selected = select.value;
-  const groups = new Map(["港股", "石油相关", "其他"].map((label) => {
+  const groups = new Map(["Hong Kong", "Oil-related", "Other"].map((label) => {
     const group = document.createElement("optgroup");
     group.label = label;
     return [label, group];
@@ -218,9 +223,8 @@ function fillAssets(assets) {
     const option = document.createElement("option");
     option.value = asset.ticker;
     option.textContent = assetOptionText(asset);
-    if (asset.ticker === "BZ=F") option.textContent = "布伦特原油代理 · BZ=F · USD";
     option.disabled = asset.queryable === false;
-    const group = asset.oil_research ? "石油相关" : asset.market === "XHKG" ? "港股" : "其他";
+    const group = asset.oil_research ? "Oil-related" : asset.market === "XHKG" ? "Hong Kong" : "Other";
     groups.get(group).append(option);
   }
   select.replaceChildren(...[...groups.values()].filter((group) => group.children.length));
@@ -234,11 +238,11 @@ async function loadCatalog() {
     const data = await fetchJson("./api/assets");
     fillAssets(data.assets);
     byId("assetHelp").textContent = data.yahoo_ondemand
-      ? "未入库的标的会尝试从 Yahoo 获取。" : "可查范围取决于本地行情库。";
-    byId("priceStatus").textContent = data.price_source || "行情服务已连接";
+      ? "Missing instruments are looked up on Yahoo when available." : "Availability depends on the local price database.";
+    byId("priceStatus").textContent = englishText(data.price_source_en, englishText(data.price_source, "Price service connected"));
   } catch (error) {
-    byId("priceStatus").textContent = "行情服务不可用";
-    setMessage("quoteMessage", `无法连接行情服务：${error.message}`, true);
+    byId("priceStatus").textContent = "Price service unavailable";
+    setMessage("quoteMessage", `Could not connect to the price service. ${error.message}`, true);
   }
 }
 

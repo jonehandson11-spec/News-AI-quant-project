@@ -80,7 +80,9 @@ class InternalHttpTests(unittest.TestCase):
         page = self.connection.getresponse()
         self.assertEqual(page.status, 200)
         html = page.read().decode("utf-8")
-        self.assertIn("查询价格", html)
+        self.assertIn('<html lang="en">', html)
+        self.assertIn("Look Up Price", html)
+        self.assertIn("Candlestick Chart", html)
         self.assertIn('<form id="quoteForm">', html)
         self.assertIn('<details id="chartPanel"', html)
         self.assertIn('id="quoteQualityRows"', html)
@@ -92,15 +94,16 @@ class InternalHttpTests(unittest.TestCase):
         self.assertEqual(source.status, 404)
         source.read()
 
-    def test_query_page_catalog_select_keeps_chinese_names(self):
-        """研究环节下的标的列表必须用 select 显示中文名，不能只剩代码。"""
+    def test_query_page_catalog_select_shows_english_names(self):
+        """Display named instruments and their tickers in the English selector."""
         self.connection.request("GET", "/")
         page = self.connection.getresponse()
         html = page.read().decode("utf-8")
         self.assertEqual(page.status, 200)
         self.assertIn('<select id="asset"', html)
-        self.assertIn("选择标的", html)
-        self.assertIn("比亚迪 · 1211.HK", html)
+        self.assertIn("Instrument", html)
+        self.assertIn("BYD · 1211.HK", html)
+        self.assertNotIn("比亚迪", html)
         self.assertIn('id="assetInput"', html)
         self.assertNotIn('list="assetOptions"', html)
         self.assertNotIn("stageFilter", html)
