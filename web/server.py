@@ -279,7 +279,7 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
     return ThreadingHTTPServer((host, port), Handler)
 
 
-def build_service(args) -> QueryService:
+def build_service(args, *, gvs_quality_source=None) -> QueryService:
     if args.news_csv:
         news_source = LocalNewsStore(args.news_csv)
     elif REPO_NEWS.exists():
@@ -288,7 +288,8 @@ def build_service(args) -> QueryService:
         news_source = None  # public team feed on GitHub
     if args.provider == "futu":
         return QueryService(partial(FutuPriceProvider, host=args.futu_host, port=args.futu_port),
-                            news_source=news_source, mode=args.mode, price_source="富途 OpenD")
+                            news_source=news_source, mode=args.mode, price_source="富途 OpenD",
+                            gvs_quality_source=gvs_quality_source)
     from news_price_query.price_store import LocalDbPriceProvider, PriceStore
 
     store = PriceStore(args.db, create=False)
@@ -301,7 +302,8 @@ def build_service(args) -> QueryService:
     label = "本地价格库 · yfinance 日线" + (f" · 更新于 {run['finished_at'][:16].replace('T', ' ')} HKT" if run else "")
     return QueryService(lambda: provider, news_source=news_source, mode=args.mode,
                         instruments=store.instruments, price_source=label, data_version=version,
-                        yahoo_ondemand=getattr(args, "yahoo_ondemand", False))
+                        yahoo_ondemand=getattr(args, "yahoo_ondemand", False),
+                        gvs_quality_source=gvs_quality_source)
 
 
 def main():

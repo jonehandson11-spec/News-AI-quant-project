@@ -71,12 +71,50 @@ class PriceLookupTests(unittest.TestCase):
         self.assertEqual(factors["benchmark"], "2800.HK")
         self.assertEqual(len(factors["fields"]), 7)
         self.assertEqual(factors["fields"]["liquidity_stress_z"]["missing_reason"], "ESTIMATOR_NOT_READY")
+        self.assertGreater(factors["fields"]["data_coverage"]["value"], 0)
+        self.assertEqual(factors["quality"]["data_coverage"],
+                         {"value": None, "missing_reason": "REFERENCE_MISSING"})
+        self.assertEqual(factors["quality"]["evidence_reliability"],
+                         {"value": None, "missing_reason": "ESTIMATOR_NOT_READY"})
 
         self.now = datetime(2026, 9, 28, 16, 30, tzinfo=HK)
         repeated = self.service.price("腾讯", "1h", "2026-09-28", market_state=True,
                                       as_of=price["cutoff_at"])
         self.assertEqual(repeated["market_state"]["cutoff_date"], "2026-09-25")
         self.assertEqual(repeated["observed_at"], price["observed_at"])
+
+    def test_quality_adapter_preserves_scope_and_does_not_average_factor_evidence(self):
+        calls = []
+
+        def quality_source(**context):
+            calls.append(context)
+            return {
+                "evidence_reliability": {"by_variable": {
+                    "momentum_z": {"value": 0.6, "method_version": "synthetic-v1"},
+                    "realized_volatility": {"value": float("nan"), "method_version": "synthetic-v1"},
+                }},
+                "data_coverage": {"value": 0, "scope_id": "synthetic-scope", "method_version": "synthetic-v1"},
+            }
+
+        self.service.gvs_quality_source = quality_source
+        self.service.price("WTI", "1d")
+        self.assertEqual(calls, [])
+        result = self.service.price("WTI", "1d", market_state=True)
+        quality = result["market_state"]["quality"]
+        self.assertEqual(result["asset_id"], "commodity:wti")
+        self.assertEqual(calls[0]["asset"].asset_id, result["asset_id"])
+        self.assertEqual(calls[0]["as_of"].isoformat(), result["cutoff_at"])
+        self.assertEqual(calls[0]["profile_id"], result["market_state"]["profile_id"])
+        self.assertIsNone(quality["evidence_reliability"]["value"])
+        self.assertEqual(quality["evidence_reliability"]["by_variable"]["momentum_z"]["value"], 0.6)
+        self.assertIsNone(quality["evidence_reliability"]["by_variable"]["realized_volatility"]["value"])
+        self.assertEqual(quality["data_coverage"]["value"], 0)
+
+        self.service.gvs_quality_source = lambda **_: {"data_coverage": {
+            "value": 1, "method_version": "synthetic-v1",
+        }}
+        coverage = self.service.price("WTI", "1d", market_state=True)["market_state"]["quality"]["data_coverage"]
+        self.assertEqual((coverage["value"], coverage["missing_reason"]), (None, "REFERENCE_MISSING"))
 
     def test_oil_catalog_and_missing_price(self):
         assets = {row["ticker"]: row for row in self.service.catalog()}

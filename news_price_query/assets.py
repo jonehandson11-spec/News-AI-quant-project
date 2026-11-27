@@ -31,6 +31,7 @@ class Asset:
     alt_tickers: tuple[str, ...] = ()
     data_status: str | None = None
     notes: str | None = None
+    asset_id: str | None = None
 
     @property
     def queryable(self) -> bool:
@@ -81,6 +82,7 @@ def load_research_assets(path: Path = RESEARCH_CSV) -> tuple[Asset, ...]:
             data_ticker=row["data_ticker"] or None, exchange=row["exchange"] or None,
             exclude_terms=_split(row["exclude_terms"]), alt_tickers=_split(row["alt_tickers"]),
             data_status=row["data_status"] or None, notes=row["notes"] or None,
+            asset_id=row.get("asset_id") or None,
         ))
     return tuple(output)
 

@@ -1,4 +1,4 @@
-# 网页（价格与新闻研究）
+# 港股与石油行情查询
 
 使用步骤见[根目录 README 的「新闻价格查询页面（入口）」](../README.md#新闻价格查询页面入口)：先用 `scripts/update_prices.py` 建本地价格库，再双击 `START-WINDOWS.bat` 或运行 `./start-local.sh`，打开 <http://127.0.0.1:8765/>。`index.html` 不能直接双击使用，查询需要 Python 服务。
 
@@ -8,15 +8,31 @@
 
 展开市场因子可按同一标的和日期查看日线市场状态，并保存因子值、缺失原因、基准及计算口径。市场状态沿用 `pq-market-state-daily-v1` 的估算方法，小时线查价也使用这套日线因子。M04 流动性压力依赖买卖价差或盘口数据，目前留空；期货尚无默认基准，M05 和 M06 留空。数据为当前库中可查的历史记录，尚无逐时点行情修订快照。
 
-相关新闻读取仓库 `data/news.csv`（BBC News、新浪财经、Financial Times），也可用 `--news-csv` 指定本地文件。默认文件缺失时回读 GitHub 同一 CSV。筛选按香港日期、标题和正文的登记资产别名，以及 `article_id` 去重，返回直接提及的候选文章。
+行情页只提供查价、K 线和市场因子。原新闻及事件窗口仍可由已有脚本通过 API 调用。
 
 ## 文件与接口
 
-- `index.html`、`app.mjs`、`chart.mjs`、`core.mjs`、`styles.css`：页面；`vendor/lightweight-charts/` 为 Apache-2.0 授权的 TradingView Lightweight Charts 5.3.0（无 CDN 依赖，见目录内 LICENSE / NOTICE）；`server.py`、`service.py`：本机 Python 服务（默认 `--provider local --mode hourly`，监听 127.0.0.1:8765）。查询结果下方的 K 线图可切换 1小时 / 日线，选择新闻前后区间或自定义日期，拖动平移、滚轮或触控缩放，并标出新闻发布时间。
-- `/api/assets` 返回已登记标的（含研究环节、市场、币种、单位）；`/api/news` 按标的和日期筛选候选新闻（来自仓库 `data/news.csv`）；`/api/query` 从本地价格库按交易小时窗口计算结果（服务参数 `--mode daily` 保留交易日窗口）；`/api/bars` 按标的、周期（1h / 1d）和起止日期返回 OHLC，供页面 K 线图使用。日K线由本地小时线合成，不会用只有收盘价的日线补造开高低。
+- `index.html`、`app.mjs`、`chart.mjs`、`core.mjs`、`styles.css`：页面。`vendor/lightweight-charts/` 为 Apache-2.0 授权的 TradingView Lightweight Charts 5.3.0（无 CDN 依赖，见目录内 LICENSE / NOTICE）。`server.py`、`service.py` 为本机 Python 服务，默认监听 127.0.0.1:8765。
+- `GET /api/assets` 返回已登记标的、市场、币种、单位和 `asset_id`（未登记 ID 的股票保留其标准 `ticker`）。
+- `GET /api/bars` 按 `symbol`、`interval`（1h / 1d）、`start` 和 `end` 返回 OHLC。页面 K 线可切换周期、选择日期、拖动或缩放。
 - `/api/price?symbol=0700.HK&interval=1d&date=2026-09-28` 查询价格、数据来源和实际取价时间。`date` 可省略，加 `market_state=1` 返回因子。可将首次响应的 `cutoff_at` 作为后续请求的 `as_of`（带时区），以复用相同截点。该查询独立于新闻索引。
-- 默认窗口为新闻前 6/3/1、新闻后 1/3/6 个交易小时，交易时段外、周末及假期不累计；小时线约覆盖最近两年，更早新闻显示缺数据。结果表显示起点、终点、原始涨跌和状态；「显示复权和超额」开关（记在 URL `?detail=1` 和 localStorage）加出复权与超额列。期货按固定合约计算，开关禁用。下载的 JSON/CSV 始终包含全部字段。
-- `node --test web/` 运行前端测试。
+- 原 `GET /api/news` 使用仓库 `data/news.csv`（可由 `--news-csv` 指定）；`POST /api/query` 仍支持新闻前后 1、3、6 个交易小时的研究查询。行情页不调用这两个接口。
+- `node --test web/core.test.mjs` 运行前端计算测试。
+
+## GVS 质量数据接入
+
+`market_state.quality` 与 `market_state.fields` 分开。`fields.data_coverage` 是行情诊断，统计最近 274 个预期交易日内有有效价格的比例。`quality` 对应 [GVS 定义 §4](https://docs.google.com/document/d/1JJFNRm5jv00nEGm1yuAOuvNyUyOwFl0P/edit)。
+
+| 字段 | 接入约定 | 默认值 |
+| --- | --- | --- |
+| Q01 `evidence_reliability` | 证据评估结果。可通过 `by_variable` 按因子名提供独立评分。同一记录只有逐因子评分时保留整体空值。 | `null`，`ESTIMATOR_NOT_READY` |
+| Q02 `data_coverage` | 预先登记的来源和时间范围下的覆盖率。`scope_id` 指向范围、计数规则、分母和核验记录。`0` 表示已核实该范围完全无数据。 | `null`，`REFERENCE_MISSING` |
+
+接入时，在 `QueryService(..., gvs_quality_source=load_quality)` 或 `build_service(args, gvs_quality_source=load_quality)` 传入只读数据适配器。适配器以关键字接收 `asset`、带时区的 `as_of` 和 `profile_id`，用 `asset.asset_id`（缺失时用 `asset.ticker`）匹配已经生成的质量记录。它返回 `evidence_reliability` 和 `data_coverage` 两个条目。每个条目可包含 `value`、`missing_reason`、`method_version` 和 `source_ref`。Q01 的 `by_variable` 中每个因子使用同一结构；Q02 有值时需同时提供 `scope_id`。数值必须有限且在 0–1 之间，有值时必须有 `method_version`。用 `source_ref` 记录适合出现在查询结果里的数据记录 ID 或引用。
+
+如果 Q01 来自大模型评级，`method_version` 对应模型和提示词版本，`source_ref` 指向带原文证据的评分记录。Q02 的范围和覆盖核验由采集记录提供。当前没有接入质量数据源，两个值默认留空。
+
+因子 CSV 保留行情覆盖率列，另列 `q01_evidence_reliability`、`q02_data_coverage` 和各自的缺失原因。逐因子 Q01、方法版本和范围可从 `/api/price` 的 JSON 结构读取。普通价格查询无需质量数据。
 
 API 只供同源本机页面使用；不要公开部署。如需团队共享，须先获 Ek 批准并加访问控制。
 

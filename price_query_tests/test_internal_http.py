@@ -83,8 +83,10 @@ class InternalHttpTests(unittest.TestCase):
         self.assertIn("查询价格", html)
         self.assertIn('<form id="quoteForm">', html)
         self.assertIn('<details id="chartPanel"', html)
-        self.assertIn('<details id="researchPanel"', html)
-        self.assertNotRegex(html, r'<details id="(?:chartPanel|researchPanel)"[^>]*\bopen\b')
+        self.assertIn('id="quoteQualityRows"', html)
+        self.assertNotIn('id="newsFilter"', html)
+        self.assertNotIn('id="researchPanel"', html)
+        self.assertNotRegex(html, r'<details id="chartPanel"[^>]*\bopen\b')
         self.connection.request("GET", "/service.py")
         source = self.connection.getresponse()
         self.assertEqual(source.status, 404)
@@ -110,6 +112,9 @@ class InternalHttpTests(unittest.TestCase):
         self.assertIn("const select = byId(\"asset\")", script)
         self.assertNotIn("assetOptions", script)
         self.assertNotIn("stageFilter", script)
+        self.assertNotIn("./api/news", script)
+        self.assertIn("q01_evidence_reliability", script)
+        self.assertIn("q02_data_coverage", script)
 
 
 if __name__ == "__main__":

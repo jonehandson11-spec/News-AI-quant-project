@@ -4,7 +4,6 @@ import {
   HistogramSeries,
   TickMarkType,
   createChart,
-  createSeriesMarkers,
 } from "./vendor/lightweight-charts/lightweight-charts.standalone.production.mjs";
 import { selectedAssetValue } from "./core.mjs";
 
@@ -15,15 +14,13 @@ const PACK_STEP = 3600;
 
 const UP = "#0f8c6c";
 const DOWN = "#bb5d48";
-const NEWS = "#c45c26";
-const GRID = "#e6eee8";
-const TEXT = "#355f59";
-const AXIS = "#dbe2da";
+const GRID = "#edf1f6";
+const TEXT = "#4e5d6f";
+const AXIS = "#dce2eb";
 
 const state = {
   interval: "1h",
   range: "1w",
-  newsTime: null,
   anchorDate: null,
   symbol: null,
   selection: null,
@@ -31,8 +28,6 @@ const state = {
   chart: null,
   candle: null,
   volume: null,
-  markers: null,
-  primitives: [],
   packed: new Map(),
   resize: null,
 };
@@ -79,10 +74,7 @@ function tickLabel(time, tickMarkType) {
 }
 
 function centerTime() {
-  const published = byId("publishedAt")?.value;
-  if (state.newsTime) return new Date(state.newsTime);
   if (state.anchorDate) return new Date(`${state.anchorDate}T12:00:00`);
-  if (published) return new Date(`${published}:00+08:00`);
   return new Date();
 }
 
@@ -139,91 +131,15 @@ function chartTimeOf(bar, interval) {
   return interval === "1d" ? bar.time : bar.chartTime;
 }
 
-function barForNews(bars, newsIso, interval) {
-  if (!newsIso || !bars.length) return null;
-  const news = Date.parse(newsIso);
-  if (Number.isNaN(news)) return null;
-  if (interval === "1d") {
-    const day = isoDate(newsIso);
-    return bars.find((bar) => bar.time === day) || null;
-  }
-  for (let index = 0; index < bars.length; index += 1) {
-    const start = Date.parse(bars[index].time);
-    const end = index + 1 < bars.length
-      ? Date.parse(bars[index + 1].time)
-      : start + 60 * 60 * 1000;
-    if (news >= start && news < end) return bars[index];
-  }
-  const last = bars[bars.length - 1];
-  const start = Date.parse(last.time);
-  if (news >= start && news < start + 60 * 60 * 1000) return last;
-  return null;
-}
-
-class VerticalLinePaneRenderer {
-  constructor(x, color) {
-    this._x = x;
-    this._color = color;
-  }
-
-  draw(target) {
-    target.useMediaCoordinateSpace((scope) => {
-      if (this._x == null) return;
-      const ctx = scope.context;
-      ctx.save();
-      ctx.strokeStyle = this._color;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([5, 4]);
-      ctx.beginPath();
-      ctx.moveTo(this._x + 0.5, 0);
-      ctx.lineTo(this._x + 0.5, scope.mediaSize.height);
-      ctx.stroke();
-      ctx.restore();
-    });
-  }
-}
-
-class VerticalLinePaneView {
-  constructor(source) {
-    this._source = source;
-    this._x = null;
-  }
-
-  update() {
-    this._x = this._source.chart.timeScale().timeToCoordinate(this._source.time);
-  }
-
-  renderer() {
-    return new VerticalLinePaneRenderer(this._x, this._source.color);
-  }
-}
-
-class VerticalLinePrimitive {
-  constructor(chart, time, color) {
-    this.chart = chart;
-    this.time = time;
-    this.color = color;
-    this._views = [new VerticalLinePaneView(this)];
-  }
-
-  updateAllViews() {
-    this._views.forEach((view) => view.update());
-  }
-
-  paneViews() {
-    return this._views;
-  }
-}
-
 function ensureChart() {
   const container = byId("chartContainer");
   if (state.chart) return;
   const chart = createChart(container, {
     autoSize: true,
     layout: {
-      background: { color: "#fbfcfa" },
+      background: { color: "#ffffff" },
       textColor: TEXT,
-      fontFamily: 'Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif',
+      fontFamily: '"Segoe UI", "Microsoft YaHei", sans-serif',
       attributionLogo: false,
     },
     grid: { vertLines: { color: GRID }, horzLines: { color: GRID } },
@@ -274,7 +190,6 @@ function ensureChart() {
   state.chart = chart;
   state.candle = candle;
   state.volume = volume;
-  state.markers = createSeriesMarkers(candle, []);
   chart.subscribeCrosshairMove((param) => updateTooltip(param));
   state.resize = new ResizeObserver(() => {
     const rect = container.getBoundingClientRect();
@@ -283,38 +198,6 @@ function ensureChart() {
     }
   });
   state.resize.observe(container);
-}
-
-function clearNewsGuides() {
-  for (const primitive of state.primitives) {
-    try { primitive.series.detachPrimitive(primitive.object); } catch { /* already removed */ }
-  }
-  state.primitives = [];
-  state.markers?.setMarkers([]);
-}
-
-function attachNewsGuides(bar, interval, newsIso, label) {
-  const time = chartTimeOf(bar, interval);
-  const text = interval === "1d"
-    ? `新闻 ${isoDate(newsIso)}`
-    : `新闻 ${String(newsIso).replace("T", " ").slice(0, 16)}`;
-  state.markers.setMarkers([{
-    time,
-    position: "aboveBar",
-    color: NEWS,
-    shape: "arrowDown",
-    text,
-  }]);
-  for (const series of [state.candle, state.volume]) {
-    const primitive = new VerticalLinePrimitive(state.chart, time, NEWS);
-    series.attachPrimitive(primitive);
-    state.primitives.push({ series, object: primitive });
-  }
-  const note = byId("chartNewsNote");
-  if (note) {
-    note.hidden = false;
-    note.textContent = `图中虚线为新闻发布时间（${formatLocal(newsIso, "1h", label)}），落在该根K线区间内。`;
-  }
 }
 
 function updateTooltip(param) {
@@ -371,19 +254,16 @@ async function fetchBars(symbol, interval, start, end) {
   return body;
 }
 
-export async function loadChart({ symbol, newsTime, anchorDate, interval, range } = {}) {
+export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
   if (symbol) {
     state.symbol = symbol;
     state.selection = selectedAssetValue();
+    state.anchorDate = anchorDate || null;
   }
   const ticker = state.symbol || selectedAssetValue();
   if (!ticker) {
     message("请先选择标的。");
     return;
-  }
-  if (newsTime !== undefined) {
-    state.newsTime = newsTime;
-    state.anchorDate = anchorDate || null;
   }
   if (["1h", "1d"].includes(interval)) {
     state.interval = interval;
@@ -405,10 +285,7 @@ export async function loadChart({ symbol, newsTime, anchorDate, interval, range 
   const resolution = selectedInterval();
   const request = ++state.request;
   message("正在读取K线…");
-  const note = byId("chartNewsNote");
-  if (note) { note.hidden = true; note.textContent = ""; }
   if (state.chart) {
-    clearNewsGuides();
     state.packed.clear();
     state.candle.setData([]);
     state.volume.setData([]);
@@ -433,12 +310,6 @@ export async function loadChart({ symbol, newsTime, anchorDate, interval, range 
       value: bar.volume ?? 0,
       color: volumeColor(bar),
     })));
-    const newsIso = state.newsTime;
-    let newsBar = null;
-    if (newsIso && packed.length) {
-      newsBar = barForNews(packed, newsIso, resolution);
-      if (newsBar) attachNewsGuides(newsBar, resolution, newsIso, payload.time_label);
-    }
     state.chart.timeScale().fitContent();
     if (payload.missing) {
       message(payload.message || "缺数据");
@@ -449,7 +320,6 @@ export async function loadChart({ symbol, newsTime, anchorDate, interval, range 
       `${payload.bar_count} 根K线`,
       payload.message,
     ].filter(Boolean);
-    if (newsIso && !newsBar) bits.push("新闻时间落在当前区间的缺口中（非交易时段或缺数据），未画标记。");
     message(bits.join(" · "), true);
   } catch (error) {
     if (request !== state.request) return;
@@ -481,15 +351,9 @@ export function initChart() {
       button.setAttribute("aria-pressed", "false");
     }
     const current = selectedAssetValue();
-    if (current && current !== state.selection) loadChart({ symbol: current, newsTime: null });
+    if (current && current !== state.selection) loadChart({ symbol: current });
     else loadChart();
-  });
-  byId("publishedAt")?.addEventListener("input", () => {
-    if (!state.newsTime && RANGE_DAYS[state.range] != null
-        && document.activeElement?.closest?.("#chartRanges") == null) {
-      applyPreset(state.range);
-    }
   });
 }
 
-export { barForNews, packBars };
+export { packBars };

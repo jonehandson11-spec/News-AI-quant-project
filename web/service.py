@@ -14,6 +14,7 @@ from pathlib import Path
 from news_price_query.assets import ASSETS, RESEARCH_ASSETS, resolve_asset, market_of_ticker, _futu_code, Asset
 from news_price_query.cli import _result_dict
 from news_price_query.daily_report import benchmarks_for, daily_report, hourly_report
+from news_price_query.gvs_quality import read_quality
 from news_price_query.market_calendars import calendar_for
 from news_price_query.news import find_direct_match, parse_news, read_news
 from news_price_query.query import query_event
@@ -94,12 +95,13 @@ class LocalNewsStore:
 class QueryService:
     def __init__(self, provider_factory, *, news_source=None, now=None, mode="hourly",
                  instruments=None, price_source="富途 OpenD", data_version=None,
-                 yahoo_ondemand=False, ondemand_ensure=None):
+                 yahoo_ondemand=False, ondemand_ensure=None, gvs_quality_source=None):
         """instruments: optional callable returning price_store.Instrument rows
         (local price database); they are added to the seven registered assets.
         yahoo_ondemand: if a ticker is missing from the local store, fetch it
         from Yahoo and cache it. Off by default so a local PC stays local-only.
         ondemand_ensure: optional hook used in tests in place of ensure_ticker.
+        gvs_quality_source: optional read-only adapter for versioned GVS quality assessments.
         """
         if mode not in ("minute", "daily", "hourly"):
             raise ValueError(f"Unknown query mode: {mode}")
@@ -112,6 +114,7 @@ class QueryService:
         self.data_version = data_version or (lambda: None)
         self.yahoo_ondemand = bool(yahoo_ondemand)
         self.ondemand_ensure = ondemand_ensure
+        self.gvs_quality_source = gvs_quality_source
 
     def _allowed(self):
         allowed = dict(ALLOWED)
@@ -166,7 +169,8 @@ class QueryService:
         raise ValueError("只支持已登记标的和本地价格库中的标的；新股票请先加入股票池并运行 update_prices.py")
 
     def catalog(self):
-        return [{"ticker": asset.ticker, "name": asset.name_zh or asset.aliases[0], "role": asset.role,
+        return [{"ticker": asset.ticker, "asset_id": asset.asset_id,
+                 "name": asset.name_zh or asset.aliases[0], "role": asset.role,
                  "stage": asset.stage, "market": asset.market, "currency": asset.currency,
                  "asset_type": asset.asset_type, "unit": asset.unit, "queryable": asset.queryable,
                  "data_status": asset.data_status, "oil_research": asset.ticker in OIL_TICKERS}
@@ -256,7 +260,8 @@ class QueryService:
             observed, price, source = observation or (None, None, None)
             status = "missing" if observed is None else (
                 "observed" if observed.date() == requested else "prior_session")
-            result = {"symbol": asset.ticker, "name": asset.name_zh or asset.aliases[0],
+            result = {"symbol": asset.ticker, "asset_id": asset.asset_id,
+                      "name": asset.name_zh or asset.aliases[0],
                       "market": asset.market, "exchange_timezone": str(calendar.tz),
                       "currency": asset.currency, "unit": asset.unit, "interval": interval,
                       "requested_date": requested.isoformat(), "cutoff_at": cutoff.isoformat(),
@@ -343,10 +348,13 @@ class QueryService:
             payload["market_state"] = {"profile_id": PROFILE_ID, "error": "需要本地价格库"}
             return payload
         try:
-            payload["market_state"] = calculate_market_state(
-                store, asset, event_time, as_of=as_of)
+            state = calculate_market_state(store, asset, event_time, as_of=as_of)
         except (ValueError, RuntimeError) as exc:
             payload["market_state"] = {"profile_id": PROFILE_ID, "error": str(exc)}
+        else:
+            state["quality"] = read_quality(self.gvs_quality_source, asset,
+                                           as_of=min(event_time, as_of), profile_id=state["profile_id"])
+            payload["market_state"] = state
         return payload
 
     def query(self, asset_name, published_at, *, benchmarks=(), market_state=False):
