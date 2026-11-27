@@ -1,5 +1,5 @@
 import { assetDisplayName, assetOptionText, englishText, marketStateCsvCells, marketStateCsvHeaders, selectedAssetValue } from "./core.mjs";
-import { initChart, loadChart } from "./chart.mjs";
+import { initChart, intervalLabel, isMinuteInterval, loadChart } from "./chart.mjs";
 
 const byId = (id) => document.getElementById(id);
 const state = { quote: null };
@@ -135,10 +135,6 @@ async function fetchJson(path) {
   return body;
 }
 
-function showChartForQuote(quote) {
-  loadChart({ symbol: quote.symbol, anchorDate: quote.requested_date, interval: quote.interval, range: "1w" });
-}
-
 async function runQuote(event) {
   event.preventDefault();
   const button = byId("runQuote");
@@ -152,7 +148,7 @@ async function runQuote(event) {
   if (byId("quoteDate").value) params.set("date", byId("quoteDate").value);
   state.quote = null;
   byId("quoteResult").hidden = true;
-  byId("quoteMarketDetails").open = false;
+  byId("chartPanel").hidden = true;
   byId("quoteMarketStateSection").hidden = true;
   setMessage("quoteMarketMessage", "");
   button.disabled = true;
@@ -160,7 +156,8 @@ async function runQuote(event) {
 
   try {
     const result = await fetchJson(`./api/price?${params}`);
-    state.quote = { result, params };
+    const quote = { result, params };
+    state.quote = quote;
     const name = assetDisplayName(result);
     byId("quoteAsset").textContent = [...new Set([name, result.symbol].filter(Boolean))].join(" · ");
     const price = byId("quotePrice");
@@ -172,14 +169,18 @@ async function runQuote(event) {
     if (result.observed_at) {
       const time = result.observed_at.slice(0, 19).replace("T", " ");
       const prior = result.price_status === "prior_session" ? "Earlier trading session · " : "";
-      const resolution = result.interval === "1h" ? "Hourly close" : "Daily close";
+      const resolution = `${intervalLabel(result.interval)} close`;
       const source = englishText(result.source_en, englishText(result.source, "Source not recorded"));
       observation.textContent = `${prior}${time} · ${result.exchange_timezone || "Exchange local time"} · ${resolution} · ${source}`;
     } else {
       observation.textContent = englishText(result.message_en, englishText(result.message, "No completed price before the cutoff."));
     }
     byId("quoteResult").hidden = false;
-    if (byId("chartPanel").open) showChartForQuote(result);
+    byId("chartPanel").hidden = false;
+    const minute = isMinuteInterval(result.interval);
+    const anchorDate = minute && result.observed_at ? result.observed_at.slice(0, 10) : result.requested_date;
+    loadChart({ symbol: result.symbol, anchorDate, interval: result.interval, range: minute ? "1d" : "1w" });
+    loadQuoteFactors(quote);
     setMessage("quoteMessage", "");
   } catch (error) {
     setMessage("quoteMessage", error.message, true);
@@ -188,14 +189,12 @@ async function runQuote(event) {
   }
 }
 
-async function loadQuoteFactors() {
-  const quote = state.quote;
-  if (!byId("quoteMarketDetails").open || !quote || quote.factors || quote.loadingFactors) return;
+async function loadQuoteFactors(quote) {
   const params = new URLSearchParams(quote.params);
   if (quote.result.requested_date) params.set("date", quote.result.requested_date);
   if (quote.result.cutoff_at) params.set("as_of", quote.result.cutoff_at);
+  params.set("interval", quote.result.interval);
   params.set("market_state", "1");
-  quote.loadingFactors = true;
   setMessage("quoteMarketMessage", "Loading market state…");
   try {
     const result = await fetchJson(`./api/price?${params}`);
@@ -206,8 +205,6 @@ async function loadQuoteFactors() {
     setMessage("quoteMarketMessage", "");
   } catch (error) {
     if (state.quote === quote) setMessage("quoteMarketMessage", error.message, true);
-  } finally {
-    quote.loadingFactors = false;
   }
 }
 
@@ -248,13 +245,6 @@ async function loadCatalog() {
 
 byId("asset").addEventListener("change", () => { byId("assetInput").value = ""; });
 byId("quoteForm").addEventListener("submit", runQuote);
-byId("quoteMarketDetails").addEventListener("toggle", loadQuoteFactors);
 byId("downloadQuoteFactors").addEventListener("click", downloadQuoteFactors);
-byId("showQuoteChart").addEventListener("click", () => {
-  if (!state.quote) return;
-  byId("chartPanel").open = true;
-  showChartForQuote(state.quote.result);
-  byId("chartPanel").scrollIntoView({ block: "start" });
-});
 loadCatalog();
 initChart();

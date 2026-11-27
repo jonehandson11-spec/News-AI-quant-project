@@ -5,7 +5,7 @@
 - 代码：`news_price_query/price_store.py`（库和 `LocalDbPriceProvider`）、`news_price_query/price_update.py`（增量更新）、`scripts/update_prices.py`（命令）
 - 库文件位置：默认 `~/.news_price_query/prices.sqlite3`；可用环境变量 `NEWS_PRICE_DB` 或 `--db` 改。库文件**不进仓库**（已加 .gitignore）
 - 数据源：yfinance 日线，仅限内部研究，不对外发布或再分发
-- `hourly_prices` 独立保存 yfinance 原始 1 小时 OHLCV（含可选 Adj Close），日线仍在 `daily_prices`；时间同时保存 UTC 和交易所当地时区
+- `hourly_prices` 保存分钟和小时 OHLCV，按标的、周期和 UTC 开始时间区分。日线保存在 `daily_prices`。每根盘中行情还保存交易所当地时间、数据来源、获取时间和更新批次。
 - 支持港股、美股、加拿大、沙特股票和四条 NYMEX 期货连续合约；表里有 `market`、`currency` 字段，日历按 market 选取
 
 ## 安装与更新
@@ -17,6 +17,7 @@ python scripts/update_prices.py --universe news_price_query/data/universe_exampl
 python scripts/update_prices.py --universe news_price_query/data/universe_example_hk.csv --no-hourly
 python scripts/update_prices.py --universe /path/to/your_pool.csv --universe news_price_query/data/universe_example_hk.csv
 python scripts/update_prices.py --universe /path/to/your_pool.csv --refetch 2222.SR --start 2000-01-01
+python scripts/update_prices.py --universe /path/to/your_pool.csv --minute-interval 1m --minute-interval 2m
 ```
 
 - 股票池 CSV 需要有 `ticker`、`yfinance代码` 或 `代码`（如 00883）列；`中文名`、`英文名`、`常用别名`（用 ; 分隔）会被读入，用于网页别名和新闻匹配。仓库只放了只含代码的示例池；团队股票池文件不要提交。
@@ -28,6 +29,7 @@ python scripts/update_prices.py --universe /path/to/your_pool.csv --refetch 2222
 - 每次运行记一条 `update_runs`（run_id、开始/结束时间、状态、行数），每行价格记 `source`、`fetched_at`、`run_id`；查询结果带 `data_version`。
 - 输出会列出每个代码：已存行数、日历交易日数、缺失交易日（日历有、数据源没有）、丢弃的非交易日行数。
 - 默认同时更新日线和 1 小时线；`--no-hourly` 只更新日线，`--hourly-only` 只更新小时线。小时线首次回补约 729 天，之后从最后一根已存 bar 往前重拉 5 天并幂等覆盖；未结束的 bar 不入库。输出和 `--json` 会分别列出每个代码的小时线写入数、库存行数、覆盖时间范围和错误。小时线全体失败时状态为 `partial`，个别失败不会中断其他代码或日线更新。
+- `--minute-interval` 可重复指定 `1m`、`2m`、`5m`、`15m` 或 `30m`，按股票池同步供应商实际给出的历史到本地库。1 分钟尝试最近 30 天并以最多 7 天分段请求。其他分钟周期尝试最近 60 天。结果列出实际已保存的起止时间和条数。30 分钟数据由 yfinance 从 15 分钟线重采样。网页按需缓存的分钟线在免费服务重启后可重新获取，需保留的研究历史应同步到本地 SQLite。
 
 ### 每天自动更新
 

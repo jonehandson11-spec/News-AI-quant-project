@@ -75,13 +75,11 @@ button:disabled { opacity: .65; cursor: default; }
 .message.error { color: #9c2d31; }
 .message:empty { display: none; }
 .quote-result { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 17px; }
-.quote-value { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
 .quote-value h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
 #quotePrice { font-size: clamp(25px, 4vw, 34px); font-weight: 650; font-variant-numeric: tabular-nums; }
 .price-unit { margin-left: 8px; font-size: 13px; color: var(--muted); }
 .quote-factors { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
-summary { cursor: pointer; font-weight: 650; }
-.quote-factors summary { font-size: 14px; }
+.quote-factors h4 { margin: 0; font-size: 14px; font-weight: 650; }
 
 .table-scroll { margin-top: 10px; overflow: auto; }
 .market-state-table { width: 100%; min-width: 470px; border-collapse: collapse; font-size: 13px; }
@@ -94,7 +92,7 @@ summary { cursor: pointer; font-weight: 650; }
 #downloadQuoteFactors { margin-top: 12px; }
 
 .chart-panel { margin-top: 12px; }
-.chart-panel summary { padding: 14px var(--panel-padding); }
+.chart-panel h2 { margin: 0; padding: 14px var(--panel-padding); font-size: 18px; font-weight: 650; }
 .chart-body { padding: 0 var(--panel-padding) var(--panel-padding); }
 .chart-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .chart-toggles { display: flex; flex-wrap: wrap; gap: 4px; }

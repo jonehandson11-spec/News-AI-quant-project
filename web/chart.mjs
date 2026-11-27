@@ -9,6 +9,8 @@ import { englishText, selectedAssetValue } from "./core.mjs";
 
 const byId = (id) => document.getElementById(id);
 const RANGE_DAYS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90 };
+const MINUTE_INTERVALS = { "1m": 1, "2m": 2, "5m": 5, "15m": 15, "30m": 30 };
+const DAY_MS = 86_400_000;
 const PACK_BASE = 1_000_000_000;
 const PACK_STEP = 3600;
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -32,6 +34,17 @@ const state = {
   packed: new Map(),
   resize: null,
 };
+
+export function isMinuteInterval(interval) {
+  return Object.hasOwn(MINUTE_INTERVALS, interval);
+}
+
+export function intervalLabel(interval) {
+  if (isMinuteInterval(interval)) return `${MINUTE_INTERVALS[interval]}-minute`;
+  if (interval === "1h") return "Hourly";
+  if (interval === "1d") return "Daily";
+  return "Price";
+}
 
 function isoDate(value) {
   if (!value) return "";
@@ -100,6 +113,31 @@ function applyPreset(key) {
 
 function selectedInterval() {
   return state.interval;
+}
+
+function minuteSpanLimit(interval) {
+  return isMinuteInterval(interval) ? Math.min(60, Math.floor(8000 * MINUTE_INTERVALS[interval] / 1440)) : Infinity;
+}
+
+function presetFits(range, interval) {
+  // Date inputs include both endpoints.
+  return RANGE_DAYS[range] != null && 2 * RANGE_DAYS[range] + 1 <= minuteSpanLimit(interval);
+}
+
+function setNativeInterval(interval) {
+  const button = byId("chartNativeInterval");
+  const available = isMinuteInterval(interval);
+  button.hidden = !available;
+  button.disabled = !available;
+  button.dataset.interval = available ? interval : "";
+  button.textContent = available ? `${MINUTE_INTERVALS[interval]} min` : "";
+}
+
+function updateRangeOptions(interval) {
+  for (const button of byId("chartRanges").querySelectorAll("button")) {
+    button.disabled = !presetFits(button.dataset.range, interval);
+    button.title = button.disabled ? "Choose a shorter range for this interval." : "";
+  }
 }
 
 function priceFormat(bars) {
@@ -262,31 +300,49 @@ export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
     state.symbol = symbol;
     state.selection = selectedAssetValue();
     state.anchorDate = anchorDate || null;
+    setNativeInterval(interval);
+    if (!interval && isMinuteInterval(state.interval)) state.interval = "1h";
   }
   const ticker = state.symbol || selectedAssetValue();
   if (!ticker) {
     message("Select an instrument first.");
     return;
   }
-  if (["1h", "1d"].includes(interval)) {
+  if (["1h", "1d"].includes(interval) || isMinuteInterval(interval)) {
     state.interval = interval;
-    setPressed("chartIntervals", "data-interval", interval);
   }
-  if (range && RANGE_DAYS[range] != null) {
-    state.range = range;
-    applyPreset(range);
-    setPressed("chartRanges", "data-range", range);
-  } else if (!byId("chartStart").value || !byId("chartEnd").value) {
+  const resolution = selectedInterval();
+  const request = ++state.request;
+  setPressed("chartIntervals", "data-interval", resolution);
+  updateRangeOptions(resolution);
+  if (range) state.range = presetFits(range, resolution) ? range : "1d";
+  if (state.range && !presetFits(state.range, resolution)) state.range = "1d";
+  if (state.range) {
     applyPreset(state.range);
   }
+  setPressed("chartRanges", "data-range", state.range);
   const start = byId("chartStart").value;
   const end = byId("chartEnd").value;
   if (!start || !end) {
     message("Select a start and end date.");
     return;
   }
-  const resolution = selectedInterval();
-  const request = ++state.request;
+  const span = (Date.parse(end) - Date.parse(start)) / DAY_MS + 1;
+  const maxSpan = minuteSpanLimit(resolution);
+  if (span < 1) {
+    message("The end date must be on or after the start date.");
+    return;
+  }
+  if (span > maxSpan) {
+    if (!interval) {
+      message(`Select up to ${maxSpan} calendar days for ${intervalLabel(resolution)} bars.`);
+      return;
+    }
+    // Preserve custom dates when valid, otherwise pick the shortest preset on interval change.
+    state.range = "1d";
+    applyPreset(state.range);
+    setPressed("chartRanges", "data-range", state.range);
+  }
   message("Loading chart…");
   if (state.chart) {
     state.packed.clear();
@@ -295,7 +351,7 @@ export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
     byId("chartTooltip").hidden = true;
   }
   try {
-    const payload = await fetchBars(ticker, resolution, start, end);
+    const payload = await fetchBars(ticker, resolution, byId("chartStart").value, byId("chartEnd").value);
     if (request !== state.request) return;
     byId("chartMessage").dataset.label = englishText(payload.time_label_en, englishText(payload.time_label, payload.exchange_timezone || ""));
     ensureChart();
@@ -320,8 +376,9 @@ export async function loadChart({ symbol, anchorDate, interval, range } = {}) {
       return;
     }
     const bits = [
-      `${payload.symbol} · ${resolution === "1h" ? "Hourly" : "Daily"}`,
+      `${payload.symbol} · ${intervalLabel(resolution)}`,
       `${payload.bar_count} ${payload.bar_count === 1 ? "bar" : "bars"}`,
+      (payload.price_sources || []).map((source) => englishText(source)).filter(Boolean).join(", "),
       note,
     ].filter(Boolean);
     message(bits.join(" · "), true);
@@ -336,24 +393,19 @@ export function initChart() {
   setPressed("chartRanges", "data-range", state.range);
   applyPreset(state.range);
   for (const button of byId("chartIntervals").querySelectorAll("button")) {
-    button.addEventListener("click", () => {
-      state.interval = button.getAttribute("data-interval");
-      setPressed("chartIntervals", "data-interval", state.interval);
-      loadChart();
-    });
+    button.addEventListener("click", () => loadChart({ interval: button.dataset.interval }));
   }
   for (const button of byId("chartRanges").querySelectorAll("button")) {
-    button.addEventListener("click", () => {
-      state.range = button.getAttribute("data-range");
-      applyPreset(state.range);
+    button.addEventListener("click", () => loadChart({ range: button.dataset.range }));
+  }
+  for (const id of ["chartStart", "chartEnd"]) {
+    byId(id).addEventListener("change", () => {
+      state.range = null;
       setPressed("chartRanges", "data-range", state.range);
-      loadChart();
     });
   }
   byId("chartLoad").addEventListener("click", () => {
-    for (const button of byId("chartRanges").querySelectorAll("button")) {
-      button.setAttribute("aria-pressed", "false");
-    }
+    state.range = null;
     const current = selectedAssetValue();
     if (current && current !== state.selection) loadChart({ symbol: current });
     else loadChart();

@@ -12,13 +12,15 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from news_price_query.market_calendars import MARKETS
+from news_price_query.intraday_sync import IntradayUnavailable, MINUTE_INTERVALS, minute_bar_end, sync_intraday
+from news_price_query.market_calendars import MARKETS, calendar_for
 from news_price_query.price_store import HourlyRow, PriceStore
 
 
 UTC = ZoneInfo("UTC")
 
 INTERVALS = {
+    **{kind: kind for kind in MINUTE_INTERVALS},
     "1h": "1h",
     "hour": "1h",
     "hourly": "1h",
@@ -29,9 +31,12 @@ INTERVALS = {
     "d": "1d",
 }
 
-# About two years of 1-hour bars (the local store's typical hourly coverage).
-MAX_SPAN = {"1h": timedelta(days=800), "1d": timedelta(days=4000)}
 MAX_BARS = 8000
+# Cap short-interval requests even for nearly 24-hour futures sessions.
+MAX_SPAN = {
+    **{kind: timedelta(days=min(60, MAX_BARS * minutes // 1440)) for kind, minutes in MINUTE_INTERVALS.items()},
+    "1h": timedelta(days=800), "1d": timedelta(days=4000),
+}
 
 TZ_LABEL = {
     "Asia/Hong_Kong": "HKT",
@@ -54,7 +59,7 @@ def normalize_interval(value: str) -> str:
     try:
         return INTERVALS[key]
     except KeyError:
-        raise ValueError("K线周期只支持 1小时（1h）或 日线（1d）") from None
+        raise ValueError("K线周期只支持已知分钟周期、1小时（1h）或日线（1d）") from None
 
 
 def exchange_timezone(market: str) -> ZoneInfo:
@@ -117,7 +122,8 @@ def _aggregate_daily(rows: list[HourlyRow]) -> list[dict]:
     return bars
 
 
-def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) -> dict:
+def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str, *,
+               now: datetime | None = None, sync_minutes: bool = False) -> dict:
     """Return OHLC bars for ``asset`` between ``start`` and ``end`` inclusive."""
     kind = normalize_interval(interval)
     tz = exchange_timezone(getattr(asset, "market", None) or "XHKG")
@@ -127,11 +133,23 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
         raise ValueError("开始时间不能晚于结束时间")
     if last - first > MAX_SPAN[kind]:
         days = MAX_SPAN[kind].days
-        label = "1小时" if kind == "1h" else "日线"
+        label = {"1h": "1小时", "1d": "日线"}.get(kind, kind)
         raise ValueError(f"{label}最多查询 {days} 天，请缩小时间范围")
 
     ticker = asset.ticker
-    rows = store.hourly_rows(ticker, _utc_stamp(first), _utc_stamp(last))
+    minute = kind in MINUTE_INTERVALS
+    stored_kind = "1h" if kind == "1d" else kind
+    if minute:
+        now = now or datetime.now(tz)
+        minute_deadline = min(last, now)
+        calendar = calendar_for(asset.market)
+    if minute and sync_minutes:
+        try:
+            sync_intraday(store, asset, kind, first, last, now=now)
+        except IntradayUnavailable:
+            # An upstream failure does not hide the stored observations.
+            pass
+    rows = store.hourly_rows(ticker, _utc_stamp(first), _utc_stamp(last), interval=stored_kind)
     # hourly_rows uses inclusive UTC string comparison on bar_start_utc. A
     # date-only end of 23:59:59 local may land before a bar that starts that
     # minute; that is intended. Bars starting after `last` are dropped below
@@ -139,12 +157,17 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
     kept = []
     for row in rows:
         local = datetime.fromisoformat(row.bar_start_local)
-        if first <= local <= last:
-            kept.append(row)
+        if not first <= local <= last:
+            continue
+        if minute:
+            bar_end = minute_bar_end(local, calendar, kind)
+            if bar_end is None or bar_end > minute_deadline:
+                continue
+        kept.append(row)
 
-    if kind == "1h":
+    if kind != "1d":
         bars = [_hourly_payload(row) for row in kept]
-        source = "hourly_prices"
+        source = "intraday_prices" if minute else "hourly_prices"
     else:
         bars = _aggregate_daily(kept)
         source = "hourly_aggregate"
@@ -152,10 +175,17 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
     if len(bars) > MAX_BARS:
         raise ValueError(f"结果超过 {MAX_BARS} 根K线上限，请缩小时间范围")
 
-    coverage = store.hourly_coverage(ticker)
+    coverage = store.hourly_coverage(ticker, interval=stored_kind)
     missing = len(bars) == 0
     message_en = None
-    if missing:
+    if minute:
+        message = message_en = None
+        if missing:
+            message = f"该区间没有 {kind} 分钟线"
+            message_en = f"No {kind} prices in this range. Try a different date or a longer interval."
+            if coverage["stored_rows"]:
+                message_en += f" Stored coverage: {coverage['earliest_bar']} to {coverage['latest_bar']}."
+    elif missing:
         message = "缺数据"
         if coverage["stored_rows"]:
             earliest = coverage["earliest_bar"]
@@ -185,16 +215,17 @@ def chart_bars(store: PriceStore, asset, interval: str, start: str, end: str) ->
         "start": first.isoformat(),
         "end": last.isoformat(),
         "source": source,
+        "price_sources": sorted({row.source for row in kept}),
         "bars": bars,
         "bar_count": len(bars),
         "missing": missing,
         "message": message,
         "message_en": message_en,
-        "coverage": {
+        "coverage": ({"interval": kind, **coverage} if minute else {
             "hourly_from": coverage["earliest_bar"],
             "hourly_to": coverage["latest_bar"],
             "hourly_rows": coverage["stored_rows"],
-        },
+        }),
         "limits": {
             "max_span_days_1h": MAX_SPAN["1h"].days,
             "max_span_days_1d": MAX_SPAN["1d"].days,

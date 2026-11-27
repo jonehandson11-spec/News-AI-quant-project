@@ -6,7 +6,9 @@
 
 日线查价可直接使用日收盘价或期货结算价。K 线仍使用小时 OHLC 和由小时线聚合的日 K，只有日收盘价的日期无法画出完整蜡烛。石油入口复用 19 项研究资产，`BZ=F` 是 NYMEX Brent 代理，登记为无免费来源的 ICE 低硫柴油仍显示为不可查。
 
-展开市场因子可按同一标的和日期查看日线市场状态，并保存因子值、缺失原因、基准及计算口径。市场状态沿用 `pq-market-state-daily-v1` 的估算方法，小时线查价也使用这套日线因子。M04 流动性压力依赖买卖价差或盘口数据，目前留空；期货尚无默认基准，M05 和 M06 留空。数据为当前库中可查的历史记录，尚无逐时点行情修订快照。
+**Automatic** 按标的和日期读取已保存的真实周期，并按需补取 Yahoo 可提供的近期分钟线。先选最近已完成的行情，同一时刻优先更细周期。实际覆盖取决于标的、日期及来源响应。价格和 K 线保留原始周期、交易所时区和来源，30 分钟数据由 yfinance 用 15 分钟线重采样并标注。
+
+每次查价都会按同一标的和日期自动显示 K 线及日线市场状态，并可导出因子值、缺失原因、基准及计算口径。市场状态沿用 `pq-market-state-daily-v1` 的估算方法。M04 流动性压力依赖买卖价差或盘口数据，目前留空。期货尚无默认基准，M05 和 M06 留空。数据为当前库中可查的历史记录，尚无逐时点行情修订快照。
 
 行情页只提供查价、K 线和市场因子。原新闻及事件窗口仍可由已有脚本通过 API 调用。
 
@@ -15,7 +17,7 @@
 - `index.html`、`app.mjs`、`chart.mjs`、`core.mjs`、`styles.css`：页面。`vendor/lightweight-charts/` 为 Apache-2.0 授权的 TradingView Lightweight Charts 5.3.0（无 CDN 依赖，见目录内 LICENSE / NOTICE）。`server.py`、`service.py` 为本机 Python 服务，默认监听 127.0.0.1:8765。
 - `GET /api/assets` 返回已登记标的、市场、币种、单位和 `asset_id`（未登记 ID 的股票保留其标准 `ticker`）。
 - `GET /api/bars` 按 `symbol`、`interval`（1h / 1d）、`start` 和 `end` 返回 OHLC。页面 K 线可切换周期、选择日期、拖动或缩放。
-- `/api/price?symbol=0700.HK&interval=1d&date=2026-09-28` 查询价格、数据来源和实际取价时间。`date` 可省略，加 `market_state=1` 返回因子。可将首次响应的 `cutoff_at` 作为后续请求的 `as_of`（带时区），以复用相同截点。该查询独立于新闻索引。
+- `/api/price?symbol=0700.HK&interval=auto&date=2026-09-28` 查询价格、数据来源、实际周期 `interval` 和实际取价时间。可指定 `1m`、`2m`、`5m`、`15m`、`30m`、`1h` 或 `1d`。`date` 可省略，加 `market_state=1` 返回因子。用带时区的 `as_of` 设置截止时刻，或复用首次响应的 `cutoff_at`。该查询独立于新闻索引。
 - 原 `GET /api/news` 使用仓库 `data/news.csv`（可由 `--news-csv` 指定）；`POST /api/query` 仍支持新闻前后 1、3、6 个交易小时的研究查询。行情页不调用这两个接口。
 - `node --test web/core.test.mjs` 运行前端计算测试。
 

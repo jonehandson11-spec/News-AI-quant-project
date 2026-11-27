@@ -15,6 +15,7 @@ from news_price_query.assets import ASSETS, RESEARCH_ASSETS, resolve_asset, mark
 from news_price_query.cli import _result_dict
 from news_price_query.daily_report import benchmarks_for, daily_report, hourly_report
 from news_price_query.gvs_quality import read_quality
+from news_price_query.intraday_sync import IntradayUnavailable, MINUTE_INTERVALS, minute_bar_end, sync_intraday
 from news_price_query.market_calendars import calendar_for
 from news_price_query.news import find_direct_match, parse_news, read_news
 from news_price_query.query import query_event
@@ -25,6 +26,7 @@ HK = ZoneInfo("Asia/Hong_Kong")
 ALLOWED = {asset.ticker: asset for asset in ASSETS}
 BENCHMARKS = {asset.ticker for asset in ASSETS if asset.role == "benchmark"}
 OIL_TICKERS = {asset.ticker for asset in RESEARCH_ASSETS if asset.role != "benchmark"}
+PRICE_INTERVALS = (*MINUTE_INTERVALS, "1h", "1d")
 NEWS_CSV_LINK = "https://github.com/jonehandson11-spec/News-AI-quant-project/blob/main/data/news.csv"
 DEFAULT_NEWS_URL = (
     "https://raw.githubusercontent.com/jonehandson11-spec/"
@@ -203,15 +205,18 @@ class QueryService:
 
     def bars(self, asset_name, interval, start, end):
         """OHLC bars for the K-line chart; requires the local price database."""
+        from news_price_query.chart_bars import chart_bars, normalize_interval
+
         asset = self._asset(asset_name)
-        self._ensure_prices(asset.ticker)
+        interval = normalize_interval(interval)
+        if interval not in MINUTE_INTERVALS:
+            self._ensure_prices(asset.ticker)
         provider = self.provider_factory()
         try:
             store = getattr(provider, "store", None)
             if store is None:
                 raise ValueError("K线图只支持本地价格库")
-            from news_price_query.chart_bars import chart_bars
-            return chart_bars(store, asset, interval, start, end)
+            return chart_bars(store, asset, interval, start, end, now=self.now(), sync_minutes=self.yahoo_ondemand)
         finally:
             close = getattr(provider, "close", None)
             if close:
@@ -223,8 +228,8 @@ class QueryService:
 
     def price(self, asset_name, interval, on_date=None, *, market_state=False, as_of=None):
         """Look up a stored close without reading the news feed."""
-        if interval not in ("1d", "1h"):
-            raise ValueError("Choose daily (1d) or hourly (1h) prices.")
+        if interval != "auto" and interval not in PRICE_INTERVALS:
+            raise ValueError("Choose Auto, Daily, Hourly, or a supported minute interval.")
         try:
             asset = self._asset(asset_name)
         except ValueError:
@@ -232,7 +237,8 @@ class QueryService:
         if not asset.queryable:
             raise ValueError(f"No free price source is registered for {asset.ticker}.")
         calendar = calendar_for(asset.market)
-        now = self.now().astimezone(calendar.tz)
+        provider_now = self.now().astimezone(calendar.tz)
+        now = provider_now
         if as_of:
             explicit = datetime.fromisoformat(as_of)
             if explicit.utcoffset() is None:
@@ -252,15 +258,25 @@ class QueryService:
             store = getattr(provider, "store", None)
             if store is None:
                 raise ValueError("Direct price lookup requires the local price database.")
-            observation = self._price_observation(provider, asset, interval, start, cutoff, calendar)
             fetch_failed = False
-            if observation is None and self.yahoo_ondemand and start <= cutoff:
+            automatic = interval == "auto"
+            allowed = PRICE_INTERVALS if automatic else (interval,)
+            if self.yahoo_ondemand and (automatic or interval in MINUTE_INTERVALS):
+                try:
+                    self._sync_minute_prices(provider, asset, allowed, start, cutoff, provider_now, calendar,
+                                             automatic=automatic)
+                except IntradayUnavailable:
+                    fetch_failed = True
+
+            resolved, observation = self._best_price(provider, asset, allowed, start, cutoff, calendar)
+            needs_baseline = observation is None or (automatic and observation[0].date() < cutoff.date())
+            if needs_baseline and self.yahoo_ondemand and (automatic or interval not in MINUTE_INTERVALS):
                 try:
                     self._ensure_prices(asset.ticker)
                 except (ValueError, RuntimeError, OSError):
                     # The downloader can successfully persist day closes even if no hourly data exists.
                     fetch_failed = True
-                observation = self._price_observation(provider, asset, interval, start, cutoff, calendar)
+                resolved, observation = self._best_price(provider, asset, allowed, start, cutoff, calendar)
 
             observed, price, source = observation or (None, None, None)
             status = "missing" if observed is None else (
@@ -268,7 +284,8 @@ class QueryService:
             result = {"symbol": asset.ticker, "asset_id": asset.asset_id,
                       "name": asset.name_zh or asset.aliases[0], "name_en": asset.name_en,
                       "market": asset.market, "exchange_timezone": str(calendar.tz),
-                      "currency": asset.currency, "unit": asset.unit, "interval": interval,
+                      "currency": asset.currency, "unit": asset.unit, "interval": resolved,
+                      "requested_interval": interval,
                       "requested_date": requested.isoformat(), "cutoff_at": cutoff.isoformat(),
                       "observed_at": observed.isoformat() if observed else None, "price": price,
                       "source": source, "price_status": status}
@@ -284,15 +301,51 @@ class QueryService:
                     except (ValueError, RuntimeError, OSError):
                         # An unavailable benchmark cannot invalidate the asset's quoted price.
                         pass
+                if not store.last_date(asset.ticker) and (automatic or interval in MINUTE_INTERVALS):
+                    try:
+                        self._ensure_prices(asset.ticker)
+                    except (ValueError, RuntimeError, OSError):
+                        pass
             return self._attach_market_state(result, provider, asset, cutoff, now, market_state)
         finally:
             close = getattr(provider, "close", None)
             if close:
                 close()
 
+    def _sync_minute_prices(self, provider, asset, allowed, start, cutoff, now, calendar, *, automatic):
+        # Fetch only the requested session and its nearby history. Old relative dates and
+        # unavailable provider windows are skipped by the synchronizer.
+        recent_start = max(start, datetime.combine(cutoff.date() - timedelta(days=2), clock_time.min, calendar.tz))
+        for kind in allowed:
+            if kind not in MINUTE_INTERVALS:
+                break
+            existing = self._price_observation(provider, asset, kind, recent_start, cutoff, calendar)
+            if automatic or existing is None:
+                sync_intraday(provider.store, asset, kind, recent_start, cutoff, now=now)
+            if self._price_observation(provider, asset, kind, recent_start, cutoff, calendar) is not None:
+                break
+
+    @staticmethod
+    def _best_price(provider, asset, allowed, start, cutoff, calendar):
+        observations = ((kind, QueryService._price_observation(provider, asset, kind, start, cutoff, calendar))
+                        for kind in allowed)
+        # The finest native bar wins when two completed observations have the same timestamp.
+        return max(((kind, item) for kind, item in observations if item is not None),
+                   key=lambda pair: pair[1][0], default=(allowed[-1], None))
+
     @staticmethod
     def _price_observation(provider, asset, interval, start, cutoff, calendar):
         if start > cutoff:
+            return None
+        if interval in MINUTE_INTERVALS:
+            utc = ZoneInfo("UTC")
+            first = start.astimezone(utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            last = cutoff.astimezone(utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            rows = provider.store.hourly_rows(asset.ticker, first, last, interval=interval)
+            for row in reversed(rows):
+                end = minute_bar_end(datetime.fromisoformat(row.bar_start_local), calendar, interval)
+                if end is not None and end <= cutoff and isfinite(row.close):
+                    return end, row.close, row.source
             return None
         if interval == "1h":
             completed = []
