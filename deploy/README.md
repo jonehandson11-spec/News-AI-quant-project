@@ -2,7 +2,7 @@
 
 - 网页：Render 免费 Web Service，`render.yaml` + `deploy/cloud_start.py`。不需要信用卡，用 GitHub 登录。
 - 价格：[发布价格库工作流](../.github/workflows/publish-prices.yml)每个工作日 18:00 UTC 用 yfinance 更新价格库，压缩后发到 Release `prices-latest`，供服务准备行情库。
-- 站点：[团队行情站](https://news-price-query.onrender.com/)跟随 `main`。旧 GitHub Pages 地址由同仓库工作流发布跳转页。
+- 站点：[团队行情站](https://news-price-query-en.onrender.com/)跟随 `main`。旧 GitHub Pages 地址由同仓库工作流发布跳转页。
 - 访问：云端网页无需访问码，拿到链接即可使用。若平台上仍留着 `NEWS_PRICE_ACCESS_CODES_JSON` 或 `NEWS_PRICE_SESSION_SECRET`，启动脚本会忽略，不必删。本地启动（`python -m web.server --access-codes`）不受影响。
 
 注意：

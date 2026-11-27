@@ -1,6 +1,6 @@
 # 时政新闻与行情研究
 
-[打开团队行情查询](https://news-price-query.onrender.com/) · [下载新闻 SQLite](data/news.sqlite3) · [下载新闻 CSV](data/news.csv)
+[打开团队行情查询](https://news-price-query-en.onrender.com/) · [下载新闻 SQLite](data/news.sqlite3) · [下载新闻 CSV](data/news.csv)
 
 ## 新闻价格查询页面（入口）
 

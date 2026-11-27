@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PRICE_QUERY_URL = "https://news-price-query.onrender.com/"
+PRICE_QUERY_URL = "https://news-price-query-en.onrender.com/"
 REDIRECT_PAGE = f"""<!doctype html>
 <html lang="en">
 <head>
