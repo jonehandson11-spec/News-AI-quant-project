@@ -293,14 +293,14 @@ class QueryService:
                 result["message"] = ("The provider returned no usable prices." if fetch_failed
                                      else "No completed prices for this interval in the selected 14-day lookback.")
             if market_state and self.yahoo_ondemand:
-                from news_price_query.market_state import benchmark_for_market_state
-                benchmark = benchmark_for_market_state(asset)
-                if benchmark and benchmark != asset.ticker and not store.last_date(benchmark):
-                    try:
-                        self._ensure_prices(benchmark)
-                    except (ValueError, RuntimeError, OSError):
-                        # An unavailable benchmark cannot invalidate the asset's quoted price.
-                        pass
+                from news_price_query.market_state import reference_tickers_for_market_state
+                for ticker in reference_tickers_for_market_state(asset):
+                    if ticker != asset.ticker and not store.last_date(ticker):
+                        try:
+                            self._ensure_prices(ticker)
+                        except (ValueError, RuntimeError, OSError):
+                            # A missing reference cannot invalidate the asset's quoted price.
+                            pass
                 if not store.last_date(asset.ticker) and (automatic or interval in MINUTE_INTERVALS):
                     try:
                         self._ensure_prices(asset.ticker)

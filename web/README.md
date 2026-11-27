@@ -12,6 +12,8 @@
 
 Brent `BZ=F` 使用 WTI `CL=F` 作为日线基准，版本标识为 `pq-market-state-daily-brent-wti-v1`。M05 使用 63 对连续 NYMEX 交易日收益计算 Brent 对 WTI 的 Beta。M06 将 WTI 最近 21 个交易日的收益与此前 252 个滚动窗口比较并标准化。两者使用未做换月调整的连续合约日收盘价。缺失或非正收盘价会截断样本。其余标的沿用 `pq-market-state-daily-v1`。
 
+Brent 页面还显示成品油行业篮子，成分为 RBOB 汽油 `RB=F` 和纽约港超低硫柴油 `HO=F`，每日收益各占 50%，然后逐日复利。两个成分必须在同一个已完成的 NYMEX 交易日都有有效价格。篮子用同样的日线窗口计算 M05 和 M06。结果在 `market_state.industry_benchmark`，Brent 网页 CSV 追加篮子版本、成分和因子值。基准使用连续合约原始日收盘，换月影响保留在样本内。
+
 行情页只提供查价、K 线和市场因子。原新闻及事件窗口仍可由已有脚本通过 API 调用。
 
 ## 文件与接口
