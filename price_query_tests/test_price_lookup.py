@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
 import unittest
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from news_price_query.price_store import DailyRow, HourlyRow, LocalDbPriceProvider, PriceStore
@@ -44,12 +45,47 @@ class PriceLookupTests(unittest.TestCase):
         return DailyRow(ticker, "XHKG", "HKD", day, price, price, 100,
                         "synthetic", self.now.isoformat(), self.run)
 
-    def hourly(self, time, price):
+    def hourly(self, time, price, interval="1h"):
         local = datetime.fromisoformat(f"2026-09-28T{time}:00+08:00")
         utc = local.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
-        return HourlyRow("0700.HK", "XHKG", "HKD", "1h", utc, str(HK), local.isoformat(),
+        return HourlyRow("0700.HK", "XHKG", "HKD", interval, utc, str(HK), local.isoformat(),
                          price, price, price, price, price, 100, "synthetic",
                          self.now.isoformat(), self.run)
+
+    def test_auto_selects_latest_completed_bar_and_prefers_finer_on_a_tie(self):
+        self.store.upsert_hourly_rows([
+            self.hourly("11:11", 104, "1m"),
+            self.hourly("11:10", 105, "5m"),
+        ])
+        self.assertEqual(self.service.price("700", "auto")["interval"], "5m")
+        self.store.upsert_hourly_rows([
+            self.hourly("11:14", 106, "1m"),
+            self.hourly("11:15", 900, "1m"),  # Still forming.
+        ])
+        price = self.service.price("700", "auto", market_state=True)
+        self.assertEqual((price["requested_interval"], price["interval"], price["price"]), ("auto", "1m", 106))
+        self.assertEqual(price["observed_at"], "2026-09-28T11:15:00+08:00")
+        self.assertEqual(price["market_state"]["cutoff_date"], "2026-09-25")
+        self.assertEqual(self.service.price("700", "auto", "2026-09-25")["interval"], "1d")
+        chart = self.service.bars("700", "1m", "2026-09-28", "2026-09-28")
+        self.assertEqual([bar["close"] for bar in chart["bars"]], [104, 106])
+
+    def test_auto_tries_coarser_provider_interval_when_minute_data_is_missing(self):
+        self.service.yahoo_ondemand = True
+
+        def fetch(store, asset, interval, start, cutoff, *, now):
+            if interval == "2m":
+                store.upsert_hourly_rows([self.hourly("11:12", 102, interval)])
+
+        with patch("web.service.sync_intraday", side_effect=fetch) as sync:
+            price = self.service.price("700", "auto")
+        self.assertEqual([call.args[2] for call in sync.call_args_list], ["1m", "2m"])
+        self.assertEqual((price["interval"], price["price"]), ("2m", 102))
+        self.service.yahoo_ondemand = False
+        chart = self.service.bars("700", "2m", "2026-09-28", "2026-09-28")
+        self.assertEqual(chart["interval"], "2m")
+        self.assertEqual(len(chart["bars"]), 1)
+        self.assertEqual(chart["bars"][0]["close"], 102)
 
     def test_daily_lookup_uses_close_only_rows_and_declares_previous_session(self):
         price = self.service.price("700", "1d")

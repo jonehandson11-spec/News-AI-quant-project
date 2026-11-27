@@ -103,7 +103,7 @@ class ChartBarsUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "开始时间不能晚于结束时间"):
             chart_bars(self.store, ASSET, "1h", "2026-09-29", "2026-09-28")
         with self.assertRaisesRegex(ValueError, "K线周期只支持"):
-            chart_bars(self.store, ASSET, "15m", "2026-09-28", "2026-09-29")
+            chart_bars(self.store, ASSET, "10m", "2026-09-28", "2026-09-29")
         with self.assertRaisesRegex(ValueError, "最多查询"):
             chart_bars(self.store, ASSET, "1h", "2020-01-01", "2023-01-01")
 

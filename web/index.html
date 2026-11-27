@@ -51,21 +51,21 @@
           </div>
           <div>
             <label for="quoteInterval">Interval</label>
-            <select id="quoteInterval" name="interval"><option value="1d">Daily</option><option value="1h">Hourly</option></select>
+            <select id="quoteInterval" name="interval"><option value="auto">Automatic</option><option value="1d">Daily</option><option value="1h">Hourly</option></select>
           </div>
           <button id="runQuote" class="primary-button" type="submit">Look Up Price</button>
         </div>
-        <p class="field-help" id="quoteDateHelp">Dates use the exchange’s local time. Leave the date blank for the latest completed price. <span id="assetHelp"></span></p>
+        <p class="field-help" id="quoteDateHelp">Dates use the exchange’s local time. Leave the date blank for the latest completed price. Automatic shows the interval used for the returned price. <span id="assetHelp"></span></p>
         <p id="quoteMessage" class="message" role="status" aria-live="polite"></p>
       </form>
       <section id="quoteResult" class="quote-result" hidden aria-labelledby="quoteAsset">
         <div class="quote-value">
-          <div><h3 id="quoteAsset"></h3><strong id="quotePrice">—</strong></div>
-          <button id="showQuoteChart" type="button" aria-controls="chartPanel">View Chart</button>
+          <h3 id="quoteAsset"></h3>
+          <strong id="quotePrice">—</strong>
         </div>
         <p id="quoteObservation" class="quote-observation"></p>
-        <details id="quoteMarketDetails" class="quote-factors">
-          <summary>GVS Market State and Quality</summary>
+        <section class="quote-factors" aria-labelledby="quoteMarketHeading">
+          <h4 id="quoteMarketHeading">GVS Market State and Quality</h4>
           <p class="field-help">Daily indicators. Quality scores come from a separate data source.</p>
           <p id="quoteMarketMessage" class="message" role="status"></p>
           <div id="quoteMarketStateSection" hidden>
@@ -80,15 +80,16 @@
             </div>
             <button id="downloadQuoteFactors" type="button" hidden>Download Indicators CSV</button>
           </div>
-        </details>
+        </section>
       </section>
     </section>
 
-    <details id="chartPanel" class="panel chart-panel">
-      <summary id="chartHeading">Candlestick Chart</summary>
+    <section id="chartPanel" class="panel chart-panel" aria-labelledby="chartHeading" hidden>
+      <h2 id="chartHeading">Candlestick Chart</h2>
       <div class="chart-body">
         <div class="chart-toolbar">
           <div id="chartIntervals" class="chart-toggles" role="group" aria-label="Chart interval">
+            <button id="chartNativeInterval" type="button" aria-pressed="false" hidden disabled></button>
             <button type="button" data-interval="1h" aria-pressed="true">1 Hour</button>
             <button type="button" data-interval="1d" aria-pressed="false">Daily</button>
           </div>
@@ -107,7 +108,7 @@
           <div id="chartTooltip" class="chart-tooltip" hidden></div>
         </div>
       </div>
-    </details>
+    </section>
   </main>
 </body>
 </html>

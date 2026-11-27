@@ -267,9 +267,9 @@ class PriceStore:
         return row[0]
 
     def hourly_rows(self, ticker: str, start_utc: str | None = None,
-                    end_utc: str | None = None) -> list[HourlyRow]:
-        query = "SELECT * FROM hourly_prices WHERE ticker=? AND interval='1h'"
-        params: list = [ticker]
+                    end_utc: str | None = None, *, interval: str = "1h") -> list[HourlyRow]:
+        query = "SELECT * FROM hourly_prices WHERE ticker=? AND interval=?"
+        params: list = [ticker, interval]
         if start_utc:
             query += " AND bar_start_utc>=?"
             params.append(start_utc)
@@ -285,10 +285,10 @@ class PriceStore:
                                (ticker,)).fetchone()
         return row[0]
 
-    def hourly_coverage(self, ticker: str) -> dict:
+    def hourly_coverage(self, ticker: str, *, interval: str = "1h") -> dict:
         with closing(self._connect()) as conn:
             row = conn.execute("SELECT COUNT(*), MIN(bar_start_utc), MAX(bar_start_utc) "
-                               "FROM hourly_prices WHERE ticker=? AND interval='1h'", (ticker,)).fetchone()
+                               "FROM hourly_prices WHERE ticker=? AND interval=?", (ticker, interval)).fetchone()
         return {"stored_rows": row[0], "earliest_bar": row[1], "latest_bar": row[2]}
 
     def instruments(self) -> list[Instrument]:
@@ -315,7 +315,7 @@ class LocalDbPriceProvider:
     splits). For hourly bars, adj basis applies the exchange-local trading date's
     daily adj_close/close factor to the hourly close because yfinance intraday
     adj_close is not dividend-adjusted; bars without that daily factor are skipped.
-    Minute bars are not stored: minute requests return no bars."""
+    Finer intraday bars are read by the direct quote and chart APIs."""
 
     def __init__(self, path: str | Path | None = None, *, basis: str = "raw", store: PriceStore | None = None):
         if basis not in ("raw", "adj"):
