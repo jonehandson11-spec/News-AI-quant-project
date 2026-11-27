@@ -1,4 +1,9 @@
-# BBC + 新浪财经 + Financial Times 新闻共享库
+# 时政新闻与行情研究
+
+项目包含 BBC News、新浪财经和 Financial Times 的新闻库，以及港股与石油资产的行情查询工具。
+
+- [港股与石油行情：查看页面代码、运行方法与数据接口](#新闻价格查询页面入口)
+- [新闻库：下载并在 DBeaver 中打开](#下载和在-dbeaver-中打开)
 
 ## 自动采集
 
@@ -127,28 +132,28 @@ FT 本机自动程序、Windows 任务和故障弹窗的操作方法见[本机�
 
 ## 新闻价格查询页面（入口）
 
-**组员直接用：** 打开 <https://news-price-query.onrender.com> 即可使用，什么都不用装。链接固定不变，组长电脑关着也能用；网站没人用 15 分钟会休眠，第一次打开要等约 1 分钟。
+**网页源码**在 [web/index.html](web/index.html)，脚本和样式位于 [web/](web/)。GitHub 文件页用来查看代码。实际查询通过 Python 服务读取行情库，在本机运行后访问 `http://127.0.0.1:8765/`。 [网页说明与数据接口](web/README.md)
 
-输入股票（或期货）和新闻发布时间查询价格；不用导入 CSV，也不用登录富途 OpenD。覆盖港股、美股、加股、沙特股票和 Brent/WTI/RBOB/ULSD 期货（石油研究首期标的见 `news_price_query/data/research_assets.csv`）。云端网站可直接输入不在股票池里的代码（例如阿里巴巴 `9988.HK`），价格库没有时会现场从 Yahoo 拉取并缓存；第一次稍慢。免费版重启后缓存会清空，下次查询会再拉一次。
+**团队线上入口**为 [Render 行情站](https://news-price-query.onrender.com/)。[部署配置](render.yaml)跟随 `main`，其他分支和草稿 PR 的改动可以在本机预览，线上页面以已部署的版本为准。
 
-**第一次用：先建本地价格库**（需要 Python 3.10+；以后每天重跑同一命令即可增量更新）：
+| 功能 | 用法 |
+| --- | --- |
+| 查价格 | 从港股或石油组选择标的，也可以输入 `700`、`0883.HK` 或 `CL=F`。选择日线或小时线，按交易所当地日期查询。留空日期时显示最近已完成的价格，结果附实际取价时间、单位和来源。 |
+| K 线 | 在查价结果点击 **查看 K 线**，可切换小时线和日线、调整日期范围。只有收盘价的日期仍可查价，绘制日 K 则需要该日的小时线。 |
+| GVS 市场状态 | 展开因子表并下载 CSV。Q01 证据可靠性可接入逐因子评级，Q02 数据覆盖按约定来源和时间范围提供。未接数据时留空，行情样本覆盖率单列。M04 流动性压力等待买卖报价或盘口数据。 |
+
+石油组使用 [研究资产登记表](news_price_query/data/research_assets.csv)。其中 `BZ=F` 是 NYMEX Brent 代理；登记为无免费行情来源的标的会标明。行情页的查询无需填写新闻时间。新闻库和已有研究脚本仍可独立使用。
+
+**第一次本地运行**时，在包含新版 `web/` 的仓库目录准备价格库。需要 Python 3.10 或更新版本：
 
 ```sh
-python3 -m pip install yfinance
+python3 -m pip install -r deploy/requirements.txt
 python3 scripts/update_prices.py --universe news_price_query/data/universe_example_hk.csv --universe news_price_query/data/universe_oil_research.csv
 ```
 
-Windows 把 `python3` 换成 `py -3`。价格库默认在 `~/.news_price_query/prices.sqlite3`，不进仓库。同一命令会顺带存 1 小时线：第一次补约两年的小时线，之后每天增量更新；日线照常更新。
+Windows 把 `python3` 换成 `py -3`。默认价格库在 `~/.news_price_query/prices.sqlite3`，可用同一更新命令补充日线和小时线。若已有数据库，直接启动即可。
 
-**启动（两步）：**
+1. Windows 双击 [START-WINDOWS.bat](START-WINDOWS.bat)。Mac/Linux 运行 `./start-local.sh`。
+2. 打开 `http://127.0.0.1:8765/`，保留运行服务的窗口。若本地也需要从 Yahoo 补取未入库的标的，运行 `python -m web.server --yahoo-ondemand --open-browser`。
 
-1. Windows 双击 `START-WINDOWS.bat`；Mac/Linux 在仓库目录运行 `./start-local.sh`（窗口保持打开）。
-2. 浏览器会自动打开 `http://127.0.0.1:8765/`；没打开就手动访问这个地址。本地默认只查价格库里已有的股票；若也要现场从 Yahoo 拉取，启动时加 `--yahoo-ondemand`（需已安装 yfinance）。
-
-**怎么查：**从列表选择标的，或直接输入代码 → 选择候选新闻或输入发布时间（香港时间）→ 查询。默认窗口为新闻前 6、3、1 个交易小时，以及新闻后 1、3、6 个交易小时。交易小时只计算交易时段，午休、收盘后、周末和假期不计；小时线约覆盖最近两年，更早新闻显示「缺数据」。结果展示起止时间、价格、币种/单位、原始涨跌和状态；「显示复权和超额」可查看复权及同市场对照。期货固定合约规则见本地价格库说明。缺数据不按零处理，未到期显示「未到期」。可下载 JSON/CSV。命令行默认使用小时窗口；需交易日窗口时加 `--mode daily`，例如 `python3 -m news_price_query query --asset 0883.HK --time 2026-09-28T11:17:00+08:00 --mode daily --provider local --format table`。
-
-Yahoo 香港小时线的 `12:30` 时间戳对应午休后 13:00–13:30 的短 bar；`15:30` bar 截止收市，成交量常为零的情况属于数据源记时/成交量伪影，不据此标记零成交。NYMEX 小时窗口按 Yahoo Globex 近似时段计算：交易日 D 的前一日 18:00 至 D 日 17:00 美东时间；日线仍按 14:30 结算时刻。
-
-价格数据来自 yfinance，**仅供组内研究**；网页默认只在本机 127.0.0.1 运行，不要公开部署或把 8765 端口开放到公网。价格与新闻同时变化不代表因果关系。详细说明见 [本地价格库](docs/price-store.md)（更新、交易日历、期货规则）、[命令行](docs/news-price-query.md)、[网页说明](web/README.md)。
-
-旧版备选：代码仍保留富途 OpenD 取价（`--provider futu --mode minute`），不再作为组员使用方式。
+**后续接数据**可以通过 `GET /api/assets` 获取标的，`GET /api/price` 获取价格与 GVS，`GET /api/bars` 获取 K 线 OHLC。`/api/price` 加 `market_state=1` 返回因子和质量字段。质量记录可按资产、预测截点和因子版本接入。 [接口参数与质量数据格式](web/README.md#gvs-质量数据接入) · [行情库与交易日历](docs/price-store.md) · [研究查询命令行](docs/news-price-query.md)
