@@ -83,8 +83,9 @@ function renderMarketState(block) {
   byId("quoteMarketStateTableWrap").hidden = failed;
   byId("downloadQuoteFactors").hidden = failed;
   const basis = { adj: "Adjusted close", raw: "Raw close" }[block.price_basis] || "—";
+  const benchmark = block.benchmark_name_en ? `${block.benchmark_name_en} (${block.benchmark})` : block.benchmark || "—";
   byId("quoteMarketStateMeta").textContent = failed ? block.profile_id || ""
-    : `As of ${block.cutoff_date || "—"} · ${basis} · Benchmark ${block.benchmark || "—"} · ${block.profile_id || "—"}`;
+    : `As of ${block.cutoff_date || "—"} · ${basis} · Benchmark ${benchmark} · ${block.profile_id || "—"}`;
 
   const market = byId("quoteMarketStateRows");
   market.replaceChildren();
