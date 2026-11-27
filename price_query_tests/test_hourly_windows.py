@@ -1,7 +1,7 @@
 """Synthetic hourly window fixtures; these prices are deliberately not market data."""
 import unittest
 import tempfile
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -10,6 +10,7 @@ from news_price_query.market_calendars import calendar_for
 from news_price_query.prices import PriceBar
 from news_price_query.query import query_event
 from news_price_query.daily_report import hourly_report
+from news_price_query.futures import contract_ticker, front_contract
 from news_price_query.windows import shift_trading_hours, trading_seconds_between
 from news_price_query.price_store import (DailyRow, HourlyRow, LocalDbPriceProvider,
                                          PriceStore)
@@ -98,6 +99,41 @@ class HourlyWindowTests(unittest.TestCase):
         self.assertEqual(shift_trading_hours(datetime(2026, 9, 11, 16, tzinfo=ny), 2,
                                              calendar_for("NYMEX")),
                          datetime(2026, 9, 13, 19, tzinfo=ny))
+
+    def test_fixed_contract_hourly_windows_use_own_prices_and_timing(self):
+        ny = ZoneInfo("America/New_York")
+        ticker = contract_ticker(front_contract("CL", date(2026, 9, 1)))
+        provider = SyntheticProvider([
+            bar("CL=F", "2026-09-01T08:00:00-04:00", 0),
+            bar("CL=F", "2026-09-01T09:00:00-04:00", 1),
+            bar("CL=F", "2026-09-01T10:00:00-04:00", 3),
+            bar("CL=F", "2026-09-01T15:00:00-04:00", 8),
+            bar(ticker, "2026-09-01T07:30:00-04:00", -30),
+            bar(ticker, "2026-09-01T08:30:00-04:00", -28),
+            bar(ticker, "2026-09-01T09:15:00-04:00", -21),
+        ])
+        result = hourly_report(provider, resolve_asset("CL=F"),
+                               datetime(2026, 9, 1, 10, tzinfo=ny),
+                               as_of=datetime(2026, 9, 1, 16, tzinfo=ny))
+        self.assertEqual(result["contract"]["ticker"], ticker)
+        self.assertEqual(result["baseline"]["price"], 72)
+        for label, start, end in (("before_1th", 70, 72), ("after_1th", 72, 79)):
+            with self.subTest(label=label):
+                row = result["windows"][label]
+                self.assertEqual((row["start_price"], row["end_price"]), (start, end))
+                self.assertEqual(row["price_change"], end - start)
+                self.assertAlmostEqual(row["return_pct"], (end / start - 1) * 100)
+                for field in ("start_at", "end_at", "start_price", "end_price"):
+                    self.assertEqual(row[f"adj_{field}"], row[field])
+        after = result["windows"]["after_1th"]
+        self.assertEqual(after["target_at"], "2026-09-01T10:30:00-04:00")
+        self.assertEqual(after["observed_at"], "2026-09-01T10:15:00-04:00")
+        self.assertEqual(after["delay_seconds"], -900)
+        self.assertEqual(after["continuous"]["end_price"], 103)
+        missing = result["windows"]["after_6th"]
+        self.assertEqual(missing["status"], "missing")
+        self.assertIsNone(missing["price_change"])
+        self.assertEqual(missing["continuous"]["end_price"], 108)
 
     def test_trading_seconds_skip_hk_lunch(self):
         # Synthetic interval; the calendar lunch closure is 12:00–13:00.
