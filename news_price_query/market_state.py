@@ -8,13 +8,17 @@ from .market_calendars import calendar_for
 
 
 PROFILE_ID = "pq-market-state-daily-v1"
+BRENT_WTI_PROFILE_ID = "pq-market-state-daily-brent-wti-v1"
 LABEL_ZH = "发布前行情描述，非 GVS 校准因子"
 _BENCHMARKS = {"XHKG": "2800.HK", "XNYS": "SPY", "XTSE": "XIU.TO"}
+_FUTURES_BENCHMARKS = {"BZ=F": "CL=F"}
 _NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 def benchmark_for_market_state(asset):
-    return None if asset.asset_type == "futures" else _BENCHMARKS.get(asset.market)
+    if asset.asset_type == "futures":
+        return _FUTURES_BENCHMARKS.get(asset.ticker)
+    return _BENCHMARKS.get(asset.market)
 
 
 def _field(value=None, reason=None, **details):
@@ -63,6 +67,20 @@ def _price(row, raw):
 
 def _returns(prices):
     return [prices[i][1] / prices[i - 1][1] - 1 for i in range(1, len(prices))]
+
+
+def _consecutive_closes(prices, cutoff, calendar, limit):
+    """Stop at the first missing or invalid trading session."""
+    by_date = dict(prices)
+    closes = []
+    while cutoff >= calendar.first and len(closes) < limit:
+        if calendar.is_trading_day(cutoff):
+            day = cutoff.isoformat()
+            if day not in by_date:
+                break
+            closes.append((day, by_date[day]))
+        cutoff -= timedelta(days=1)
+    return closes[::-1]
 
 
 def _momentum(prices, *, cutoff, benchmark=None, redundant=False):
@@ -129,12 +147,15 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
         raise ValueError("as_of must include a timezone")
     calendar = calendar or calendar_for(asset.market)
     benchmark = benchmark_for_market_state(asset)
+    brent_wti = (asset.ticker, benchmark) == ("BZ=F", "CL=F")
     raw = asset.ticker.startswith("^") or asset.asset_type == "futures"
-    output = {"profile_id": PROFILE_ID, "label_zh": LABEL_ZH,
+    output = {"profile_id": BRENT_WTI_PROFILE_ID if brent_wti else PROFILE_ID, "label_zh": LABEL_ZH,
               "cutoff_date": None, "price_basis": "raw" if raw else "adj",
               "benchmark": benchmark,
               "method": "截止最近已收盘交易日；股票/ETF 用复权收盘，指数/期货用原始收盘，收益按有效日线连续计算。",
               "fields": _blank_fields("OUT_OF_COVERAGE")}
+    if brent_wti:
+        output["benchmark_name_en"] = "WTI Crude Oil"
     deadline = min(published_at, as_of).astimezone(calendar.tz)
     cursor = deadline.date()
     if cursor > calendar.last:
@@ -222,11 +243,19 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
         fields["benchmark_beta"] = _missing(_NOT_APPLICABLE)
         fields["benchmark_momentum_z"] = _missing(_NOT_APPLICABLE, window_days=21, reference_days=252)
     else:
-        other = series(benchmark, False)
+        other = series(benchmark, brent_wti)
+        own_beta = own
+        if brent_wti:
+            # The registered Yahoo proxies share the NYMEX calendar. Daily
+            # returns require both ends of an actual adjacent-session pair.
+            own_beta = _consecutive_closes(own, cutoff, calendar, 64)
+            other = _consecutive_closes(other, cutoff, calendar, 274)
         by_date = {d: p for d, p in other}
-        common = [(d, p, by_date[d]) for d, p in own if d in by_date]
+        common = [(d, p, by_date[d]) for d, p in own_beta if d in by_date]
         redundant = asset.ticker == benchmark
-        if len(common) < 64:
+        if brent_wti and not other:
+            fields["benchmark_beta"] = _missing("NOT_OBSERVED", benchmark=benchmark)
+        elif len(common) < 64:
             fields["benchmark_beta"] = _missing("INSUFFICIENT_HISTORY", benchmark=benchmark,
                 n_pairs=max(0, len(common)-1), first_pair_date=common[0][0] if common else None,
                 last_pair_date=common[-1][0] if common else None, **({"redundant": True} if redundant else {}))

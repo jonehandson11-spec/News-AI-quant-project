@@ -2,14 +2,14 @@ import json
 import math
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from statistics import mean, stdev
 from zoneinfo import ZoneInfo
 
 from news_price_query.assets import Asset, resolve_asset
 from news_price_query.market_calendars import calendar_for
-from news_price_query.market_state import PROFILE_ID, csv_headers, csv_values, market_state
+from news_price_query.market_state import BRENT_WTI_PROFILE_ID, PROFILE_ID, csv_headers, csv_values, market_state
 from news_price_query.price_store import DailyRow, PriceStore
 from web.service import QueryService
 from web.server import _market_state_flag
@@ -30,13 +30,51 @@ class MarketStateTests(unittest.TestCase):
         self.published = datetime.combine(self.dates[-1], datetime.min.time(), NY).replace(hour=17)
         self.run_id = self.store.start_run("test", None, 1, self.as_of)
 
-    def add_prices(self, ticker, prices, *, volumes=None, dates=None):
+    def add_prices(self, ticker, prices, *, volumes=None, dates=None, market="XNYS", adjusted=None):
         dates = dates or self.dates[-len(prices):]
         volumes = volumes if volumes is not None else [100.0] * len(prices)
-        rows = [DailyRow(ticker, "XNYS", "USD", day.isoformat(), price, price,
+        adjusted = adjusted if adjusted is not None else prices
+        rows = [DailyRow(ticker, market, "USD", day.isoformat(), price, adj,
                          volume, "test", self.as_of.isoformat(), self.run_id)
-                for day, price, volume in zip(dates, prices, volumes)]
+                for day, price, adj, volume in zip(dates, prices, adjusted, volumes)]
         self.store.upsert_rows(rows)
+
+    def test_brent_uses_raw_wti_daily_closes_with_a_fixed_cutoff(self):
+        calendar = calendar_for("NYMEX")
+        cutoff = date(2026, 10, 29)
+        dates = [calendar.shift_trading_days(cutoff, i) for i in range(-273, 2)]
+        brent, wti = [80.0], [72.0]
+        for i in range(273):
+            change = (0.025, -0.012, 0.004, 0.001)[i % 4]
+            wti.append(wti[-1] * (1 + change))
+            brent.append(brent[-1] * (1 + 1.5 * change))
+        self.add_prices("BZ=F", [*brent, 1000.0], dates=dates, market="NYMEX")
+        self.add_prices("CL=F", [*wti, 2000.0], dates=dates, market="NYMEX", adjusted=[72.0] * len(dates))
+        event = datetime(2026, 10, 29, 23, 59, tzinfo=NY)
+        asset = resolve_asset("BZ=F")
+        result = market_state(self.store, asset, event, as_of=event + timedelta(days=1))
+        self.assertEqual(result["profile_id"], BRENT_WTI_PROFILE_ID)
+        self.assertEqual(result["cutoff_date"], "2026-10-29")
+        self.assertEqual(result["benchmark"], "CL=F")
+        beta = result["fields"]["benchmark_beta"]
+        momentum = result["fields"]["benchmark_momentum_z"]
+        returns = [wti[i] / wti[i - 21] - 1 for i in range(21, 274)]
+        self.assertEqual(beta["n_pairs"], 63)
+        self.assertAlmostEqual(beta["value"], 1.5, places=12)
+        self.assertAlmostEqual(momentum["value"], (returns[-1] - mean(returns[:-1])) / stdev(returns[:-1]))
+        self.assertEqual(momentum["window_end"], "2026-10-29")
+
+        # A nonpositive close inside both windows must not create a return over the gap.
+        self.add_prices("CL=F", [-15.0], dates=[dates[-10]], market="NYMEX")
+        fields = market_state(self.store, asset, event, as_of=event)["fields"]
+        for key in ("benchmark_beta", "benchmark_momentum_z"):
+            self.assertEqual(fields[key]["missing_reason"], "INSUFFICIENT_HISTORY")
+            self.assertIsNone(fields[key]["value"])
+
+        self.add_prices("CL=F", [0.0], dates=[cutoff], market="NYMEX")
+        fields = market_state(self.store, asset, event, as_of=event)["fields"]
+        self.assertEqual(fields["benchmark_beta"]["missing_reason"], "NOT_OBSERVED")
+        self.assertEqual(fields["benchmark_momentum_z"]["missing_reason"], "NOT_OBSERVED")
 
     def test_known_sequence_metrics_and_exact_beta(self):
         # The final 64 benchmark returns alternate, and asset returns are exactly 2x.
@@ -73,6 +111,7 @@ class MarketStateTests(unittest.TestCase):
 
     def test_unsupported_market_and_futures_have_no_benchmark(self):
         for asset in (Asset("ABC.SR", "", "equity", (), market="XSAU"),
+                      resolve_asset("CL=F"),
                       Asset("CLZ26.NYM", "", "futures", (), market="NYMEX", asset_type="futures")):
             result = market_state(self.store, asset, self.published, as_of=self.as_of)
             self.assertIsNone(result["benchmark"])
