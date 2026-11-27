@@ -2,7 +2,7 @@ import { WINDOW_LABELS, assetOptionText, dailyColumns, detailPreference, detailT
 import { initChart, loadChart } from "./chart.mjs";
 
 const byId = (id) => document.getElementById(id);
-const state = { news: [], result: null, newsRequest: 0,
+const state = { news: [], result: null, newsRequest: 0, quoteRequest: 0, quote: null,
   showDetail: detailPreference(window.location.search, localStorage.getItem("pq.showAdjExcess")) };
 const fullResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。原始＝未除权收盘价（仅拆股调整），复权＝含分红调整。超额＝个股涨跌幅－同市场对照涨跌幅（简单差值，不是市场模型）；恒生指数、多伦多综指为价格指数，复权与原始相同。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
 const shortResultNote = "日线模式：t0 为事件日（收盘前发布则当天，否则下一交易日）；基准为发布前最后一个收盘价。新闻前涨跌幅＝从 N 个交易日前收盘到基准；新闻后涨跌幅＝从基准到 t+K 收盘。时间列为交易所当地时间，涨跌幅以标的当地货币计（未做汇率换算）。缺数据不按零处理。新闻与价格同时变化不代表因果关系。";
@@ -28,29 +28,29 @@ const showPrice = (value) => value === null || value === undefined ? "缺失" : 
 const showDifference = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${showPrice(value)}`;
 const showReturn = (value) => value === null || value === undefined ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 const MARKET_STATE_FIELDS = [
-  ["momentum_z", "价格动量 z 分数"],
-  ["realized_volatility", "已实现波动率（日，未年化）"],
-  ["relative_trading_activity", "相对成交活跃度"],
-  ["liquidity_stress_z", "流动性压力 z 分数"],
-  ["benchmark_beta", "对照敏感度 beta"],
-  ["benchmark_momentum_z", "对照趋势 z 分数"],
+  ["momentum_z", "M01 价格动量"],
+  ["realized_volatility", "M02 已实现波动率（日，未年化）"],
+  ["relative_trading_activity", "M03 相对成交活跃度"],
+  ["liquidity_stress_z", "M04 流动性压力"],
+  ["benchmark_beta", "M05 基准 Beta"],
+  ["benchmark_momentum_z", "M06 基准动量"],
   ["data_coverage", "价格数据覆盖率"],
 ];
 const MARKET_STATE_REASONS = { INSUFFICIENT_HISTORY: "历史不足", NOT_APPLICABLE: "不适用",
   ESTIMATOR_NOT_READY: "估计方法未就绪", REFERENCE_MISSING: "参照缺失", NOT_OBSERVED: "无观测",
   OUT_OF_COVERAGE: "超出覆盖", AMBIGUOUS: "口径不明" };
-function renderMarketState(result) {
-  const section = byId("marketStateSection");
+function renderMarketState(result, prefix = "marketState") {
+  const part = (suffix) => byId(prefix + suffix);
   const stateBlock = result.market_state;
-  section.hidden = !stateBlock;
+  part("Section").hidden = !stateBlock;
   if (!stateBlock) return;
   const failed = Boolean(stateBlock.error);
-  byId("marketStateError").hidden = !failed;
-  byId("marketStateError").textContent = failed ? stateBlock.error : "";
-  byId("marketStateTableWrap").hidden = failed;
-  byId("marketStateMeta").textContent = failed ? `profile_id：${stateBlock.profile_id || "—"}`
+  part("Error").hidden = !failed;
+  part("Error").textContent = failed ? stateBlock.error : "";
+  part("TableWrap").hidden = failed;
+  part("Meta").textContent = failed ? `profile_id：${stateBlock.profile_id || "—"}`
     : `profile_id：${stateBlock.profile_id} · 截止日：${stateBlock.cutoff_date || "—"} · 口径：${stateBlock.price_basis === "adj" ? "复权收盘" : "原始收盘"} · 对照：${stateBlock.benchmark || "无"}`;
-  const body = byId("marketStateRows");
+  const body = part("Rows");
   body.replaceChildren();
   for (const [code, label] of MARKET_STATE_FIELDS) {
     const item = stateBlock.fields?.[code] || { value: null, missing_reason: "NOT_OBSERVED" };
@@ -375,6 +375,101 @@ async function fetchJson(url, options) {
   return body;
 }
 
+function quoteMessage(text, ok = false) {
+  const status = byId("quoteMessage");
+  status.textContent = text;
+  status.classList.toggle("ok", ok);
+}
+
+async function runQuote(event) {
+  event.preventDefault();
+  const symbol = selectedAssetValue();
+  if (!symbol) { quoteMessage("请选择或输入标的。"); return; }
+  const params = new URLSearchParams({ symbol, interval: byId("quoteInterval").value });
+  if (byId("quoteDate").value) params.set("date", byId("quoteDate").value);
+  const id = ++state.quoteRequest;
+  state.quote = null;
+  byId("quoteResult").hidden = true;
+  byId("quoteMarketDetails").open = false;
+  byId("quoteMarketStateSection").hidden = true;
+  byId("quoteMarketMessage").textContent = "";
+  byId("downloadQuoteFactors").hidden = true;
+  byId("runQuote").disabled = true;
+  quoteMessage("正在查询价格…");
+  try {
+    const result = await fetchJson(`./api/price?${params}`, { cache: "no-store" });
+    if (id !== state.quoteRequest) return;
+    state.quote = { result, params, factors: null, loadingFactors: false };
+    const name = result.symbol === "BZ=F" ? "布伦特原油代理" : result.name;
+    byId("quoteAsset").textContent = [...new Set([name, result.symbol].filter(Boolean))].join(" · ");
+    const price = byId("quotePrice");
+    price.replaceChildren();
+    if (result.price == null) price.textContent = "缺少价格";
+    else addPrice(price, result.price, result.unit || result.currency);
+    const observation = byId("quoteObservation");
+    if (result.observed_at) {
+      const date = showTime(result.observed_at);
+      const prior = result.price_status === "prior_session" ? "较早交易时段 · " : "";
+      observation.textContent = `${prior}${date} · ${result.exchange_timezone || "交易所当地时间"} · ${result.interval === "1h" ? "小时线收盘" : "日线收盘"} · ${result.source || "来源未记录"}`;
+    } else {
+      observation.textContent = result.message || "查询截点之前没有可用的已完成行情。";
+    }
+    byId("quoteResult").hidden = false;
+    quoteMessage("");
+  } catch (error) {
+    if (id === state.quoteRequest) quoteMessage(error.message);
+  } finally {
+    if (id === state.quoteRequest) byId("runQuote").disabled = false;
+  }
+}
+
+async function loadQuoteFactors() {
+  const quote = state.quote;
+  if (!byId("quoteMarketDetails").open || !quote || quote.factors || quote.loadingFactors) return;
+  const params = new URLSearchParams(quote.params);
+  if (quote.result.requested_date) params.set("date", quote.result.requested_date);
+  if (quote.result.cutoff_at) params.set("as_of", quote.result.cutoff_at);
+  params.set("market_state", "1");
+  quote.loadingFactors = true;
+  byId("quoteMarketMessage").textContent = "正在读取市场状态…";
+  try {
+    const result = await fetchJson(`./api/price?${params}`, { cache: "no-store" });
+    if (state.quote !== quote) return;
+    if (!result.market_state) throw new Error("本次查询没有市场状态指标。");
+    quote.factors = result;
+    renderMarketState(result, "quoteMarketState");
+    byId("downloadQuoteFactors").hidden = Boolean(result.market_state.error);
+    byId("quoteMarketMessage").textContent = "";
+  } catch (error) {
+    if (state.quote === quote) byId("quoteMarketMessage").textContent = error.message;
+  } finally {
+    quote.loadingFactors = false;
+  }
+}
+
+function downloadQuoteFactors() {
+  const result = state.quote?.factors;
+  if (!result?.market_state || result.market_state.error) return;
+  const headers = ["symbol", "requested_date", "cutoff_at", ...marketStateCsvHeaders()];
+  const row = [result.symbol, result.requested_date, result.cutoff_at, ...marketStateCsvCells(result)]
+    .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`);
+  download(`${result.symbol}-market-state.csv`, `\uFEFF${headers.join(",")}\r\n${row.join(",")}\r\n`, "text/csv;charset=utf-8");
+}
+
+function renderNewsSource(source) {
+  if (!source?.label) return;
+  const node = byId("newsSource");
+  node.replaceChildren(document.createTextNode("新闻来源："));
+  let url;
+  try { url = new URL(source.url); } catch { /* Local CSV has no public URL. */ }
+  if (url && ["https:", "http:"].includes(url.protocol)) {
+    const link = addText(node, "a", source.label);
+    link.href = url.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  } else node.append(document.createTextNode(source.label));
+}
+
 async function loadNews() {
   const request = ++state.newsRequest;
   const params = new URLSearchParams({ asset: selectedAssetValue() });
@@ -385,15 +480,15 @@ async function loadNews() {
     const data = await fetchJson(`./api/news?${params.toString()}`, { cache: "no-store" });
     if (request !== state.newsRequest) return;
     state.news = data.matches || [];
-    byId("newsStatus").textContent = `${state.news.length.toLocaleString("zh-CN")} 条候选${data.stale ? " · 缓存" : ""}`;
+    byId("newsStatus").textContent = data.stale ? "当前使用缓存新闻。" : "";
+    renderNewsSource(data.source);
     renderNews();
   } catch (error) {
     if (request !== state.newsRequest) return;
     state.news = [];
-    byId("newsStatus").textContent = "新闻暂不可用";
+    byId("newsStatus").textContent = `新闻暂不可用：${error.message}`;
     byId("matchCount").textContent = "新闻读取失败";
     byId("newsList").replaceChildren();
-    message(`新闻读取失败：${error.message}。仍可手动输入新闻时间查询行情。`);
   }
 }
 
@@ -407,13 +502,21 @@ function syncBenchmarkOptions() {
 function fillAssets() {
   const select = byId("asset"), selected = select.value;
   select.replaceChildren();
+  const groups = new Map(["港股", "石油相关", "其他"].map((label) => {
+    const group = document.createElement("optgroup");
+    group.label = label;
+    return [label, group];
+  }));
   for (const asset of state.assets || []) {
     const option = document.createElement("option");
     option.value = asset.ticker;
     option.textContent = assetOptionText(asset);
+    if (asset.ticker === "BZ=F") option.textContent = "布伦特原油代理 · BZ=F · USD";
     option.disabled = asset.queryable === false;
-    select.append(option);
+    const group = asset.oil_research ? "石油相关" : asset.market === "XHKG" ? "港股" : "其他";
+    groups.get(group).append(option);
   }
+  for (const group of groups.values()) if (group.children.length) select.append(group);
   const enabled = [...select.options].filter((option) => !option.disabled);
   if (enabled.some((option) => option.value === selected)) select.value = selected;
   else if (enabled.length) select.value = enabled[0].value;
@@ -432,8 +535,8 @@ async function loadCatalog() {
     const help = byId("assetHelp");
     if (help) {
       help.textContent = state.yahooOndemand
-        ? "可从列表选择已登记标的（显示中文名），或在下方输入代码、中文名。价格库没有的标的会现场从 Yahoo 拉取（第一次稍慢，之后会缓存）。"
-        : "可从列表选择已登记标的和本地价格库中的股票（显示中文名），或在下方输入代码、中文名；未入库的标的请先加入股票池并更新价格库。";
+        ? "可输入港股代码，如 700 或 0700.HK。未入库行情会尝试从 Yahoo 获取。"
+        : "可输入港股代码，如 700 或 0700.HK。可查范围取决于本地行情库。";
     }
     byId("priceStatus").textContent = ["daily", "hourly"].includes(state.mode) ? `${data.price_source}` : `${data.price_source} · 查询时取价`;
     byId("sourceHelp").textContent = state.mode === "hourly"
@@ -445,18 +548,41 @@ async function loadCatalog() {
       : "查询时由内部服务连接富途 OpenD。需要运行服务的电脑已登录富途并具备历史行情权限；网页无需选择价格文件。";
   } catch (error) {
     byId("priceStatus").textContent = "内部查询服务不可用";
-    message(`无法连接内部查询服务：${error.message}`);
+    quoteMessage(`无法连接行情服务：${error.message}`);
   }
-  await loadNews();
 }
 
 byId("asset").addEventListener("change", () => {
   const typed = byId("assetInput");
   if (typed) typed.value = "";
   syncBenchmarkOptions();
-  loadNews();
+  if (byId("researchPanel").open) loadNews();
 });
-byId("assetInput").addEventListener("change", () => { syncBenchmarkOptions(); loadNews(); });
+byId("assetInput").addEventListener("change", () => {
+  syncBenchmarkOptions();
+  if (byId("researchPanel").open) loadNews();
+});
+byId("quoteForm").addEventListener("submit", runQuote);
+byId("quoteMarketDetails").addEventListener("toggle", loadQuoteFactors);
+byId("downloadQuoteFactors").addEventListener("click", downloadQuoteFactors);
+byId("researchPanel").addEventListener("toggle", () => {
+  if (byId("researchPanel").open) loadNews();
+});
+byId("showQuoteChart").addEventListener("click", () => {
+  const quote = state.quote?.result;
+  if (!quote) return;
+  state.pendingChart = null;
+  byId("chartPanel").open = true;
+  loadChart({ symbol: quote.symbol, newsTime: null, anchorDate: quote.requested_date,
+    interval: quote.interval, range: "1w" });
+  byId("chartPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+byId("chartPanel").addEventListener("toggle", () => {
+  if (!byId("chartPanel").open || !state.pendingChart) return;
+  const chart = state.pendingChart;
+  state.pendingChart = null;
+  loadChart(chart);
+});
 byId("newsFilter").addEventListener("submit", (event) => { event.preventDefault(); loadNews(); });
 byId("publishedAt").addEventListener("input", clearTimePreset);
 for (const button of timePresetButtons) {
@@ -488,7 +614,9 @@ byId("queryForm").addEventListener("submit", async (event) => {
     });
     renderResult(result);
     message("查询完成。请核对新闻相关性和行情来源。", true);
-    loadChart({ symbol: result.ticker, newsTime: result.published_at, range: "1w" });
+    const chart = { symbol: result.ticker, newsTime: result.published_at, range: "1w" };
+    if (byId("chartPanel").open) loadChart(chart);
+    else state.pendingChart = chart;
   } catch (error) { byId("results").hidden = true; message(error.message); }
   finally { button.disabled = false; }
 });

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="按新闻发布时间查询港股前后各交易小时窗口的价格，并保留实际取价时间和数据来源。">
-  <title>新闻 × 港股价格查询</title>
+  <meta name="description" content="直接查询港股和石油相关资产的历史价格、K 线及 GVS 市场状态。">
+  <title>港股与石油行情查询</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.mjs"></script>
 </head>
@@ -15,35 +15,99 @@
   </header>
 
   <main>
-    <section class="intro">
-      <p class="eyebrow">NEWS / PRICE / TIME</p>
-      <h1>新闻发布前后，<br><em>价格实际到了哪里？</em></h1>
-      <p class="lede">输入标的与新闻发布时间，查询新闻前后 1、3、6 个交易小时的涨跌（原始与复权），并与同市场对照。交易小时只算交易时段，午休、收盘后、周末和假期不计；小时线约覆盖最近两年，更早新闻显示缺数据。</p>
-      <div class="data-strip">
-        <div><span class="strip-label">新闻索引</span><strong id="newsStatus">载入中…</strong></div>
-        <div><span class="strip-label">自动行情</span><strong id="priceStatus">检查服务中…</strong></div>
-        <div><span class="strip-label">时区</span><strong>香港 UTC+08:00</strong></div>
-      </div>
+    <section class="intro price-intro">
+      <h1>港股与石油行情</h1>
+      <p class="lede">选择标的查看历史价格。日期按标的交易所当地时间。</p>
     </section>
 
-    <div class="workspace">
-      <section class="panel query-panel" aria-labelledby="queryHeading">
-        <div class="panel-heading"><span class="section-number">01</span><div><p class="eyebrow">QUERY</p><h2 id="queryHeading">设置查询</h2></div></div>
-        <form id="queryForm">
-          <label for="asset">选择标的</label>
-          <select id="asset" name="asset" required>
-            <option value="1211.HK">比亚迪 · 1211.HK</option>
-            <option value="0700.HK">腾讯 · 0700.HK</option>
-            <option value="9988.HK">阿里巴巴 · 9988.HK</option>
-            <option value="0981.HK">中芯国际 · 0981.HK</option>
-            <option value="0005.HK">汇丰控股 · 0005.HK</option>
-            <option value="2800.HK">盈富基金 · 2800.HK</option>
-            <option value="3033.HK">南方恒生科技 ETF · 3033.HK</option>
-          </select>
-          <label for="assetInput">或直接输入代码 / 中文名</label>
-          <input id="assetInput" name="assetInput" placeholder="例如 0883.HK / 阿里巴巴 / AAPL" autocomplete="off">
-          <p class="field-help" id="assetHelp">可从列表选择已登记标的（显示中文名），或在下方输入代码、中文名。云端网站在价格库没有该标的时会现场从 Yahoo 拉取，第一次稍慢。</p>
+    <section class="panel price-panel" aria-labelledby="priceHeading">
+      <div class="price-heading"><h2 id="priceHeading">查价格</h2><span id="priceStatus">正在连接行情服务…</span></div>
+      <form id="quoteForm">
+        <div class="quote-assets">
+          <div><label for="asset">选择标的</label>
+            <select id="asset" name="asset">
+              <optgroup label="港股">
+                <option value="0700.HK">腾讯 · 0700.HK</option>
+                <option value="1211.HK">比亚迪 · 1211.HK</option>
+                <option value="9988.HK">阿里巴巴 · 9988.HK</option>
+                <option value="0981.HK">中芯国际 · 0981.HK</option>
+                <option value="0005.HK">汇丰控股 · 0005.HK</option>
+                <option value="2800.HK">盈富基金 · 2800.HK</option>
+                <option value="3033.HK">南方恒生科技 ETF · 3033.HK</option>
+              </optgroup>
+              <optgroup label="石油相关">
+                <option value="CL=F">WTI 原油 · CL=F</option>
+                <option value="BZ=F">布伦特原油代理 · BZ=F</option>
+                <option value="0883.HK">中国海油 · 0883.HK</option>
+                <option value="0386.HK">中国石化 · 0386.HK</option>
+              </optgroup>
+            </select>
+          </div>
+          <div><label for="assetInput">或输入标的</label>
+            <input id="assetInput" name="assetInput" placeholder="例如 0700.HK、腾讯、CL=F" autocomplete="off" maxlength="80" aria-describedby="assetHelp">
+          </div>
+        </div>
+        <p class="field-help" id="assetHelp">可选港股或石油相关标的，也可输入代码查询。</p>
+        <div class="quote-controls">
+          <div><label for="quoteDate">查询日</label><input id="quoteDate" name="date" type="date" aria-describedby="quoteDateHelp"></div>
+          <div><label for="quoteInterval">行情频率</label><select id="quoteInterval" name="interval"><option value="1d">日线</option><option value="1h">小时线</option></select></div>
+          <button id="runQuote" class="primary-button" type="submit">查询价格</button>
+        </div>
+        <p class="field-help" id="quoteDateHelp">留空查询最近一笔已完成的日线或小时线。</p>
+        <p id="quoteMessage" class="message" role="status" aria-live="polite"></p>
+      </form>
+      <section id="quoteResult" class="quote-result" hidden aria-labelledby="quoteAsset">
+        <div class="quote-value"><div><h3 id="quoteAsset"></h3><strong id="quotePrice">—</strong></div><button id="showQuoteChart" class="secondary-button" type="button" aria-controls="chartPanel">查看 K 线</button></div>
+        <p id="quoteObservation" class="quote-observation"></p>
+        <details id="quoteMarketDetails" class="quote-factors">
+          <summary>GVS 市场状态</summary>
+          <p class="field-help">显示本次查询截点前的日频行情描述及缺失原因。指标仍待研究校准。</p>
+          <p id="quoteMarketMessage" class="message" role="status"></p>
+          <div id="quoteMarketStateSection" hidden>
+            <p id="quoteMarketStateMeta" class="market-state-meta"></p>
+            <p id="quoteMarketStateError" class="market-state-error" hidden></p>
+            <div id="quoteMarketStateTableWrap" class="table-scroll"><table class="market-state-table"><thead><tr><th>指标</th><th>数值</th><th>观察窗口</th></tr></thead><tbody id="quoteMarketStateRows"></tbody></table></div>
+            <button id="downloadQuoteFactors" class="secondary-button" type="button" hidden>下载指标 CSV</button>
+          </div>
+        </details>
+      </section>
+    </section>
 
+    <details id="chartPanel" class="panel chart-panel disclosure-panel">
+      <summary id="chartHeading">K 线图</summary>
+      <div class="disclosure-body">
+        <div class="chart-toolbar">
+          <div id="chartIntervals" class="chart-toggles" role="group" aria-label="K线周期">
+            <button type="button" data-interval="1h" aria-pressed="true">1小时</button>
+            <button type="button" data-interval="1d" aria-pressed="false">日线</button>
+          </div>
+          <div id="chartRanges" class="chart-toggles" role="group" aria-label="查看区间">
+            <button type="button" data-range="1d" aria-pressed="false">前后1天</button>
+            <button type="button" data-range="1w" aria-pressed="true">前后1周</button>
+            <button type="button" data-range="1m" aria-pressed="false">前后1月</button>
+            <button type="button" data-range="3m" aria-pressed="false">前后3月</button>
+          </div>
+          <label for="chartStart">开始</label>
+          <input id="chartStart" type="date">
+          <label for="chartEnd">结束</label>
+          <input id="chartEnd" type="date">
+          <button id="chartLoad" type="button">查看K线</button>
+        </div>
+        <p id="chartMessage" class="message" role="status" aria-live="polite">选择标的与日期区间查看 K 线。</p>
+        <p id="chartNewsNote" class="chart-news-note" hidden></p>
+        <div id="chartContainer" class="chart-container">
+          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+        </div>
+      </div>
+    </details>
+
+    <details id="researchPanel" class="panel disclosure-panel">
+      <summary>相关新闻与事件窗口</summary>
+      <div class="disclosure-body">
+        <div class="workspace">
+      <section class="query-panel research-pane" aria-labelledby="queryHeading">
+        <div class="panel-heading"><h2 id="queryHeading">事件窗口</h2></div>
+        <form id="queryForm">
           <label for="publishedAt">新闻发布时间 · 香港时间</label>
           <div class="time-presets" role="group" aria-label="按现在选择新闻发布时间">
             <button type="button" data-hours="1" aria-pressed="false">1 小时前</button>
@@ -57,10 +121,7 @@
           <input id="publishedAt" name="publishedAt" type="datetime-local" step="1" required>
           <p class="field-help">快捷选项按点击时的当前时间计算；也可手动输入，或从下方候选新闻中选择。</p>
 
-          <div class="upload-box">
-            <strong>自动获取价格</strong>
-            <p id="sourceHelp">正在检查价格来源…</p>
-          </div>
+          <p class="field-help" id="sourceHelp"></p>
           <label class="checkbox hk-only"><input id="benchmarkMarket" type="checkbox" checked><span>比较盈富基金 2800.HK · 整体港股</span></label>
           <label class="checkbox hk-only"><input id="benchmarkTech" type="checkbox"><span>比较南方恒生科技 ETF 3033.HK · 科技板块</span></label>
           <button id="runQuery" class="primary-button" type="submit">自动取价并查询 <span aria-hidden="true">↗</span></button>
@@ -68,15 +129,17 @@
         </form>
       </section>
 
-      <section class="panel news-panel" aria-labelledby="newsHeading">
-        <div class="panel-heading"><span class="section-number">02</span><div><p class="eyebrow">NEWS INDEX</p><h2 id="newsHeading">相关候选新闻</h2></div></div>
-        <p class="panel-description">按公司名称直接提及筛选。正文提及与同一事件的重复报道都需要人工复核。</p>
+      <section class="news-panel research-pane" aria-labelledby="newsHeading">
+        <div class="panel-heading"><h2 id="newsHeading">相关候选新闻</h2></div>
+        <p class="panel-description">按标的名称和别名查找标题或正文的直接提及。候选仍需核对是否与资产有关。</p>
+        <p id="newsSource" class="news-source">新闻来自团队 GitHub 仓库的 <a href="https://github.com/jonehandson11-spec/News-AI-quant-project/blob/main/data/news.csv" target="_blank" rel="noopener noreferrer">data/news.csv</a>。</p>
         <form id="newsFilter" class="news-filter">
           <label for="newsStart">开始日期</label><input id="newsStart" type="date">
           <label for="newsEnd">结束日期</label><input id="newsEnd" type="date">
           <button type="submit">筛选新闻</button>
         </form>
-        <div class="news-count" id="matchCount">载入中…</div>
+        <div class="news-count" id="matchCount">请选择标的后筛选新闻。</div>
+        <p id="newsStatus" class="field-help" role="status"></p>
         <div id="newsList" class="news-list"></div>
       </section>
     </div>
@@ -93,34 +156,9 @@
         <div id="marketStateTableWrap" class="table-scroll"><table class="market-state-table"><thead><tr><th>字段</th><th>数值</th><th>说明</th></tr></thead><tbody id="marketStateRows"></tbody></table></div>
       </section>
     </section>
-
-    <section id="chartPanel" class="panel chart-panel" aria-labelledby="chartHeading">
-      <div class="panel-heading"><span class="section-number">03</span><div><p class="eyebrow">CHART</p><h2 id="chartHeading">K 线图</h2></div></div>
-      <p class="panel-description">查询新闻后，会在发布时间附近画出 K 线，并标出新闻时点。也可以只选标的和区间，直接查看。可拖动平移，滚轮或触控缩放。日K线由本地小时线合成；没有数据的时段留空，不补造。</p>
-      <div class="chart-toolbar">
-        <div id="chartIntervals" class="chart-toggles" role="group" aria-label="K线周期">
-          <button type="button" data-interval="1h" aria-pressed="true">1小时</button>
-          <button type="button" data-interval="1d" aria-pressed="false">日线</button>
-        </div>
-        <div id="chartRanges" class="chart-toggles" role="group" aria-label="新闻前后区间">
-          <button type="button" data-range="1d" aria-pressed="false">前后1天</button>
-          <button type="button" data-range="1w" aria-pressed="true">前后1周</button>
-          <button type="button" data-range="1m" aria-pressed="false">前后1月</button>
-          <button type="button" data-range="3m" aria-pressed="false">前后3月</button>
-        </div>
-        <label for="chartStart">开始</label>
-        <input id="chartStart" type="date">
-        <label for="chartEnd">结束</label>
-        <input id="chartEnd" type="date">
-        <button id="chartLoad" type="button">查看K线</button>
       </div>
-      <p id="chartMessage" class="message" role="status" aria-live="polite">查询新闻后将显示该时点附近的 K 线，也可直接选择区间查看。</p>
-      <p id="chartNewsNote" class="chart-news-note" hidden></p>
-      <div id="chartContainer" class="chart-container">
-        <div id="chartTooltip" class="chart-tooltip" hidden></div>
-      </div>
-    </section>
+    </details>
   </main>
-  <footer><span>新闻 × 港股价格查询 · 数据来源与时间始终随结果保留</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">查看源代码与使用说明 ↗</a></footer>
+  <footer><span>港股与石油行情查询</span><a href="https://github.com/jonehandson11-spec/News-AI-quant-project">源代码与使用说明 ↗</a></footer>
 </body>
 </html>

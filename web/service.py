@@ -1,7 +1,8 @@
 """Internal query service backed by the team's news feed and Futu OpenD."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time as clock_time, timedelta
 import io
+from math import isfinite
 from threading import Lock
 import time
 from urllib.request import urlopen
@@ -13,13 +14,17 @@ from pathlib import Path
 from news_price_query.assets import ASSETS, RESEARCH_ASSETS, resolve_asset, market_of_ticker, _futu_code, Asset
 from news_price_query.cli import _result_dict
 from news_price_query.daily_report import benchmarks_for, daily_report, hourly_report
+from news_price_query.market_calendars import calendar_for
 from news_price_query.news import find_direct_match, parse_news, read_news
 from news_price_query.query import query_event
+from news_price_query.windows import hourly_bar_end
 
 
 HK = ZoneInfo("Asia/Hong_Kong")
 ALLOWED = {asset.ticker: asset for asset in ASSETS}
 BENCHMARKS = {asset.ticker for asset in ASSETS if asset.role == "benchmark"}
+OIL_TICKERS = {asset.ticker for asset in RESEARCH_ASSETS if asset.role != "benchmark"}
+NEWS_CSV_LINK = "https://github.com/jonehandson11-spec/News-AI-quant-project/blob/main/data/news.csv"
 DEFAULT_NEWS_URL = (
     "https://raw.githubusercontent.com/jonehandson11-spec/"
     "News-AI-quant-project/main/data/news.csv"
@@ -39,6 +44,7 @@ class RemoteNewsStore:
         self._next_refresh = 0
         self._lock = Lock()
         self.stale = False
+        self.source_info = {"label": "GitHub 新闻 CSV", "url": NEWS_CSV_LINK if url == DEFAULT_NEWS_URL else None}
 
     def __call__(self):
         with self._lock:
@@ -65,12 +71,16 @@ class RemoteNewsStore:
 class LocalNewsStore:
     """Read the team news CSV from a local path; re-read when the file changes."""
 
-    def __init__(self, path):
+    def __init__(self, path, *, repository_snapshot=False):
         self.path = Path(path)
         self._items = None
         self._mtime = None
         self._lock = Lock()
         self.stale = False
+        self.source_info = {
+            "label": "仓库 data/news.csv" if repository_snapshot else "本地新闻 CSV",
+            "url": NEWS_CSV_LINK if repository_snapshot else None,
+        }
 
     def __call__(self):
         with self._lock:
@@ -156,15 +166,11 @@ class QueryService:
         raise ValueError("只支持已登记标的和本地价格库中的标的；新股票请先加入股票池并运行 update_prices.py")
 
     def catalog(self):
-        rows = []
-        for asset in self._allowed().values():
-            row = {"ticker": asset.ticker, "name": asset.aliases[0], "role": asset.role,
-                   "unit": asset.unit, "data_status": asset.data_status}
-            if self.instruments is not None:
-                row.update({"stage": asset.stage, "market": asset.market, "currency": asset.currency,
-                            "asset_type": asset.asset_type, "queryable": asset.queryable})
-            rows.append(row)
-        return rows
+        return [{"ticker": asset.ticker, "name": asset.name_zh or asset.aliases[0], "role": asset.role,
+                 "stage": asset.stage, "market": asset.market, "currency": asset.currency,
+                 "asset_type": asset.asset_type, "unit": asset.unit, "queryable": asset.queryable,
+                 "data_status": asset.data_status, "oil_research": asset.ticker in OIL_TICKERS}
+                for asset in self._allowed().values()]
 
     def _ensure_prices(self, *tickers):
         """If on-demand is on, fetch any ticker that is not yet in the local store."""
@@ -208,6 +214,94 @@ class QueryService:
     def source_info(self):
         return {"price_source": self.price_source, "mode": self.mode,
                 "data_version": self.data_version(), "yahoo_ondemand": self.yahoo_ondemand}
+
+    def price(self, asset_name, interval, on_date=None, *, market_state=False, as_of=None):
+        """Look up a stored close without reading the news feed."""
+        if interval not in ("1d", "1h"):
+            raise ValueError("价格周期只支持日线（1d）或小时线（1h）")
+        asset = self._asset(asset_name)
+        if not asset.queryable:
+            raise ValueError(f"{asset.ticker} 无免费行情来源")
+        calendar = calendar_for(asset.market)
+        now = self.now().astimezone(calendar.tz)
+        if as_of:
+            explicit = datetime.fromisoformat(as_of)
+            if explicit.utcoffset() is None:
+                raise ValueError("as_of 需要包含时区")
+            now = min(now, explicit.astimezone(calendar.tz))
+        requested = date.fromisoformat(on_date) if on_date else now.date()
+        if on_date and requested.isoformat() != on_date:
+            raise ValueError("日期格式需为 YYYY-MM-DD")
+        if requested > now.date():
+            raise ValueError("查询日期不能晚于标的当地的截止日期")
+        cutoff = min(datetime.combine(requested, clock_time.max, calendar.tz), now)
+        start = datetime.combine(max(calendar.first, requested - timedelta(days=14)),
+                                 clock_time.min, calendar.tz)
+
+        provider = self.provider_factory()
+        try:
+            store = getattr(provider, "store", None)
+            if store is None:
+                raise ValueError("直接查价需要本地价格库")
+            observation = self._price_observation(provider, asset, interval, start, cutoff, calendar)
+            fetch_failed = False
+            if observation is None and self.yahoo_ondemand and start <= cutoff:
+                try:
+                    self._ensure_prices(asset.ticker)
+                except (ValueError, RuntimeError, OSError):
+                    # The downloader can successfully persist day closes even if no hourly data exists.
+                    fetch_failed = True
+                observation = self._price_observation(provider, asset, interval, start, cutoff, calendar)
+
+            observed, price, source = observation or (None, None, None)
+            status = "missing" if observed is None else (
+                "observed" if observed.date() == requested else "prior_session")
+            result = {"symbol": asset.ticker, "name": asset.name_zh or asset.aliases[0],
+                      "market": asset.market, "exchange_timezone": str(calendar.tz),
+                      "currency": asset.currency, "unit": asset.unit, "interval": interval,
+                      "requested_date": requested.isoformat(), "cutoff_at": cutoff.isoformat(),
+                      "observed_at": observed.isoformat() if observed else None, "price": price,
+                      "source": source, "price_status": status}
+            if observation is None:
+                result["message"] = ("行情补取未返回可用记录" if fetch_failed else "所选日期及此前 14 天无该周期的已完成价格")
+            if market_state and self.yahoo_ondemand:
+                from news_price_query.market_state import benchmark_for_market_state
+                benchmark = benchmark_for_market_state(asset)
+                if benchmark and benchmark != asset.ticker and not store.last_date(benchmark):
+                    try:
+                        self._ensure_prices(benchmark)
+                    except (ValueError, RuntimeError, OSError):
+                        # An unavailable benchmark cannot invalidate the asset's quoted price.
+                        pass
+            return self._attach_market_state(result, provider, asset, cutoff, now, market_state)
+        finally:
+            close = getattr(provider, "close", None)
+            if close:
+                close()
+
+    @staticmethod
+    def _price_observation(provider, asset, interval, start, cutoff, calendar):
+        if start > cutoff:
+            return None
+        if interval == "1h":
+            completed = []
+            for bar in provider.bars(asset.ticker, start, cutoff, "hour"):
+                if not calendar.first <= bar.timestamp.astimezone(calendar.tz).date() <= calendar.last:
+                    continue
+                end = hourly_bar_end(bar, calendar)
+                if end is not None and end <= cutoff and bar.close is not None and isfinite(bar.close):
+                    completed.append((end, bar.close, bar.source))
+            return max(completed, key=lambda row: row[0], default=None)
+
+        rows = provider.store.rows(asset.ticker, start.date().isoformat(), cutoff.date().isoformat())
+        for row in reversed(rows):
+            row_day = date.fromisoformat(row.date)
+            if not calendar.first <= row_day <= calendar.last:
+                continue
+            day = calendar.day(row_day)
+            if day.is_trading and day.close_at() <= cutoff and row.close is not None and isfinite(row.close):
+                return day.close_at(), row.close, row.source
+        return None
 
     def news(self, asset_name, start=None, end=None):
         asset = self._asset(asset_name)
@@ -275,7 +369,8 @@ class QueryService:
             raise ValueError("对照标的只支持 2800.HK 和 3033.HK")
         as_of = self.now()
         if self.yahoo_ondemand:
-            market_benchmark = {"XHKG": "2800.HK", "XNYS": "SPY", "XTSE": "XIU.TO"}.get(asset.market)
+            from news_price_query.market_state import benchmark_for_market_state
+            market_benchmark = benchmark_for_market_state(asset)
             needed = [asset.ticker, *benchmarks_for(asset), *selected, "2800.HK", "^HSI"]
             if market_state and market_benchmark:
                 needed.append(market_benchmark)

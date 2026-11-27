@@ -163,8 +163,26 @@ def create_server(service: QueryService, host="127.0.0.1", port=8765, access=Non
                     rows = service.news(params["asset"][0],
                                         params.get("start", [None])[0], params.get("end", [None])[0])
                     self._json(200, {"matches": rows,
+                                     "source": getattr(service.news_source, "source_info", None),
                                      "stale": bool(getattr(service.news_source, "stale", False))})
                 except (KeyError, IndexError, TypeError, ValueError, OSError, RuntimeError) as exc:
+                    self._error(exc)
+                return
+            if parsed.path == "/api/price":
+                try:
+                    params = parse_qs(parsed.query)
+                    symbol = params.get("symbol", [""])[0].strip()
+                    interval = params.get("interval", ["1d"])[0]
+                    on_date = params.get("date", [None])[0]
+                    market_state = params.get("market_state", ["0"])[0]
+                    if not symbol or len(symbol) > 120:
+                        raise ValueError("请输入有效标的代码或名称")
+                    if market_state not in ("0", "1"):
+                        raise ValueError("market_state 只支持 0 或 1")
+                    self._json(200, service.price(symbol, interval, on_date,
+                                                   market_state=market_state == "1",
+                                                   as_of=params.get("as_of", [None])[0]))
+                except (TypeError, ValueError, OSError, RuntimeError) as exc:
                     self._error(exc)
                 return
             if parsed.path == "/api/bars":
@@ -265,7 +283,7 @@ def build_service(args) -> QueryService:
     if args.news_csv:
         news_source = LocalNewsStore(args.news_csv)
     elif REPO_NEWS.exists():
-        news_source = LocalNewsStore(REPO_NEWS)
+        news_source = LocalNewsStore(REPO_NEWS, repository_snapshot=True)
     else:
         news_source = None  # public team feed on GitHub
     if args.provider == "futu":

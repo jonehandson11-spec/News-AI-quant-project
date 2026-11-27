@@ -13,6 +13,10 @@ _BENCHMARKS = {"XHKG": "2800.HK", "XNYS": "SPY", "XTSE": "XIU.TO"}
 _NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
+def benchmark_for_market_state(asset):
+    return None if asset.asset_type == "futures" else _BENCHMARKS.get(asset.market)
+
+
 def _field(value=None, reason=None, **details):
     if value is not None:
         try:
@@ -119,7 +123,7 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
     if as_of.tzinfo is None or as_of.utcoffset() is None:
         raise ValueError("as_of must include a timezone")
     calendar = calendar or calendar_for(asset.market)
-    benchmark = None if asset.asset_type == "futures" else _BENCHMARKS.get(asset.market)
+    benchmark = benchmark_for_market_state(asset)
     raw = asset.ticker.startswith("^") or asset.asset_type == "futures"
     output = {"profile_id": PROFILE_ID, "label_zh": LABEL_ZH,
               "cutoff_date": None, "price_basis": "raw" if raw else "adj",

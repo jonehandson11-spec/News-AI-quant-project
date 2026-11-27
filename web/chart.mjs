@@ -24,6 +24,10 @@ const state = {
   interval: "1h",
   range: "1w",
   newsTime: null,
+  anchorDate: null,
+  symbol: null,
+  selection: null,
+  request: 0,
   chart: null,
   candle: null,
   volume: null,
@@ -77,6 +81,7 @@ function tickLabel(time, tickMarkType) {
 function centerTime() {
   const published = byId("publishedAt")?.value;
   if (state.newsTime) return new Date(state.newsTime);
+  if (state.anchorDate) return new Date(`${state.anchorDate}T12:00:00`);
   if (published) return new Date(`${published}:00+08:00`);
   return new Date();
 }
@@ -366,13 +371,24 @@ async function fetchBars(symbol, interval, start, end) {
   return body;
 }
 
-export async function loadChart({ symbol, newsTime, range } = {}) {
-  const ticker = symbol || selectedAssetValue();
+export async function loadChart({ symbol, newsTime, anchorDate, interval, range } = {}) {
+  if (symbol) {
+    state.symbol = symbol;
+    state.selection = selectedAssetValue();
+  }
+  const ticker = state.symbol || selectedAssetValue();
   if (!ticker) {
     message("请先选择标的。");
     return;
   }
-  if (newsTime) state.newsTime = newsTime;
+  if (newsTime !== undefined) {
+    state.newsTime = newsTime;
+    state.anchorDate = anchorDate || null;
+  }
+  if (["1h", "1d"].includes(interval)) {
+    state.interval = interval;
+    setPressed("chartIntervals", "data-interval", interval);
+  }
   if (range && RANGE_DAYS[range] != null) {
     state.range = range;
     applyPreset(range);
@@ -386,34 +402,42 @@ export async function loadChart({ symbol, newsTime, range } = {}) {
     message("请选择开始和结束日期。");
     return;
   }
-  const interval = selectedInterval();
+  const resolution = selectedInterval();
+  const request = ++state.request;
   message("正在读取K线…");
   const note = byId("chartNewsNote");
   if (note) { note.hidden = true; note.textContent = ""; }
+  if (state.chart) {
+    clearNewsGuides();
+    state.packed.clear();
+    state.candle.setData([]);
+    state.volume.setData([]);
+    byId("chartTooltip").hidden = true;
+  }
   try {
-    const payload = await fetchBars(ticker, interval, start, end);
+    const payload = await fetchBars(ticker, resolution, start, end);
+    if (request !== state.request) return;
     byId("chartMessage").dataset.label = payload.time_label || "";
     ensureChart();
-    clearNewsGuides();
-    const packed = packBars(payload.bars, interval);
+    const packed = packBars(payload.bars, resolution);
     state.candle.applyOptions({ priceFormat: priceFormat(payload.bars.length ? payload.bars : [{ open: 1, high: 1, low: 1, close: 1 }]) });
     state.candle.setData(packed.map((bar) => ({
-      time: chartTimeOf(bar, interval),
+      time: chartTimeOf(bar, resolution),
       open: bar.open,
       high: bar.high,
       low: bar.low,
       close: bar.close,
     })));
     state.volume.setData(packed.map((bar) => ({
-      time: chartTimeOf(bar, interval),
+      time: chartTimeOf(bar, resolution),
       value: bar.volume ?? 0,
       color: volumeColor(bar),
     })));
     const newsIso = state.newsTime;
     let newsBar = null;
     if (newsIso && packed.length) {
-      newsBar = barForNews(packed, newsIso, interval);
-      if (newsBar) attachNewsGuides(newsBar, interval, newsIso, payload.time_label);
+      newsBar = barForNews(packed, newsIso, resolution);
+      if (newsBar) attachNewsGuides(newsBar, resolution, newsIso, payload.time_label);
     }
     state.chart.timeScale().fitContent();
     if (payload.missing) {
@@ -421,13 +445,14 @@ export async function loadChart({ symbol, newsTime, range } = {}) {
       return;
     }
     const bits = [
-      `${payload.symbol} · ${interval === "1h" ? "1小时" : "日线"}`,
+      `${payload.symbol} · ${resolution === "1h" ? "1小时" : "日线"}`,
       `${payload.bar_count} 根K线`,
       payload.message,
     ].filter(Boolean);
     if (newsIso && !newsBar) bits.push("新闻时间落在当前区间的缺口中（非交易时段或缺数据），未画标记。");
     message(bits.join(" · "), true);
   } catch (error) {
+    if (request !== state.request) return;
     message(error.message || String(error));
   }
 }
@@ -455,7 +480,9 @@ export function initChart() {
     for (const button of byId("chartRanges").querySelectorAll("button")) {
       button.setAttribute("aria-pressed", "false");
     }
-    loadChart();
+    const current = selectedAssetValue();
+    if (current && current !== state.selection) loadChart({ symbol: current, newsTime: null });
+    else loadChart();
   });
   byId("publishedAt")?.addEventListener("input", () => {
     if (!state.newsTime && RANGE_DAYS[state.range] != null
