@@ -12,6 +12,10 @@ const MARKET_FIELDS = [
   ["benchmark_momentum_z", "M06 Benchmark Momentum"],
   ["data_coverage", "Price Sample Coverage"],
 ];
+const BASKET_FIELDS = [
+  ["benchmark_beta", "industry_benchmark_beta", "M05 Petroleum Basket Beta"],
+  ["benchmark_momentum_z", "industry_benchmark_momentum_z", "M06 Petroleum Basket Momentum"],
+];
 const QUALITY_FIELDS = [
   ["evidence_reliability", "q01_evidence_reliability", "Q01 Evidence Reliability", "ESTIMATOR_NOT_READY"],
   ["data_coverage", "q02_data_coverage", "Q02 Data Coverage", "REFERENCE_MISSING"],
@@ -75,6 +79,23 @@ function factorDetails(item) {
   return details;
 }
 
+function addBasketRows(table, basket) {
+  const components = (basket.components || []).map(({ ticker, name_en, weight }) => {
+    const name = englishText(name_en);
+    const label = name ? `${name} (${ticker})` : ticker;
+    return Number.isFinite(weight) ? `${SHOW_RATIO.format(weight)} ${label}` : label;
+  }).join(" + ");
+  for (const [key, code, label] of BASKET_FIELDS) {
+    const item = basket.fields?.[key] || {};
+    const details = factorDetails(item);
+    if (key === "benchmark_beta" && components) details.unshift(components);
+    if (key === "benchmark_momentum_z" && Number.isFinite(item.current_return)) {
+      details.push(`21-session return ${SHOW_RATIO.format(item.current_return)}`);
+    }
+    addFactorRow(table, label, code, item.value == null ? "—" : Number(item.value).toFixed(4), details);
+  }
+}
+
 function renderMarketState(block) {
   const failed = Boolean(block.error);
   byId("quoteMarketStateSection").hidden = false;
@@ -93,7 +114,15 @@ function renderMarketState(block) {
     const item = block.fields?.[code] || {};
     let value = "—";
     if (item.value != null) value = code === "data_coverage" ? SHOW_RATIO.format(item.value) : Number(item.value).toFixed(4);
-    addFactorRow(market, label, code, value, factorDetails(item));
+    const rowLabel = block.benchmark === "CL=F" ? label.replace("Benchmark", "WTI") : label;
+    const details = factorDetails(item);
+    if (code === "benchmark_momentum_z" && block.benchmark === "CL=F" && Number.isFinite(item.current_return)) {
+      details.push(`21-session return ${SHOW_RATIO.format(item.current_return)}`);
+    }
+    addFactorRow(market, rowLabel, code, value, details);
+    if (code === "benchmark_momentum_z" && block.industry_benchmark) {
+      addBasketRows(market, block.industry_benchmark);
+    }
   }
   const quality = byId("quoteQualityRows");
   quality.replaceChildren();
@@ -118,8 +147,17 @@ function downloadQuoteFactors() {
     return [item.value, item.missing_reason];
   });
   const headers = ["symbol", "requested_date", "cutoff_at", ...marketStateCsvHeaders(), ...qualityHeaders];
-  const row = [quote.symbol, quote.requested_date, quote.cutoff_at, ...marketStateCsvCells(quote), ...qualityCells]
-    .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`);
+  const cells = [quote.symbol, quote.requested_date, quote.cutoff_at, ...marketStateCsvCells(quote), ...qualityCells];
+  const basket = block.industry_benchmark;
+  if (quote.symbol === "BZ=F" && basket) {
+    headers.push("industry_benchmark_name", "industry_benchmark_profile_id", "industry_benchmark_components");
+    cells.push(basket.name_en, basket.profile_id, JSON.stringify(basket.components || []));
+    for (const [key, code] of BASKET_FIELDS) {
+      headers.push(code, `${code}_missing_reason`);
+      cells.push(basket.fields?.[key]?.value, basket.fields?.[key]?.missing_reason);
+    }
+  }
+  const row = cells.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`);
   const csv = `\uFEFF${headers.join(",")}\r\n${row.join(",")}\r\n`;
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const anchor = document.createElement("a");

@@ -76,6 +76,51 @@ class MarketStateTests(unittest.TestCase):
         self.assertEqual(fields["benchmark_beta"]["missing_reason"], "NOT_OBSERVED")
         self.assertEqual(fields["benchmark_momentum_z"]["missing_reason"], "NOT_OBSERVED")
 
+    def test_petroleum_basket_compounds_only_rbob_and_ulsd_daily_returns(self):
+        calendar = calendar_for("NYMEX")
+        cutoff = date(2026, 10, 29)
+        dates = [calendar.shift_trading_days(cutoff, i) for i in range(-273, 2)]
+        brent, wti, rbob, ulsd, basket = [80.0], [72.0], [1.0], [6.0], [1.0]
+        for i in range(273):
+            gas_return = (0.025, -0.013, 0.007, -0.004)[i % 4]
+            diesel_return = (-0.01, 0.019, 0.003, -0.016, 0.005)[i % 5]
+            sector_return = (gas_return + diesel_return) / 2
+            rbob.append(rbob[-1] * (1 + gas_return))
+            ulsd.append(ulsd[-1] * (1 + diesel_return))
+            basket.append(basket[-1] * (1 + sector_return))
+            brent.append(brent[-1] * (1 + 1.4 * sector_return))
+            wti.append(wti[-1] * (1 + (0.01, -0.02, 0.005)[i % 3]))
+        for ticker, closes in (("BZ=F", brent), ("CL=F", wti), ("RB=F", rbob), ("HO=F", ulsd)):
+            self.add_prices(ticker, [*closes, 10_000.0], dates=dates, market="NYMEX",
+                            adjusted=[1.0] * len(dates))
+        event = datetime(2026, 10, 29, 23, 59, tzinfo=NY)
+        target = resolve_asset("BZ=F")
+        result = market_state(self.store, target, event, as_of=event + timedelta(days=1))
+        industry = result["industry_benchmark"]
+        self.assertEqual(result["benchmark"], "CL=F")
+        self.assertEqual([(c["ticker"], c["weight"]) for c in industry["components"]],
+                         [("RB=F", 0.5), ("HO=F", 0.5)])
+        field = industry["fields"]
+        self.assertEqual(field["benchmark_beta"]["n_pairs"], 63)
+        self.assertAlmostEqual(field["benchmark_beta"]["value"], 1.4, places=12)
+        windows = [basket[i] / basket[i - 21] - 1 for i in range(21, 274)]
+        momentum = field["benchmark_momentum_z"]
+        self.assertAlmostEqual(momentum["current_return"], windows[-1])
+        self.assertAlmostEqual(momentum["value"], (windows[-1] - mean(windows[:-1])) / stdev(windows[:-1]))
+        self.assertEqual(momentum["window_end"], "2026-10-29")
+
+        self.add_prices("CL=F", [15.0], dates=[cutoff], market="NYMEX")
+        changed = market_state(self.store, target, event, as_of=event)
+        self.assertEqual(changed["industry_benchmark"], industry)
+        self.assertNotEqual(changed["fields"]["benchmark_beta"], result["fields"]["benchmark_beta"])
+
+        self.add_prices("HO=F", [0.0], dates=[dates[-10]], market="NYMEX")
+        fields = market_state(self.store, target, event, as_of=event)["industry_benchmark"]["fields"]
+        for key in ("benchmark_beta", "benchmark_momentum_z"):
+            self.assertEqual(fields[key]["missing_reason"], "INSUFFICIENT_HISTORY")
+            self.assertIsNone(fields[key]["value"])
+        self.assertNotIn("industry_benchmark", market_state(self.store, resolve_asset("RB=F"), event, as_of=event))
+
     def test_known_sequence_metrics_and_exact_beta(self):
         # The final 64 benchmark returns alternate, and asset returns are exactly 2x.
         bench = [100.0]

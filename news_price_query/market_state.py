@@ -9,9 +9,12 @@ from .market_calendars import calendar_for
 
 PROFILE_ID = "pq-market-state-daily-v1"
 BRENT_WTI_PROFILE_ID = "pq-market-state-daily-brent-wti-v1"
+PETROLEUM_BASKET_PROFILE_ID = "pq-market-state-daily-petroleum-basket-v1"
 LABEL_ZH = "发布前行情描述，非 GVS 校准因子"
 _BENCHMARKS = {"XHKG": "2800.HK", "XNYS": "SPY", "XTSE": "XIU.TO"}
 _FUTURES_BENCHMARKS = {"BZ=F": "CL=F"}
+_PETROLEUM_COMPONENTS = (("RB=F", "RBOB Gasoline", 0.5), ("HO=F", "NY Harbor ULSD", 0.5))
+_PETROLEUM_NAME = "Petroleum Basket"
 _NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
@@ -19,6 +22,13 @@ def benchmark_for_market_state(asset):
     if asset.asset_type == "futures":
         return _FUTURES_BENCHMARKS.get(asset.ticker)
     return _BENCHMARKS.get(asset.market)
+
+
+def reference_tickers_for_market_state(asset):
+    benchmark = benchmark_for_market_state(asset)
+    if (asset.ticker, benchmark) == ("BZ=F", "CL=F"):
+        return (benchmark, *(ticker for ticker, _, _ in _PETROLEUM_COMPONENTS))
+    return (benchmark,) if benchmark else ()
 
 
 def _field(value=None, reason=None, **details):
@@ -81,6 +91,56 @@ def _consecutive_closes(prices, cutoff, calendar, limit):
             closes.append((day, by_date[day]))
         cutoff -= timedelta(days=1)
     return closes[::-1]
+
+
+def _benchmark_beta(own, other, benchmark, *, redundant=False):
+    by_date = dict(other)
+    common = [(day, price, by_date[day]) for day, price in own if day in by_date][-64:]
+    details = {"benchmark": benchmark, "n_pairs": max(0, len(common) - 1)}
+    if redundant:
+        details["redundant"] = True
+    if len(common) < 64:
+        return _missing("INSUFFICIENT_HISTORY", **details,
+                        first_pair_date=common[0][0] if common else None,
+                        last_pair_date=common[-1][0] if common else None)
+    xs = [later[2] / earlier[2] - 1 for earlier, later in zip(common, common[1:])]
+    ys = [later[1] / earlier[1] - 1 for earlier, later in zip(common, common[1:])]
+    details.update(first_pair_date=common[1][0], last_pair_date=common[-1][0], covariance_ddof=1)
+    if any(not isfinite(value) for value in (*xs, *ys)):
+        return _missing("REFERENCE_MISSING", **details)
+    variance = stdev(xs) ** 2
+    if variance == 0:
+        return _missing("REFERENCE_MISSING", **details)
+    mean_x, mean_y = mean(xs), mean(ys)
+    covariance = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / (len(xs) - 1)
+    return _field(covariance / variance, **details)
+
+
+def _petroleum_levels(series, cutoff, calendar):
+    """Compound equal-weight, rebalanced daily returns over shared complete sessions."""
+    constituents = [_consecutive_closes(series(ticker, True), cutoff, calendar, 274)
+                    for ticker, _, _ in _PETROLEUM_COMPONENTS]
+    length = min(map(len, constituents))
+    if not length:
+        return []
+    aligned = [closes[-length:] for closes in constituents]
+    levels = [(aligned[0][0][0], 1.0)]
+    for i in range(1, length):
+        day = aligned[0][i][0]
+        gross_return = sum(weight * (closes[i][1] / closes[i - 1][1])
+                           for (_, _, weight), closes in zip(_PETROLEUM_COMPONENTS, aligned))
+        level = levels[-1][1] * gross_return
+        if not isfinite(level) or level <= 0:
+            levels = [(day, 1.0)]
+        else:
+            levels.append((day, level))
+    return levels
+
+
+def _empty_petroleum_fields(reason):
+    return {"benchmark_beta": _missing(reason, benchmark=_PETROLEUM_NAME),
+            "benchmark_momentum_z": _missing(reason, benchmark=_PETROLEUM_NAME,
+                                            window_days=21, reference_days=252)}
 
 
 def _momentum(prices, *, cutoff, benchmark=None, redundant=False):
@@ -156,6 +216,13 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
               "fields": _blank_fields("OUT_OF_COVERAGE")}
     if brent_wti:
         output["benchmark_name_en"] = "WTI Crude Oil"
+        output["industry_benchmark"] = {
+            "name_en": _PETROLEUM_NAME,
+            "profile_id": PETROLEUM_BASKET_PROFILE_ID,
+            "components": [{"ticker": ticker, "name_en": name, "weight": weight}
+                           for ticker, name, weight in _PETROLEUM_COMPONENTS],
+            "fields": _empty_petroleum_fields("OUT_OF_COVERAGE"),
+        }
     deadline = min(published_at, as_of).astimezone(calendar.tz)
     cursor = deadline.date()
     if cursor > calendar.last:
@@ -170,6 +237,8 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
     except (ValueError, RuntimeError):
         return output
     output["cutoff_date"] = cutoff.isoformat()
+    if brent_wti:
+        output["industry_benchmark"]["fields"] = _empty_petroleum_fields("NOT_OBSERVED")
     own_rows = store.rows(asset.ticker, end=cutoff.isoformat())
     if not own_rows:
         fields = _blank_fields("NOT_OBSERVED")
@@ -250,29 +319,18 @@ def market_state(store, asset, published_at: datetime, *, as_of: datetime, calen
             # returns require both ends of an actual adjacent-session pair.
             own_beta = _consecutive_closes(own, cutoff, calendar, 64)
             other = _consecutive_closes(other, cutoff, calendar, 274)
-        by_date = {d: p for d, p in other}
-        common = [(d, p, by_date[d]) for d, p in own_beta if d in by_date]
+            petroleum = _petroleum_levels(series, cutoff, calendar)
+            if own_beta and petroleum:
+                output["industry_benchmark"]["fields"] = {
+                    "benchmark_beta": _benchmark_beta(own_beta, petroleum, _PETROLEUM_NAME),
+                    "benchmark_momentum_z": _momentum(petroleum, cutoff=cutoff.isoformat(),
+                                                      benchmark=_PETROLEUM_NAME),
+                }
         redundant = asset.ticker == benchmark
         if brent_wti and not other:
             fields["benchmark_beta"] = _missing("NOT_OBSERVED", benchmark=benchmark)
-        elif len(common) < 64:
-            fields["benchmark_beta"] = _missing("INSUFFICIENT_HISTORY", benchmark=benchmark,
-                n_pairs=max(0, len(common)-1), first_pair_date=common[0][0] if common else None,
-                last_pair_date=common[-1][0] if common else None, **({"redundant": True} if redundant else {}))
         else:
-            pairs = common[-64:]
-            xs = [pairs[i][2] / pairs[i-1][2] - 1 for i in range(1, 64)]
-            ys = [pairs[i][1] / pairs[i-1][1] - 1 for i in range(1, 64)]
-            details = {"benchmark": benchmark, "n_pairs": len(xs),
-                       "first_pair_date": pairs[1][0], "last_pair_date": pairs[-1][0],
-                       "covariance_ddof": 1, **({"redundant": True} if redundant else {})}
-            if any(not isfinite(value) for value in (*xs, *ys)):
-                fields["benchmark_beta"] = _missing("REFERENCE_MISSING", **details)
-            else:
-                variance = stdev(xs) ** 2
-                fields["benchmark_beta"] = (_missing("REFERENCE_MISSING", **details) if variance == 0
-                    else _field(sum((x-mean(xs))*(y-mean(ys)) for x, y in zip(xs, ys)) / (len(xs)-1) / variance,
-                                    **details))
+            fields["benchmark_beta"] = _benchmark_beta(own_beta, other, benchmark, redundant=redundant)
         if len(other) < 1 or other[-1][0] != cutoff.isoformat():
             fields["benchmark_momentum_z"] = _missing("NOT_OBSERVED", benchmark=benchmark,
                 window_days=21, reference_days=252, **({"redundant": True, "note": "与 M01 同口径，冗余"} if redundant else {}))
